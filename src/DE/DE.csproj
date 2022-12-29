@@ -1,0 +1,8 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+	<PropertyGroup>
+		<RootNamespace>Delta</RootNamespace>
+		<AssemblyName>DeltaExpression</AssemblyName>
+	</PropertyGroup>
+
+</Project>

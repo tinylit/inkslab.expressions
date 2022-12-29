@@ -1,0 +1,10 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+	<PropertyGroup>
+		<RootNamespace>Delta.Middleware</RootNamespace>
+		<AssemblyName>DeltaExpression.Middleware</AssemblyName>
+	</PropertyGroup>
+	
+	<ItemGroup>
+	  <ProjectReference Include="..\DE\DE.csproj" />
+	</ItemGroup>
+</Project>
