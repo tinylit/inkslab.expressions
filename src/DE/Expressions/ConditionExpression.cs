@@ -55,7 +55,7 @@ namespace Delta.Expressions
             {
 
             }
-            else if (returnType.IsAssignableFrom(ifTrue.RuntimeType))
+            else if (EmitUtils.IsAssignableFromSignatureTypes(returnType, ifTrue.RuntimeType))
             {
                 this.ifTrue = new ConvertExpression(ifTrue, returnType);
             }
@@ -68,7 +68,7 @@ namespace Delta.Expressions
             {
 
             }
-            else if (returnType.IsAssignableFrom(ifTrue.RuntimeType))
+            else if (EmitUtils.IsAssignableFromSignatureTypes(returnType, ifTrue.RuntimeType))
             {
                 this.ifFalse = new ConvertExpression(ifFalse, returnType);
             }
@@ -101,7 +101,7 @@ namespace Delta.Expressions
                 return ifTrue.RuntimeType;
             }
 
-            if (ifTrue.RuntimeType.IsAssignableFrom(ifFalse.RuntimeType))
+            if (EmitUtils.IsAssignableFromSignatureTypes(ifTrue.RuntimeType, ifFalse.RuntimeType))
             {
                 return ifTrue.RuntimeType;
             }

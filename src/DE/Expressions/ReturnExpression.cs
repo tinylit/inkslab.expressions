@@ -47,7 +47,7 @@ namespace Delta.Expressions
                 Assign(variable, body)
                     .Load(ilg);
             }
-            else if (EmitUtils.EqualSignatureTypes(body.RuntimeType, variable.RuntimeType) || variable.RuntimeType.IsAssignableFrom(body.RuntimeType))
+            else if (EmitUtils.IsAssignableFromSignatureTypes(body.RuntimeType, variable.RuntimeType))
             {
                 Assign(variable, Convert(body, variable.RuntimeType))
                     .Load(ilg);

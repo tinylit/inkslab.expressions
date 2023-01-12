@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using System.Reflection.Emit;
+using System.Runtime.InteropServices;
 
 namespace Delta.Emitters
 {
@@ -45,7 +46,7 @@ namespace Delta.Emitters
 
                 if (!parameterInfos.Zip(arguments, (x, y) =>
                 {
-                    return x.ParameterType == y.RuntimeType || x.ParameterType.IsAssignableFrom(y.RuntimeType);
+                    return EmitUtils.IsAssignableFromSignatureTypes(x.ParameterType, y.RuntimeType);
 
                 }).All(x => x))
                 {
@@ -80,7 +81,32 @@ namespace Delta.Emitters
                 this.typeArguments = typeArguments;
             }
 
-            internal override ConstructorInfo Value => TypeBuilder.GetConstructor(constructorEmitter.typeBuilder.MakeGenericType(typeArguments), constructorEmitter.Value);
+            internal override ConstructorInfo Value
+            {
+                get
+                {
+                    var constructorBuilder = constructorEmitter.constructorBuilder ?? throw new NotImplementedException();
+
+                    var typeBuilder = constructorEmitter.typeBuilder;
+
+                    var declaringType = typeBuilder.DeclaringType;
+
+                    if (declaringType is null || !declaringType.IsGenericType)
+                    {
+                        return TypeBuilder.GetConstructor(typeBuilder.MakeGenericType(typeArguments), constructorBuilder);
+                    }
+
+                    var genericArguments = declaringType.GetGenericArguments();
+
+                    var typeGenericArguments = new Type[genericArguments.Length + typeArguments.Length];
+
+                    System.Array.Copy(genericArguments, typeGenericArguments, genericArguments.Length);
+
+                    System.Array.Copy(typeArguments, 0, typeGenericArguments, genericArguments.Length, typeArguments.Length);
+
+                    return TypeBuilder.GetConstructor(typeBuilder.MakeGenericType(typeGenericArguments), constructorBuilder);
+                }
+            }
 
             public override ParameterEmitter[] GetParameters() => constructorEmitter.GetParameters();
 
@@ -140,7 +166,25 @@ namespace Delta.Emitters
         /// <summary>
         /// 成员。
         /// </summary>
-        internal virtual ConstructorInfo Value => constructorBuilder ?? throw new NotImplementedException();
+        internal virtual ConstructorInfo Value
+        {
+            get
+            {
+                if (constructorBuilder is null)
+                {
+                    throw new NotImplementedException();
+                }
+
+                var declaringType = typeBuilder.DeclaringType;
+
+                if (declaringType is null || !declaringType.IsGenericType)
+                {
+                    return constructorBuilder;
+                }
+
+                return TypeBuilder.GetConstructor(typeBuilder.MakeGenericType(declaringType.GetGenericArguments()), constructorBuilder);
+            }
+        }
 
         private ParameterEmitter[] _parameters = EmptyParameters;
 

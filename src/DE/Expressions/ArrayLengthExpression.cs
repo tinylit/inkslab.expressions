@@ -20,7 +20,7 @@ namespace Delta.Expressions
         {
             this.array = array ?? throw new ArgumentNullException(nameof(array));
 
-            if (!array.RuntimeType.IsArray || !typeof(Array).IsAssignableFrom(array.RuntimeType) || array.RuntimeType.GetArrayRank() > 1)
+            if (!array.RuntimeType.IsArray || !EmitUtils.IsAssignableFromSignatureTypes(typeof(Array), array.RuntimeType) || array.RuntimeType.GetArrayRank() > 1)
             {
                 throw new ArgumentException("不是数组，或不是一维数组!", nameof(array));
             }

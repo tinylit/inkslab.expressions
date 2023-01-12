@@ -142,7 +142,7 @@ namespace Delta
                 throw new AstException("无返回值类型赋值不能用于赋值运算!");
             }
 
-            if (valueType == returnType || returnType.IsAssignableFrom(valueType))
+            if (EmitUtils.IsAssignableFromSignatureTypes(returnType, returnType))
             {
                 return;
             }
@@ -159,7 +159,7 @@ namespace Delta
                     returnType = returnType.GetElementType();
                 }
 
-                if (valueType == returnType || returnType.IsAssignableFrom(valueType))
+                if (EmitUtils.IsAssignableFromSignatureTypes(returnType, valueType))
                 {
                     return;
                 }
@@ -177,7 +177,7 @@ namespace Delta
                     returnType = Enum.GetUnderlyingType(returnType);
                 }
 
-                if (valueType == returnType || returnType.IsAssignableFrom(valueType))
+                if (EmitUtils.IsAssignableFromSignatureTypes(returnType, valueType))
                 {
                     return;
                 }

@@ -16,7 +16,7 @@ namespace Delta.Expressions
 
         private static bool IsValid(Expression[] expressions, Type elementType)
         {
-            return expressions.Length == 0 || elementType == typeof(object) || expressions.All(x => elementType.IsAssignableFrom(x.RuntimeType));
+            return expressions.Length == 0 || elementType == typeof(object) || expressions.All(x => EmitUtils.IsAssignableFromSignatureTypes(elementType, x.RuntimeType));
         }
 
         /// <summary>

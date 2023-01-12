@@ -72,7 +72,7 @@ namespace Delta.Expressions
             {
                 throw new AstException($"方法“{methodInfo.Name}”不是静态的，必须指定实例！");
             }
-            else if (!methodInfo.DeclaringType.IsAssignableFrom(instanceAst.RuntimeType))
+            else if (!EmitUtils.IsAssignableFromSignatureTypes(methodInfo.DeclaringType, instanceAst.RuntimeType))
             {
                 throw new AstException($"方法“{methodInfo.Name}”不属于实例(“{instanceAst.RuntimeType}”)！");
             }
@@ -134,7 +134,7 @@ namespace Delta.Expressions
                 throw new ArgumentException("参数不是“System.Object”数组!", nameof(arguments));
             }
 
-            if (methodAst.RuntimeType == typeof(MethodInfo) || typeof(MethodInfo).IsAssignableFrom(methodAst.RuntimeType))
+            if (methodAst.RuntimeType == typeof(MethodInfo) || EmitUtils.IsAssignableFromSignatureTypes(typeof(MethodInfo), methodAst.RuntimeType))
             {
                 this.instanceAst = instanceAst;
                 this.methodAst = methodAst is MethodEmitter ? Constant(methodAst, typeof(MethodInfo)) : methodAst;

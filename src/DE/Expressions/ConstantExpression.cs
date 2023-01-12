@@ -36,7 +36,7 @@ namespace Delta.Expressions
 
                 this.value = value;
             }
-            else if ((value is Type || value is AbstractTypeEmitter) ? type == typeof(Type) : value is MethodEmitter ? type == typeof(MethodInfo) : value.GetType() == type || type.IsAssignableFrom(value.GetType()))
+            else if ((value is Type || value is AbstractTypeEmitter) ? type == typeof(Type) : value is MethodEmitter ? type == typeof(MethodInfo) : EmitUtils.IsAssignableFromSignatureTypes(type, value.GetType()))
             {
                 this.value = value;
             }
@@ -63,7 +63,7 @@ namespace Delta.Expressions
         /// <returns></returns>
         public override string ToString()
         {
-            if(IsNull)
+            if (IsNull)
             {
                 return "null";
             }

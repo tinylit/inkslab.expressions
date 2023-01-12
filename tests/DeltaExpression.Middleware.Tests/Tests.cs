@@ -1,6 +1,7 @@
 using Delta.Middleware;
 using Microsoft.Extensions.DependencyInjection;
 using System;
+using System.Collections.Generic;
 using System.Threading.Tasks;
 using Xunit;
 
@@ -168,6 +169,48 @@ namespace DeltaExpression.Middleware.Tests
     }
 
     /// <summary>
+    /// 泛型。
+    /// </summary>
+    /// <typeparam name="T"></typeparam>
+    public class ServiceGenericMethodAndGenericType<T> where T : struct
+    {
+        /// <summary>
+        /// 测试。
+        /// </summary>
+        /// <returns>实例。</returns>
+        [ServiceTypeIntercept]
+        public virtual TResult Get<TResult>() where TResult : IEnumerable<T>, new() => new TResult();
+
+        /// <summary>
+        /// 测试。
+        /// </summary>
+        /// <returns>实例。</returns>
+        [ServiceTypeIntercept]
+        public virtual Task<TResult> GetAsync<TResult>() where TResult : IEnumerable<T>, new() => Task.FromResult(new TResult());
+    }
+
+    /// <summary>
+    /// 泛型。
+    /// </summary>
+    /// <typeparam name="T"></typeparam>
+    public class ServiceGenericType<T> where T : class, new()
+    {
+        /// <summary>
+        /// 测试。
+        /// </summary>
+        /// <returns>实例。</returns>
+        [ServiceTypeIntercept]
+        public virtual T Get() => new T();
+
+        /// <summary>
+        /// 测试。
+        /// </summary>
+        /// <returns>实例。</returns>
+        [ServiceTypeIntercept]
+        public virtual Task<T> GetAsync() => Task.FromResult(new T());
+    }
+
+    /// <summary>
     /// 测试。
     /// </summary>
     public class Tests
@@ -253,6 +296,55 @@ namespace DeltaExpression.Middleware.Tests
             Assert.True(i == 0);
 
             var serviceType = await instance.GetAsync<ServiceType>();
+
+            Assert.False(serviceType is null);
+        }
+
+        /// <summary>
+        /// 泛型服务。
+        /// </summary>
+        /// <returns></returns>
+        [Fact]
+        public async Task ProxyServiceGenericType()
+        {
+            var services = new ServiceCollection();
+
+            services.AddTransient(typeof(ServiceGenericType<>))
+                .UseMiddleware();
+
+            var provider = services.BuildServiceProvider();
+
+            var instance = provider.GetRequiredService<ServiceGenericType<HashSet<int>>>();
+
+            HashSet<int> ints = instance.Get();
+
+            Assert.False(ints is null);
+
+            var serviceType = await instance.GetAsync();
+
+            Assert.False(serviceType is null);
+        }
+        /// <summary>
+        /// 泛型且泛型方法服务。
+        /// </summary>
+        /// <returns></returns>
+        [Fact]
+        public async Task ProxyServiceGenericMethodAndGenericType()
+        {
+            var services = new ServiceCollection();
+
+            services.AddTransient(typeof(ServiceGenericMethodAndGenericType<>))
+                .UseMiddleware();
+
+            var provider = services.BuildServiceProvider();
+
+            var instance = provider.GetRequiredService<ServiceGenericMethodAndGenericType<int>>();
+
+            HashSet<int> ints = instance.Get<HashSet<int>>();
+
+            Assert.False(ints is null);
+
+            var serviceType = await instance.GetAsync<HashSet<int>>();
 
             Assert.False(serviceType is null);
         }

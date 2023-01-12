@@ -137,6 +137,50 @@ namespace Delta
             return true;
         }
 
+        /// <summary>
+        /// 签名类型赋值匹配（含泛型约束匹配）。
+        /// </summary>
+        /// <param name="t1">类型1。</param>
+        /// <param name="t2">类型2。</param>
+        /// <returns></returns>
+        public static bool IsAssignableFromSignatureTypes(Type t1, Type t2)
+        {
+            if (EqualSignatureTypes(t1, t2))
+            {
+                return true;
+            }
+
+            if (t1 is TypeBuilder)
+            {
+                return false;
+            }
+
+            if (t2 is TypeBuilder)
+            {
+                if (EqualSignatureTypes(t1, t2.BaseType))
+                {
+                    return true;
+                }
+
+                foreach (var interfaceType in t2.GetInterfaces())
+                {
+                    if (EqualSignatureTypes(t1, interfaceType))
+                    {
+                        return true;
+                    }
+                }
+
+                return false;
+            }
+
+            if (t1 is GenericTypeParameterBuilder || t2 is GenericTypeParameterBuilder)
+            {
+                return false;
+            }
+
+            return t1.IsAssignableFrom(t2);
+        }
+
         private static bool IsDelegate(Type t)
         {
             return t.IsSubclassOf(typeof(MulticastDelegate));

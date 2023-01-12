@@ -45,7 +45,7 @@ namespace Delta.Emitters
 
             if (!parameterInfos.Zip(parameters, (x, y) =>
             {
-                return x.ParameterType == y.RuntimeType || x.ParameterType.IsAssignableFrom(y.RuntimeType);
+                return EmitUtils.IsAssignableFromSignatureTypes(x.ParameterType, y.RuntimeType);
 
             }).All(x => x))
             {

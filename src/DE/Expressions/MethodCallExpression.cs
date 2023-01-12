@@ -57,7 +57,7 @@ namespace Delta.Expressions
             {
                 throw new AstException($"方法“{methodInfo.Name}”不是静态的，必须指定实例！");
             }
-            else if (!methodInfo.DeclaringType.IsAssignableFrom(instanceAst.RuntimeType))
+            else if (!EmitUtils.IsAssignableFromSignatureTypes(methodInfo.DeclaringType, instanceAst.RuntimeType))
             {
                 throw new AstException($"方法“{methodInfo.Name}”不属于实例(“{instanceAst.RuntimeType}”)！");
             }
@@ -72,19 +72,9 @@ namespace Delta.Expressions
                 throw new AstException("方法参数不匹配!");
             }
 
-            if (methodInfo is DynamicMethod dynamicMethod)
+            if (parameterInfos.Zip(arguments, (x, y) =>
             {
-                if (parameterInfos.Zip(arguments, (x, y) =>
-                 {
-                     return EmitUtils.EqualSignatureTypes(x.ParameterType, y.RuntimeType) || x.ParameterType.IsAssignableFrom(y.RuntimeType);
-                 }).All(x => x))
-                {
-                    return dynamicMethod.ReturnType;
-                }
-            }
-            else if (parameterInfos.Zip(arguments, (x, y) =>
-            {
-                return x.ParameterType == y.RuntimeType || x.ParameterType.IsAssignableFrom(y.RuntimeType);
+                return EmitUtils.IsAssignableFromSignatureTypes(x.ParameterType, y.RuntimeType);
 
             }).All(x => x))
             {

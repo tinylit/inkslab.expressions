@@ -26,14 +26,20 @@ namespace Delta.Middleware.Patterns
         private static readonly ConstructorInfo interceptContextTypeCtor = interceptContextType.GetConstructor(new Type[] { typeof(MethodInfo), typeof(object[]) });
         private static readonly ConstructorInfo implementInvocationCtor = implementInvocationType.GetConstructor(new Type[] { typeof(object), typeof(MethodInfo) });
 
-        private static readonly Type middlewareInterceptGenericType = typeof(MiddlewareIntercept<>);
-        private static readonly Type middlewareInterceptGenericAsyncType = typeof(MiddlewareInterceptAsync<>);
+        private static readonly Type middlewareInterceptGenericType;
+        private static readonly Type middlewareInterceptGenericAsyncType;
 
         private static readonly ConstructorInfo middlewareInterceptCtor;
         private static readonly ConstructorInfo middlewareInterceptAsyncCtor;
 
         private static readonly MethodInfo middlewareInterceptRunFn;
         private static readonly MethodInfo middlewareInterceptAsyncRunFn;
+
+        private static readonly ConstructorInfo middlewareInterceptGenericCtor;
+        private static readonly ConstructorInfo middlewareInterceptAsyncGenericCtor;
+
+        private static readonly MethodInfo middlewareInterceptGenericRunFn;
+        private static readonly MethodInfo middlewareInterceptAsyncGenericRunFn;
 
         static ProxyByServiceType()
         {
@@ -49,6 +55,15 @@ namespace Delta.Middleware.Patterns
 
             middlewareInterceptAsyncCtor = middlewareInterceptAsyncType.GetConstructor(interceptAttributeArrayArg);
             middlewareInterceptAsyncRunFn = middlewareInterceptAsyncType.GetMethod("RunAsync", interceptContextTypeArg);
+
+            middlewareInterceptGenericType = typeof(MiddlewareIntercept<>);
+            middlewareInterceptGenericAsyncType = typeof(MiddlewareInterceptAsync<>);
+
+            middlewareInterceptGenericCtor = middlewareInterceptGenericType.GetConstructor(interceptAttributeArrayArg);
+            middlewareInterceptGenericRunFn = middlewareInterceptGenericType.GetMethod("Run", interceptContextTypeArg);
+
+            middlewareInterceptAsyncGenericCtor = middlewareInterceptGenericAsyncType.GetConstructor(interceptAttributeArrayArg);
+            middlewareInterceptAsyncGenericRunFn = middlewareInterceptGenericAsyncType.GetMethod("RunAsync", interceptContextTypeArg);
         }
 
         public abstract ServiceDescriptor Ref();
@@ -393,7 +408,7 @@ label_continue:
             blockAst.Append(Assign(interceptVar, interceptAst))
                 .Append(Assign(contextVar, contextAst));
 
-            var returnType = overrideEmitter.ReturnType;
+            var returnType = methodInfo.ReturnType;
 
             if (returnType.IsValueType
                 ? (returnType.IsGenericType ? returnType.GetGenericTypeDefinition() == typeof(ValueTask<>) : returnType == typeof(ValueTask))
@@ -401,9 +416,9 @@ label_continue:
             {
                 if (returnType.IsGenericType)
                 {
-                    var middlewareInterceptType = middlewareInterceptGenericAsyncType.MakeGenericType(returnType.GetGenericArguments());
+                    var interceptRunFn = TypeCompiler.GetMethod(middlewareInterceptGenericAsyncType.MakeGenericType(returnType.GetGenericArguments()), middlewareInterceptAsyncGenericRunFn);
 
-                    blockAst.Append(Return(Call(interceptVar, middlewareInterceptType.GetMethod("RunAsync", new Type[] { interceptContextType }), contextVar)));
+                    blockAst.Append(Return(Call(interceptVar, interceptRunFn, contextVar)));
                 }
                 else
                 {
@@ -416,9 +431,9 @@ label_continue:
             }
             else
             {
-                var middlewareInterceptType = middlewareInterceptGenericType.MakeGenericType(returnType);
+                var interceptRunFn = TypeCompiler.GetMethod(middlewareInterceptGenericType.MakeGenericType(returnType), middlewareInterceptGenericRunFn);
 
-                blockAst.Append(Return(Call(interceptVar, middlewareInterceptType.GetMethod("Run", new Type[] { interceptContextType }), contextVar)));
+                blockAst.Append(Return(Call(interceptVar, interceptRunFn, contextVar)));
             }
 
             overrideEmitter.Append(blockAst);
@@ -428,22 +443,14 @@ label_continue:
 
         private static Expression MakeInvocation(ClassEmitter classEmitter, Expression instanceAst, MethodInfo methodInfo, ParameterEmitter[] parameterEmitters)
         {
-            var typeEmitter = classEmitter.DefineNestedType($"{classEmitter.Name}_{methodInfo.Name}", TypeAttributes.Public, typeof(object), new Type[] { invocationType });
-
-            MethodEmitter methodEmitter;
-
             if (methodInfo.IsGenericMethod)
             {
-                var typeArguments = typeEmitter.DefineGenericParameters(methodInfo.GetGenericArguments());
-
-                methodInfo = methodInfo.MakeGenericMethod(typeArguments);
-
-                methodEmitter = typeEmitter.DefineMethod(methodInfo.Name, MethodAttributes.Public | MethodAttributes.Virtual, MakeReturnType(methodInfo, typeArguments));
+                return MakeInvocationByGeneric(classEmitter, instanceAst, methodInfo, parameterEmitters);
             }
-            else
-            {
-                methodEmitter = typeEmitter.DefineMethod(methodInfo.Name, MethodAttributes.Public | MethodAttributes.Virtual, methodInfo.ReturnType);
-            }
+
+            var typeEmitter = classEmitter.DefineNestedType($"{classEmitter.Name}_{methodInfo.Name}", TypeAttributes.Public, typeof(object), new Type[] { invocationType });
+
+            MethodEmitter methodEmitter = typeEmitter.DefineMethod(methodInfo.Name, MethodAttributes.Public | MethodAttributes.Virtual, methodInfo.ReturnType);
 
             var invocationAst = typeEmitter.DefineField("invocation", methodInfo.DeclaringType, FieldAttributes.Private | FieldAttributes.InitOnly | FieldAttributes.NotSerialized);
 
@@ -471,7 +478,46 @@ label_continue:
 
             invokeEmitter.Append(Return(Invoke(This(typeEmitter), methodEmitter, invokeEmitter.GetParameters().Single())));
 
-            return New(constructorEmitter.MakeGenericConstructor(methodInfo.GetGenericArguments()), instanceAst);
+            return New(constructorEmitter, instanceAst);
+        }
+
+        private static Expression MakeInvocationByGeneric(ClassEmitter classEmitter, Expression instanceAst, MethodInfo methodInfo, ParameterEmitter[] parameterEmitters)
+        {
+            var typeEmitter = classEmitter.DefineNestedType($"{classEmitter.Name}_{methodInfo.Name}", TypeAttributes.Public, typeof(object), new Type[] { invocationType });
+
+            var genericArguments = methodInfo.GetGenericArguments();
+
+            var typeArguments = typeEmitter.DefineGenericParameters(genericArguments);
+
+            MethodEmitter methodEmitter = typeEmitter.DefineMethod(methodInfo.Name, MethodAttributes.Public | MethodAttributes.Virtual, TypeCompiler.GetReturnType(methodInfo, typeArguments, typeEmitter.GetGenericArguments()));
+
+            var invocationAst = typeEmitter.DefineField("invocation", methodInfo.DeclaringType, FieldAttributes.Private | FieldAttributes.InitOnly | FieldAttributes.NotSerialized);
+
+            var constructorEmitter = typeEmitter.DefineConstructor(MethodAttributes.Public);
+
+            constructorEmitter.Append(Assign(invocationAst, constructorEmitter.DefineParameter(methodInfo.DeclaringType, ParameterAttributes.None, "invocation")));
+
+            var parameters = System.Array.ConvertAll(parameterEmitters, x =>
+            {
+                return methodEmitter.DefineParameter(x.ParameterType, x.Attributes, x.ParameterName);
+            });
+
+            if (methodInfo.ReturnType == typeof(void))
+            {
+                methodEmitter.Append(DeclaringCall(invocationAst, methodInfo.MakeGenericMethod(typeArguments), parameters));
+            }
+            else
+            {
+                methodEmitter.Append(Return(DeclaringCall(invocationAst, methodInfo.MakeGenericMethod(typeArguments), parameters)));
+            }
+
+            var invocationInvoke = invocationInvokeFn;
+
+            var invokeEmitter = typeEmitter.DefineMethodOverride(ref invocationInvoke);
+
+            invokeEmitter.Append(Return(Invoke(This(typeEmitter), methodEmitter, invokeEmitter.GetParameters().Single())));
+
+            return New(constructorEmitter.MakeGenericConstructor(genericArguments), instanceAst);
         }
 
         private static Expression MakeIntercept(ClassEmitter classEmitter, Expression instanceAst, Expression methodAst, ParameterEmitter[] parameterEmitters, Expression interceptAttrEmitter, MethodInfo methodInfo)
@@ -488,9 +534,9 @@ label_continue:
             {
                 if (returnType.IsGenericType)
                 {
-                    var middlewareInterceptType = middlewareInterceptGenericAsyncType.MakeGenericType(returnType.GetGenericArguments());
+                    var interceptCtor = TypeCompiler.GetConstructor(middlewareInterceptGenericAsyncType.MakeGenericType(returnType.GetGenericArguments()), middlewareInterceptAsyncGenericCtor);
 
-                    return New(middlewareInterceptType.GetConstructor(new Type[] { invocationType, interceptAttributeArrayType }), invocationAst, interceptAttrEmitter);
+                    return New(interceptCtor, invocationAst, interceptAttrEmitter);
                 }
                 else
                 {
@@ -503,108 +549,10 @@ label_continue:
             }
             else
             {
-                var middlewareInterceptType = middlewareInterceptGenericType.MakeGenericType(returnType);
+                var interceptCtor = TypeCompiler.GetConstructor(middlewareInterceptGenericType.MakeGenericType(returnType), middlewareInterceptGenericCtor);
 
-                return New(middlewareInterceptType.GetConstructor(new Type[] { invocationType, interceptAttributeArrayType }), invocationAst, interceptAttrEmitter);
+                return New(interceptCtor, invocationAst, interceptAttrEmitter);
             }
-        }
-
-        /// <summary>
-        /// 编译返回值。
-        /// </summary>
-        /// <param name="methodInfo">方法。</param>
-        /// <param name="typeArguments">泛型参数。</param>
-        /// <returns>方法返回值类型。</returns>
-        private static Type MakeReturnType(MethodInfo methodInfo, Type[] typeArguments)
-        {
-            if (methodInfo is null)
-            {
-                throw new ArgumentNullException(nameof(methodInfo));
-            }
-
-            var returnType = methodInfo.ReturnType;
-
-            if (typeArguments is null || typeArguments.Length == 0)
-            {
-                return returnType;
-            }
-
-            return MakeType(returnType, methodInfo.GetGenericArguments(), typeArguments);
-        }
-
-        private static Type MakeType(Type returnType, Type[] genericArguments, Type[] typeArguments)
-        {
-            if (genericArguments.Length != typeArguments.Length)
-            {
-                throw new InvalidOperationException();
-            }
-
-            int indexOf = System.Array.IndexOf(genericArguments, returnType);
-
-            if (indexOf > -1)
-            {
-                return typeArguments[indexOf];
-            }
-
-            if (returnType.IsGenericType)
-            {
-                bool changeFlag = false;
-                var myTypeArguments = returnType.GetGenericArguments();
-                var makeTypeArguments = new Type[myTypeArguments.Length];
-
-                for (int i = 0; i < myTypeArguments.Length; i++)
-                {
-                    var typeArgument = myTypeArguments[i];
-                    var makeTypeArgument = MakeType(typeArgument, genericArguments, typeArguments);
-
-                    if (typeArgument != makeTypeArgument)
-                    {
-                        changeFlag = true;
-                    }
-
-                    makeTypeArguments[i] = makeTypeArgument;
-                }
-
-                if (changeFlag)
-                {
-                    if (!returnType.IsGenericTypeDefinition)
-                    {
-                        returnType = returnType.GetGenericTypeDefinition();
-                    }
-
-                    return returnType.MakeGenericType(makeTypeArguments);
-                }
-
-                return returnType;
-            }
-
-            if (returnType.IsArray)
-            {
-                var elementType = returnType.GetElementType();
-                var arrayElementType = MakeType(elementType, genericArguments, typeArguments);
-
-                if (elementType == arrayElementType)
-                {
-                    return returnType;
-                }
-
-                return arrayElementType.MakeArrayType(returnType.GetArrayRank());
-            }
-
-            if (returnType.IsByRef)
-            {
-                var elementType = returnType.GetElementType();
-                var refElementType = MakeType(elementType, genericArguments, typeArguments);
-
-                if (elementType == refElementType)
-                {
-                    return returnType;
-                }
-
-                return refElementType.MakeByRefType();
-            }
-
-            return returnType;
         }
     }
 }

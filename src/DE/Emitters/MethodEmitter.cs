@@ -85,6 +85,7 @@ namespace Delta.Emitters
 
                 sb.Append(" ")
                     .Append(RuntimeType.Name)
+                    .Append(" ")
                     .Append(Name)
                     .Append('(');
 
@@ -136,7 +137,25 @@ namespace Delta.Emitters
         /// <summary>
         /// 成员。
         /// </summary>
-        internal virtual MethodInfo Value => TypeBuilder.GetMethod(methodBuilder.DeclaringType, methodBuilder ?? throw new NotImplementedException());
+        internal virtual MethodInfo Value
+        {
+            get
+            {
+                if (methodBuilder is null)
+                {
+                    throw new NotImplementedException();
+                }
+
+                var declaringType = methodBuilder.DeclaringType;
+
+                if (declaringType.IsGenericType)
+                {
+                    return TypeBuilder.GetMethod(declaringType, methodBuilder);
+                }
+
+                return methodBuilder;
+            }
+        }
 
         /// <summary>
         /// 方法的名称。

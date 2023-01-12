@@ -30,7 +30,6 @@ namespace Delta
 
         public DynamicMethod(MethodInfo methodInfoOriginal, Type declaringType, Type returnType, Type[] declaringTypeParameters, bool hasDeclaringTypes) : this(methodInfoOriginal, methodInfoOriginal, declaringType, returnType, declaringTypeParameters, hasDeclaringTypes)
         {
-
         }
 
         public MethodInfo RuntimeMethod => methodInfoDeclaration;
@@ -115,7 +114,7 @@ namespace Delta
                 : methodInfoOriginal.GetGenericMethodDefinition()
                     .MakeGenericMethod(typeArguments);
 
-            var returnType = methodInfoDeclaration.ReturnType;
+            var returnType = TypeCompiler.GetReturnType(methodInfoDeclaration, typeArguments, declaringTypeParameters);
 
             return hasDeclaringTypes
                 ? new DynamicMethod(methodInfoOriginal, methodInfoDeclaration, declaringType, MakeGenericParameter(returnType, typeArguments, declaringTypeParameters), declaringTypeParameters, hasDeclaringTypes)
