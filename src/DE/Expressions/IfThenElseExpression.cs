@@ -20,7 +20,7 @@ namespace Delta.Expressions
         /// <param name="test">条件。</param>
         /// <param name="ifTrue">为真的代码块。</param>
         /// <param name="ifFalse">为假的代码块。</param>
-        internal IfThenElseExpression(Expression test, Expression ifTrue, Expression ifFalse) : base(typeof(void))
+        internal IfThenElseExpression(Expression test, Expression ifTrue, Expression ifFalse)
         {
             this.test = test ?? throw new ArgumentNullException(nameof(test));
 
@@ -67,6 +67,20 @@ namespace Delta.Expressions
             }
 
             ilg.MarkLabel(leave);
+        }
+
+        /// <inheritdoc/>
+        protected internal override void MarkLabel(Label label)
+        {
+            ifTrue.MarkLabel(label);
+            ifFalse.MarkLabel(label);
+        }
+
+        /// <inheritdoc/>
+        protected internal override void StoredLocal(VariableExpression variable)
+        {
+            ifTrue.StoredLocal(variable);
+            ifFalse.StoredLocal(variable);
         }
     }
 }

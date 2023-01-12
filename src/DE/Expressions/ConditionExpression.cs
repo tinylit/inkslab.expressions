@@ -91,7 +91,7 @@ namespace Delta.Expressions
                 throw new ArgumentNullException(nameof(ifFalse));
             }
 
-            if (ifTrue.RuntimeType == typeof(void) || ifFalse.RuntimeType == typeof(void))
+            if (ifTrue.IsVoid || ifFalse.IsVoid)
             {
                 return typeof(void);
             }
@@ -120,7 +120,7 @@ namespace Delta.Expressions
         /// <param name="ilg">指令。</param>
         public override void Load(ILGenerator ilg)
         {
-            if (RuntimeType == typeof(void))
+            if (IsVoid)
             {
                 EmitVoid(ilg);
             }

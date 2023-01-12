@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Reflection;
 using System.Reflection.Emit;
 
@@ -11,8 +12,33 @@ namespace Delta.Expressions
     public class BlockExpression : Expression
     {
         private readonly List<Expression> codes;
+        private class NopExpression : Expression
+        {
+            /// <summary>
+            /// 单例。
+            /// </summary>
+            public static NopExpression Instance = new NopExpression();
+
+            /// <summary>
+            /// 构造函数。
+            /// </summary>
+            private NopExpression() : base(typeof(void))
+            {
+            }
+
+            /// <summary>
+            /// 加载。
+            /// </summary>
+            /// <param name="ilg">指令。</param>
+            public override void Load(ILGenerator ilg) => ilg.Emit(OpCodes.Nop);
+        }
 
         private bool isReadOnly = false;
+
+        internal BlockExpression()
+        {
+            codes = new List<Expression>();
+        }
 
         /// <summary>
         /// 构造函数。
@@ -45,74 +71,72 @@ namespace Delta.Expressions
                 throw new AstException("当前代码块已作为其它代码块的一部分，不能进行修改!");
             }
 
-            if (code is GotoExpression)
+            bool checkFlag = true;
+
+            if (code is GotoExpression || code is ReturnExpression || code is BreakExpression || code is ContinueExpression)
             {
+                checkFlag = false;
+
                 if (IsEmpty)
                 {
-                    throw new AstException("栈顶部的无数据!");
+                    goto label_core;
                 }
 
                 int index = codes.Count - 1;
 
                 Expression lastCode = codes[index];
 
-                if (lastCode is GotoExpression || lastCode is ReturnExpression)
+                if (lastCode is GotoExpression || lastCode is ReturnExpression || lastCode is BreakExpression || lastCode is ContinueExpression)
                 {
                     return this;
                 }
-
-                if (lastCode.RuntimeType != typeof(void))
-                {
-                    codes.Add(Nop);
-                }
-            }
-            else if (code is ReturnExpression @return)
-            {
-                int index = codes.Count - 1;
-
-                Expression lastCode = codes[index];
-
-                if (lastCode is GotoExpression || lastCode is ReturnExpression)
-                {
-                    return this;
-                }
-
-                if (lastCode.RuntimeType == RuntimeType)
-                {
-                    goto label_core;
-                }
-
-                if (@return.IsReturnVoid)
-                {
-                    if (RuntimeType == typeof(void))
-                    {
-                        codes.Add(Nop);
-
-                        goto label_core;
-                    }
-                    else
-                    {
-                        throw new AstException($"需要一个类型可转换为“{RuntimeType}”的对象！");
-                    }
-                }
-
-                if (EmitUtils.EqualSignatureTypes(lastCode.RuntimeType, RuntimeType) || lastCode.RuntimeType.IsAssignableFrom(RuntimeType))
-                {
-                    codes[index] = Convert(lastCode, RuntimeType);
-
-                    goto label_core;
-                }
-
-                throw new AstException($"无法将类型“{lastCode.RuntimeType}”隐式转换为“{RuntimeType}”!");
             }
             else if (code is BlockExpression blockAst)
             {
+                checkFlag = false;
+
                 blockAst.isReadOnly = true;
             }
+
 label_core:
+
             codes.Add(code);
 
+            if (checkFlag && code.RuntimeType != typeof(void))
+            {
+                codes.Add(NopExpression.Instance);
+            }
+
             return this;
+        }
+
+        /// <summary>
+        /// 标记标签。
+        /// </summary>
+        /// <param name="label">标签。</param>
+        protected internal override void MarkLabel(Label label)
+        {
+            if (label is null)
+            {
+                throw new ArgumentNullException(nameof(label));
+            }
+
+            foreach (Expression node in codes)
+            {
+                node.MarkLabel(label);
+            }
+        }
+
+        /// <summary>
+        /// 将数据存储到变量中。
+        /// </summary>
+        /// <param name="variable">变量。</param>
+        protected internal override void StoredLocal(VariableExpression variable)
+        {
+            foreach (Expression node in codes)
+            {
+                node.StoredLocal(variable);
+            }
         }
 
         /// <summary>

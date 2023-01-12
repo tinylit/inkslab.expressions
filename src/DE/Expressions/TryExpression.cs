@@ -76,7 +76,7 @@ namespace Delta.Expressions
             private readonly Type exceptionType;
             private readonly VariableExpression variable;
 
-            public CatchExpression(Type returnType, Type exceptionType) : base(returnType)
+            public CatchExpression(Type exceptionType)
             {
                 if (exceptionType is null)
                 {
@@ -93,14 +93,14 @@ namespace Delta.Expressions
                 }
             }
 
-            public CatchExpression(Type returnType, VariableExpression variable) : base(returnType)
+            public CatchExpression(VariableExpression variable)
             {
                 if (variable is null)
                 {
                     throw new ArgumentNullException(nameof(variable));
                 }
 
-                this.exceptionType = variable.RuntimeType;
+                exceptionType = variable.RuntimeType;
 
                 if (exceptionType == typeof(Exception) || exceptionType.IsAssignableFrom(typeof(Exception)))
                 {
@@ -165,8 +165,7 @@ namespace Delta.Expressions
         /// <summary>
         /// 构造函数。
         /// </summary>
-        /// <param name="returnType">返回结果。</param>
-        internal TryExpression(Type returnType) : base(returnType)
+        internal TryExpression()
         {
             catchAsts = new List<CatchExpression>();
         }
@@ -174,9 +173,8 @@ namespace Delta.Expressions
         /// <summary>
         /// 构造函数。
         /// </summary>
-        /// <param name="returnType">返回结果。</param>
         /// <param name="finallyAst">一定会执行的代码。</param>
-        internal TryExpression(Type returnType, Expression finallyAst) : base(returnType)
+        internal TryExpression(Expression finallyAst)
         {
             this.finallyAst = finallyAst ?? throw new ArgumentNullException(nameof(finallyAst));
 
@@ -190,32 +188,18 @@ namespace Delta.Expressions
         public IErrorHandler Catch() => Catch(typeof(Exception));
 
         /// <summary>
-        /// 捕获“<paramref name="variable"/>.RuntimeType”异常，并将异常赋值给指定变量。
-        /// </summary>
-        /// <returns></returns>
-        public IErrorHandler Catch(VariableExpression variable) => Catch(RuntimeType, variable);
-
-        /// <summary>
-        /// 捕获指定类型异常。
-        /// </summary>
-        /// <param name="exceptionType">异常类型。</param>
-        /// <returns></returns>
-        public IErrorHandler Catch(Type exceptionType) => Catch(RuntimeType, exceptionType);
-
-        /// <summary>
         /// 捕获指定类型的异常。
         /// </summary>
-        /// <param name="returnType">返回类型。</param>
         /// <param name="exceptionType">异常类型。</param>
         /// <returns></returns>
-        public IErrorHandler Catch(Type returnType, Type exceptionType)
+        public IErrorHandler Catch(Type exceptionType)
         {
             if (exceptionType is null)
             {
                 throw new ArgumentNullException(nameof(exceptionType));
             }
 
-            var catchAst = new CatchExpression(returnType, exceptionType);
+            var catchAst = new CatchExpression(exceptionType);
 
             catchAsts.Add(catchAst);
 
@@ -225,21 +209,58 @@ namespace Delta.Expressions
         /// <summary>
         /// 捕获“<paramref name="variable"/>.RuntimeType”的异常，并将异常赋值给指定变量。
         /// </summary>
-        /// <param name="returnType">返回类型。</param>
         /// <param name="variable">变量。</param>
         /// <returns></returns>
-        public IErrorHandler Catch(Type returnType, VariableExpression variable)
+        public IErrorHandler Catch(VariableExpression variable)
         {
             if (variable is null)
             {
                 throw new ArgumentNullException(nameof(variable));
             }
 
-            var catchAst = new CatchExpression(returnType, variable);
+            var catchAst = new CatchExpression(variable);
 
             catchAsts.Add(catchAst);
 
             return catchAst;
+        }
+
+        /// <inheritdoc/>
+        protected internal override void MarkLabel(Label label)
+        {
+            if (label is null)
+            {
+                throw new ArgumentNullException(nameof(label));
+            }
+
+            if (label.Kind == LabelKind.Return)
+            {
+                foreach (var @catch in catchAsts)
+                {
+                    @catch.MarkLabel(label);
+                }
+
+                base.MarkLabel(label);
+
+                finallyAst?.MarkLabel(label);
+            }
+        }
+        /// <inheritdoc/>
+        protected internal override void StoredLocal(VariableExpression variable)
+        {
+            if (variable is null)
+            {
+                throw new ArgumentNullException(nameof(variable));
+            }
+
+            foreach (var @catch in catchAsts)
+            {
+                @catch.StoredLocal(variable);
+            }
+
+            base.StoredLocal(variable);
+
+            finallyAst?.StoredLocal(variable);
         }
 
         /// <summary>
@@ -273,7 +294,10 @@ namespace Delta.Expressions
 
                 finallyAst.Load(ilg);
 
-                ilg.Emit(OpCodes.Nop);
+                if (!finallyAst.IsVoid)
+                {
+                    ilg.Emit(OpCodes.Nop);
+                }
             }
 
             ilg.EndExceptionBlock();

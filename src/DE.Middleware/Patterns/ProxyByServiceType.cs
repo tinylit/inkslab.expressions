@@ -5,6 +5,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
+using System.Reflection.Emit;
 using System.Threading.Tasks;
 
 namespace Delta.Middleware.Patterns
@@ -15,61 +16,301 @@ namespace Delta.Middleware.Patterns
     {
         private static readonly Type interceptAttributeType = typeof(InterceptAttribute);
         private static readonly Type noninterceptAttributeType = typeof(NoninterceptAttribute);
+        private static readonly Type interceptAttributeArrayType = typeof(InterceptAttribute[]);
         private static readonly Type interceptContextType = typeof(InterceptContext);
-        private static readonly ConstructorInfo interceptContextTypeCtor = interceptContextType.GetConstructor(new Type[] { typeof(object), typeof(MethodInfo), typeof(object) });
+        private static readonly Type implementInvocationType = typeof(ImplementInvocation);
+        private static readonly Type invocationType = typeof(IInvocation);
 
-        private readonly ModuleEmitter moduleEmitter;
-        private readonly Type serviceType;
+        private static readonly MethodInfo invocationInvokeFn = invocationType.GetMethod(nameof(IInvocation.Invoke));
 
-        public ProxyByServiceType(ModuleEmitter moduleEmitter, Type serviceType)
+        private static readonly ConstructorInfo interceptContextTypeCtor = interceptContextType.GetConstructor(new Type[] { typeof(MethodInfo), typeof(object[]) });
+        private static readonly ConstructorInfo implementInvocationCtor = implementInvocationType.GetConstructor(new Type[] { typeof(object), typeof(MethodInfo) });
+
+        private static readonly Type middlewareInterceptGenericType = typeof(MiddlewareIntercept<>);
+        private static readonly Type middlewareInterceptGenericAsyncType = typeof(MiddlewareInterceptAsync<>);
+
+        private static readonly ConstructorInfo middlewareInterceptCtor;
+        private static readonly ConstructorInfo middlewareInterceptAsyncCtor;
+
+        private static readonly MethodInfo middlewareInterceptRunFn;
+        private static readonly MethodInfo middlewareInterceptAsyncRunFn;
+
+        static ProxyByServiceType()
         {
-            this.moduleEmitter = moduleEmitter;
-            this.serviceType = serviceType;
+            var interceptContextTypeArg = new Type[] { interceptContextType };
+            var interceptAttributeArrayArg = new Type[] { invocationType, interceptAttributeArrayType };
+
+            var middlewareInterceptType = typeof(MiddlewareIntercept);
+            var middlewareInterceptAsyncType = typeof(MiddlewareInterceptAsync);
+
+            middlewareInterceptCtor = middlewareInterceptType.GetConstructor(interceptAttributeArrayArg);
+            middlewareInterceptRunFn = middlewareInterceptType.GetMethod("Run", interceptContextTypeArg);
+
+
+            middlewareInterceptAsyncCtor = middlewareInterceptAsyncType.GetConstructor(interceptAttributeArrayArg);
+            middlewareInterceptAsyncRunFn = middlewareInterceptAsyncType.GetMethod("RunAsync", interceptContextTypeArg);
         }
 
-        public void Config(HashSet<ServiceDescriptor> services)
+        public abstract ServiceDescriptor Ref();
+
+        protected static bool Intercept(MethodInfo methodInfo)
         {
-            throw new NotImplementedException();
+            if (methodInfo is null)
+            {
+                throw new ArgumentNullException(nameof(methodInfo));
+            }
+
+            if (methodInfo.DeclaringType.IsInterface)
+            {
+                return true;
+            }
+
+            if (methodInfo.IsDefined(noninterceptAttributeType, true))
+            {
+                return false;
+            }
+
+            return methodInfo.IsDefined(interceptAttributeType, true);
         }
 
-        public ServiceDescriptor Ref()
+        public static bool Intercept(ServiceDescriptor descriptor)
         {
-            if (serviceType.IsSealed)
+            if (Intercept(descriptor.ServiceType))
             {
-                throw new NotSupportedException("无法代理密封类!");
+                return true;
             }
 
-            if (serviceType.IsInterface)
+            switch (descriptor.Lifetime)
             {
-                return ResolveIsInterface();
+                case ServiceLifetime.Singleton:
+                    return Intercept(descriptor.ImplementationInstance?.GetType());
+                case ServiceLifetime.Scoped:
+                case ServiceLifetime.Transient:
+                default:
+                    return Intercept(descriptor.ImplementationType);
             }
-            else if (serviceType.IsSealed)
+        }
+
+        private static bool Intercept(Type serviceType)
+        {
+            if (serviceType is null)
             {
-                throw new NotSupportedException($"代理“{serviceType.FullName}”类是密封类!");
+                return false;
             }
-            else if (serviceType.IsValueType)
+
+            if (serviceType.IsDefined(interceptAttributeType, true))
             {
-                throw new NotSupportedException($"代理“{serviceType.FullName}”类是值类型!");
+                return true;
+            }
+
+            foreach (var methodInfo in serviceType.GetMethods())
+            {
+                if (methodInfo.IsDefined(interceptAttributeType, true))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        public static IEnumerable<CustomAttributeData> GetCustomAttributeDatas(MethodInfo methodInfo, Type serviceType, Type implementationType)
+        {
+            if (methodInfo is null)
+            {
+                throw new ArgumentNullException(nameof(methodInfo));
+            }
+
+            if (implementationType is null)
+            {
+                throw new ArgumentNullException(nameof(implementationType));
+            }
+
+            if (methodInfo.DeclaringType == implementationType)
+            {
+                return GetCustomAttributeDatas(methodInfo, serviceType);
+            }
+
+            return GetCustomAttributeDatas(GetMethod(methodInfo, implementationType), serviceType);
+        }
+
+        private static MethodInfo GetMethod(MethodInfo referenceInfo, Type implementationType)
+        {
+            BindingFlags bindingFlags = BindingFlags.Instance;
+
+            if (referenceInfo.IsPublic)
+            {
+                bindingFlags |= BindingFlags.Public;
             }
             else
             {
-                return ResolveIsClass();
+                bindingFlags |= BindingFlags.NonPublic;
             }
+
+            var parameterInfos = referenceInfo.GetParameters();
+
+            foreach (var methodInfo in implementationType.GetMethods(bindingFlags))
+            {
+                if (methodInfo.Name != referenceInfo.Name)
+                {
+                    continue;
+                }
+
+                if (methodInfo.IsGenericMethod ^ referenceInfo.IsGenericMethod)
+                {
+                    continue;
+                }
+
+                var parameters = methodInfo.GetParameters();
+
+                if (parameters.Length != parameterInfos.Length)
+                {
+                    continue;
+                }
+
+                for (int i = 0; i < parameters.Length; i++)
+                {
+                    if (parameters[i].ParameterType == parameterInfos[i].ParameterType)
+                    {
+                        continue;
+                    }
+
+                    goto label_continue;
+                }
+
+                return methodInfo;
+label_continue:
+                continue;
+            }
+
+            throw new MissingMethodException(implementationType.Name, referenceInfo.Name);
         }
 
-        public static MethodEmitter DefineMethodOverride(Expression instanceAst, ClassEmitter classEmitter, MethodInfo methodInfo, IList<CustomAttributeData> attributeDatas)
+        private static IEnumerable<CustomAttributeData> GetCustomAttributeDatas(MethodInfo methodInfo, Type serviceType)
         {
-            var overrideEmitter = classEmitter.DefineMethodOverride(ref methodInfo);
+            var hashSet = new HashSet<MethodInfo> { methodInfo };
 
-            var paramterEmitters = overrideEmitter.GetParameters();
+            do
+            {
+                if (methodInfo.IsDefined(noninterceptAttributeType, false) || methodInfo.DeclaringType.IsDefined(noninterceptAttributeType, false))
+                {
+                    break;
+                }
 
-            var interceptAttributes = new List<CustomAttributeData>();
+                bool serviceFlag = methodInfo.DeclaringType == serviceType;
+
+                foreach (var customAttributeData in methodInfo.CustomAttributes.Concat(methodInfo.DeclaringType.CustomAttributes))
+                {
+                    if (serviceFlag || interceptAttributeType.IsAssignableFrom(customAttributeData.AttributeType))
+                    {
+                        yield return customAttributeData;
+                    }
+                }
+
+                methodInfo = methodInfo.GetBaseDefinition();
+
+            } while (hashSet.Add(methodInfo));
+        }
+
+        private static Type[] GetIndexParameterTypes(PropertyInfo propertyInfo)
+        {
+            var parameterInfos = propertyInfo.GetIndexParameters();
+
+            var parameterTypes = new Type[parameterInfos.Length];
+
+            for (int i = 0; i < parameterInfos.Length; i++)
+            {
+                parameterTypes[i] = parameterInfos[i].ParameterType;
+            }
+
+            return parameterTypes;
+        }
+
+        public static Type OverrideType(ClassEmitter classEmitter, Type serviceType, Type implementationType) => OverrideType(This(classEmitter), classEmitter, serviceType, implementationType);
+
+        public static Type OverrideType(Expression instanceAst, ClassEmitter classEmitter, Type serviceType, Type implementationType)
+        {
+            var propertyMethods = new HashSet<MethodInfo>();
+
+            foreach (var propertyInfo in serviceType.GetProperties(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance))
+            {
+                if (propertyInfo.DeclaringType == typeof(object))
+                {
+                    continue;
+                }
+
+                PropertyEmitter propertyEmitter = null;
+
+                if (propertyInfo.CanRead)
+                {
+                    var getter = propertyInfo.GetMethod ?? propertyInfo.GetGetMethod(true);
+
+                    propertyMethods.Add(getter);
+
+                    if (serviceType.IsAbstract || Intercept(getter))
+                    {
+                        propertyEmitter ??= classEmitter.DefineProperty(propertyInfo.Name, propertyInfo.Attributes, propertyInfo.PropertyType, GetIndexParameterTypes(propertyInfo));
+
+                        propertyEmitter.SetGetMethod(DefineMethodOverride(classEmitter, instanceAst, getter, GetCustomAttributeDatas(getter, serviceType, implementationType)));
+                    }
+                }
+
+                if (propertyInfo.CanWrite)
+                {
+                    var setter = propertyInfo.SetMethod ?? propertyInfo.GetSetMethod(true);
+
+                    propertyMethods.Add(setter);
+
+                    if (serviceType.IsAbstract || Intercept(setter))
+                    {
+                        propertyEmitter ??= classEmitter.DefineProperty(propertyInfo.Name, propertyInfo.Attributes, propertyInfo.PropertyType, GetIndexParameterTypes(propertyInfo));
+
+                        propertyEmitter.SetSetMethod(DefineMethodOverride(classEmitter, instanceAst, setter, GetCustomAttributeDatas(setter, serviceType, implementationType)));
+                    }
+                }
+            }
+
+            foreach (var methodInfo in serviceType.GetMethods(BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance))
+            {
+                if (propertyMethods.Contains(methodInfo))
+                {
+                    continue;
+                }
+
+                if (methodInfo.DeclaringType == typeof(object))
+                {
+                    continue;
+                }
+
+                if (serviceType.IsAbstract || Intercept(methodInfo))
+                {
+                    DefineMethodOverride(classEmitter, instanceAst, methodInfo, GetCustomAttributeDatas(methodInfo, serviceType, implementationType));
+                }
+            }
+
+            propertyMethods.Clear();
+
+            return classEmitter.CreateType();
+        }
+
+        private static List<Expression> MethodOverrideInterceptAttributes(MethodEmitter overrideEmitter, IEnumerable<CustomAttributeData> attributeDatas)
+        {
+            var interceptAttributes = new List<Expression>();
 
             foreach (var attributeData in attributeDatas)
             {
                 if (interceptAttributeType.IsAssignableFrom(attributeData.AttributeType))
                 {
-                    interceptAttributes.Add(attributeData);
+                    var attrArguments = new Expression[attributeData.ConstructorArguments.Count];
+
+                    for (int i = 0, len = attributeData.ConstructorArguments.Count; i < len; i++)
+                    {
+                        var typedArgument = attributeData.ConstructorArguments[i];
+
+                        attrArguments[i] = Constant(typedArgument.Value, typedArgument.ArgumentType);
+                    }
+
+                    interceptAttributes.Add(New(attributeData.Constructor, attrArguments));
                 }
                 else
                 {
@@ -77,72 +318,107 @@ namespace Delta.Middleware.Patterns
                 }
             }
 
-            Expression[] arguments = null;
+            return interceptAttributes;
+        }
 
-            var variable = Variable(typeof(object[]));
+        private static MethodEmitter DefineMethodOverride(ClassEmitter classEmitter, Expression instanceAst, MethodInfo methodInfo, IEnumerable<CustomAttributeData> attributeDatas)
+        {
+            var overrideEmitter = classEmitter.DefineMethodOverride(ref methodInfo);
 
-            overrideEmitter.Append(Assign(variable, Array(paramterEmitters)));
+            var parameterEmitters = overrideEmitter.GetParameters();
+
+            var interceptAttributes = MethodOverrideInterceptAttributes(overrideEmitter, attributeDatas);
+
+            //? 方法拦截属性。
+            var interceptAttrEmitter = classEmitter.DefineField($"____intercept_attr_{methodInfo.Name}", interceptAttributeArrayType, FieldAttributes.Private | FieldAttributes.Static | FieldAttributes.InitOnly);
+
+            classEmitter.TypeInitializer.Append(Assign(interceptAttrEmitter, Array(interceptAttributeType, interceptAttributes.ToArray())));
+
+            //? 方法主体。
+            Expression[] arguments;
+
+            Expression methodAst;
+
+            var variableAst = Variable(typeof(object[]));
+
+            overrideEmitter.Append(Assign(variableAst, Array(parameterEmitters)));
 
             if (overrideEmitter.IsGenericMethod)
             {
-                arguments = new Expression[] { instanceAst, Constant(methodInfo), variable };
+                methodAst = Constant(methodInfo);
+
+                arguments = new Expression[] { methodAst, variableAst };
             }
             else
             {
-                var tokenEmitter = classEmitter.DefineField($"____token__{methodInfo.Name}", typeof(MethodInfo), FieldAttributes.Private | FieldAttributes.Static | FieldAttributes.InitOnly);
+                methodAst = classEmitter.DefineField($"____token__{methodInfo.Name}", typeof(MethodInfo), FieldAttributes.Private | FieldAttributes.Static | FieldAttributes.InitOnly);
 
-                classEmitter.TypeInitializer.Append(Assign(tokenEmitter, Constant(methodInfo)));
+                classEmitter.TypeInitializer.Append(Assign(methodAst, Constant(methodInfo)));
 
-                arguments = new Expression[] { instanceAst, tokenEmitter, variable };
+                arguments = new Expression[] { methodAst, variableAst };
             }
 
             BlockExpression blockAst;
 
-            if (paramterEmitters.Any(x => x.RuntimeType.IsByRef))
+            if (parameterEmitters.Any(x => x.RuntimeType.IsByRef))
             {
-                var finallyAst = Block(typeof(void));
+                var finallyAst = Block();
 
-                for (int i = 0; i < paramterEmitters.Length; i++)
+                for (int i = 0; i < parameterEmitters.Length; i++)
                 {
-                    var paramterEmitter = paramterEmitters[i];
+                    var paramterEmitter = parameterEmitters[i];
 
                     if (!paramterEmitter.IsByRef)
                     {
                         continue;
                     }
 
-                    finallyAst.Append(Assign(paramterEmitter, Convert(ArrayIndex(variable, i), paramterEmitter.ParameterType)));
+                    finallyAst.Append(Assign(paramterEmitter, Convert(ArrayIndex(variableAst, i), paramterEmitter.ParameterType)));
                 }
 
-                blockAst = Try(methodInfo.ReturnType, finallyAst);
+                blockAst = Try(finallyAst);
             }
             else
             {
-                blockAst = Block(methodInfo.ReturnType);
+                blockAst = Block();
             }
 
-            NewInstanceExpression contextAst = New(interceptContextTypeCtor, arguments);
+            Expression contextAst = New(interceptContextTypeCtor, arguments);
 
+            Expression interceptAst = MakeIntercept(classEmitter, instanceAst, methodAst, parameterEmitters, interceptAttrEmitter, methodInfo);
 
+            var contextVar = Variable(interceptContextType);
+            var interceptVar = Variable(interceptAst.RuntimeType);
 
-            if (overrideEmitter.ReturnType.IsClass && typeof(Task).IsAssignableFrom(overrideEmitter.ReturnType))
+            blockAst.Append(Assign(interceptVar, interceptAst))
+                .Append(Assign(contextVar, contextAst));
+
+            var returnType = overrideEmitter.ReturnType;
+
+            if (returnType.IsValueType
+                ? (returnType.IsGenericType ? returnType.GetGenericTypeDefinition() == typeof(ValueTask<>) : returnType == typeof(ValueTask))
+                : (returnType.IsGenericType ? returnType.GetGenericTypeDefinition() == typeof(Task<>) : returnType == typeof(Task)))
             {
-                if (overrideEmitter.ReturnType.IsGenericType)
+                if (returnType.IsGenericType)
                 {
-                    blockAst.Append(Call(InterceptAsyncGenericMethodCall.MakeGenericMethod(overrideEmitter.ReturnType.GetGenericArguments()), New(InterceptContextCtor, arguments)));
+                    var middlewareInterceptType = middlewareInterceptGenericAsyncType.MakeGenericType(returnType.GetGenericArguments());
+
+                    blockAst.Append(Return(Call(interceptVar, middlewareInterceptType.GetMethod("RunAsync", new Type[] { interceptContextType }), contextVar)));
                 }
                 else
                 {
-                    blockAst.Append(Call(InterceptAsyncMethodCall, New(InterceptContextCtor, arguments)));
+                    blockAst.Append(Return(Call(interceptVar, middlewareInterceptAsyncRunFn, contextVar)));
                 }
             }
-            else if (overrideEmitter.ReturnType == typeof(void))
+            else if (returnType == typeof(void))
             {
-                blockAst.Append(Call(InterceptMethodCall, New(InterceptContextCtor, arguments)));
+                blockAst.Append(Call(interceptVar, middlewareInterceptRunFn, contextVar));
             }
             else
             {
-                blockAst.Append(Call(InterceptGenericMethodCall.MakeGenericMethod(overrideEmitter.ReturnType), New(InterceptContextCtor, arguments)));
+                var middlewareInterceptType = middlewareInterceptGenericType.MakeGenericType(returnType);
+
+                blockAst.Append(Return(Call(interceptVar, middlewareInterceptType.GetMethod("Run", new Type[] { interceptContextType }), contextVar)));
             }
 
             overrideEmitter.Append(blockAst);
@@ -150,14 +426,185 @@ namespace Delta.Middleware.Patterns
             return overrideEmitter;
         }
 
-        private ServiceDescriptor ResolveIsInterface()
+        private static Expression MakeInvocation(ClassEmitter classEmitter, Expression instanceAst, MethodInfo methodInfo, ParameterEmitter[] parameterEmitters)
         {
-            throw new Exception();
+            var typeEmitter = classEmitter.DefineNestedType($"{classEmitter.Name}_{methodInfo.Name}", TypeAttributes.Public, typeof(object), new Type[] { invocationType });
+
+            MethodEmitter methodEmitter;
+
+            if (methodInfo.IsGenericMethod)
+            {
+                var typeArguments = typeEmitter.DefineGenericParameters(methodInfo.GetGenericArguments());
+
+                methodInfo = methodInfo.MakeGenericMethod(typeArguments);
+
+                methodEmitter = typeEmitter.DefineMethod(methodInfo.Name, MethodAttributes.Public | MethodAttributes.Virtual, MakeReturnType(methodInfo, typeArguments));
+            }
+            else
+            {
+                methodEmitter = typeEmitter.DefineMethod(methodInfo.Name, MethodAttributes.Public | MethodAttributes.Virtual, methodInfo.ReturnType);
+            }
+
+            var invocationAst = typeEmitter.DefineField("invocation", methodInfo.DeclaringType, FieldAttributes.Private | FieldAttributes.InitOnly | FieldAttributes.NotSerialized);
+
+            var constructorEmitter = typeEmitter.DefineConstructor(MethodAttributes.Public);
+
+            constructorEmitter.Append(Assign(invocationAst, constructorEmitter.DefineParameter(methodInfo.DeclaringType, ParameterAttributes.None, "invocation")));
+
+            var parameters = System.Array.ConvertAll(parameterEmitters, x =>
+            {
+                return methodEmitter.DefineParameter(x.ParameterType, x.Attributes, x.ParameterName);
+            });
+
+            if (methodInfo.ReturnType == typeof(void))
+            {
+                methodEmitter.Append(DeclaringCall(invocationAst, methodInfo, parameters));
+            }
+            else
+            {
+                methodEmitter.Append(Return(DeclaringCall(invocationAst, methodInfo, parameters)));
+            }
+
+            var invocationInvoke = invocationInvokeFn;
+
+            var invokeEmitter = typeEmitter.DefineMethodOverride(ref invocationInvoke);
+
+            invokeEmitter.Append(Return(Invoke(This(typeEmitter), methodEmitter, invokeEmitter.GetParameters().Single())));
+
+            return New(constructorEmitter.MakeGenericConstructor(methodInfo.GetGenericArguments()), instanceAst);
         }
 
-        private ServiceDescriptor ResolveIsClass()
+        private static Expression MakeIntercept(ClassEmitter classEmitter, Expression instanceAst, Expression methodAst, ParameterEmitter[] parameterEmitters, Expression interceptAttrEmitter, MethodInfo methodInfo)
         {
-            throw new Exception();
+            Expression invocationAst = methodInfo.DeclaringType.IsInterface
+                    ? New(implementInvocationCtor, instanceAst, methodAst)
+                    : MakeInvocation(classEmitter, instanceAst, methodInfo, parameterEmitters);
+
+            var returnType = methodInfo.ReturnType;
+
+            if (returnType.IsValueType
+                ? (returnType.IsGenericType ? returnType.GetGenericTypeDefinition() == typeof(ValueTask<>) : returnType == typeof(ValueTask))
+                : (returnType.IsGenericType ? returnType.GetGenericTypeDefinition() == typeof(Task<>) : returnType == typeof(Task)))
+            {
+                if (returnType.IsGenericType)
+                {
+                    var middlewareInterceptType = middlewareInterceptGenericAsyncType.MakeGenericType(returnType.GetGenericArguments());
+
+                    return New(middlewareInterceptType.GetConstructor(new Type[] { invocationType, interceptAttributeArrayType }), invocationAst, interceptAttrEmitter);
+                }
+                else
+                {
+                    return New(middlewareInterceptAsyncCtor, invocationAst, interceptAttrEmitter);
+                }
+            }
+            else if (returnType == typeof(void))
+            {
+                return New(middlewareInterceptCtor, invocationAst, interceptAttrEmitter);
+            }
+            else
+            {
+                var middlewareInterceptType = middlewareInterceptGenericType.MakeGenericType(returnType);
+
+                return New(middlewareInterceptType.GetConstructor(new Type[] { invocationType, interceptAttributeArrayType }), invocationAst, interceptAttrEmitter);
+            }
+        }
+
+        /// <summary>
+        /// 编译返回值。
+        /// </summary>
+        /// <param name="methodInfo">方法。</param>
+        /// <param name="typeArguments">泛型参数。</param>
+        /// <returns>方法返回值类型。</returns>
+        private static Type MakeReturnType(MethodInfo methodInfo, Type[] typeArguments)
+        {
+            if (methodInfo is null)
+            {
+                throw new ArgumentNullException(nameof(methodInfo));
+            }
+
+            var returnType = methodInfo.ReturnType;
+
+            if (typeArguments is null || typeArguments.Length == 0)
+            {
+                return returnType;
+            }
+
+            return MakeType(returnType, methodInfo.GetGenericArguments(), typeArguments);
+        }
+
+        private static Type MakeType(Type returnType, Type[] genericArguments, Type[] typeArguments)
+        {
+            if (genericArguments.Length != typeArguments.Length)
+            {
+                throw new InvalidOperationException();
+            }
+
+            int indexOf = System.Array.IndexOf(genericArguments, returnType);
+
+            if (indexOf > -1)
+            {
+                return typeArguments[indexOf];
+            }
+
+            if (returnType.IsGenericType)
+            {
+                bool changeFlag = false;
+                var myTypeArguments = returnType.GetGenericArguments();
+                var makeTypeArguments = new Type[myTypeArguments.Length];
+
+                for (int i = 0; i < myTypeArguments.Length; i++)
+                {
+                    var typeArgument = myTypeArguments[i];
+                    var makeTypeArgument = MakeType(typeArgument, genericArguments, typeArguments);
+
+                    if (typeArgument != makeTypeArgument)
+                    {
+                        changeFlag = true;
+                    }
+
+                    makeTypeArguments[i] = makeTypeArgument;
+                }
+
+                if (changeFlag)
+                {
+                    if (!returnType.IsGenericTypeDefinition)
+                    {
+                        returnType = returnType.GetGenericTypeDefinition();
+                    }
+
+                    return returnType.MakeGenericType(makeTypeArguments);
+                }
+
+                return returnType;
+            }
+
+            if (returnType.IsArray)
+            {
+                var elementType = returnType.GetElementType();
+                var arrayElementType = MakeType(elementType, genericArguments, typeArguments);
+
+                if (elementType == arrayElementType)
+                {
+                    return returnType;
+                }
+
+                return arrayElementType.MakeArrayType(returnType.GetArrayRank());
+            }
+
+            if (returnType.IsByRef)
+            {
+                var elementType = returnType.GetElementType();
+                var refElementType = MakeType(elementType, genericArguments, typeArguments);
+
+                if (elementType == refElementType)
+                {
+                    return returnType;
+                }
+
+                return refElementType.MakeByRefType();
+            }
+
+            return returnType;
         }
     }
 }

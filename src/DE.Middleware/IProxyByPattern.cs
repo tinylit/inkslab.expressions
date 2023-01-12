@@ -10,12 +10,6 @@ namespace Delta.Middleware
     public interface IProxyByPattern
     {
         /// <summary>
-        /// 配置服务。
-        /// </summary>
-        /// <param name="services">服务集合。</param>
-        void Config(HashSet<ServiceDescriptor> services);
-
-        /// <summary>
         /// 刷新服务配置。
         /// </summary>
         /// <returns></returns>

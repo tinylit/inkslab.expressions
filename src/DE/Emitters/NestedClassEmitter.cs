@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Reflection;
 
-namespace Delta
+namespace Delta.Emitters
 {
     /// <summary>
     /// 匿名类。

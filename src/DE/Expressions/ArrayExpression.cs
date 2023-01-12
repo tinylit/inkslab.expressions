@@ -48,7 +48,6 @@ namespace Delta.Expressions
 
             this.expressions = expressions;
             this.elementType = elementType;
-
         }
 
         /// <summary>

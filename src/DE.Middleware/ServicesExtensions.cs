@@ -1,6 +1,5 @@
-﻿using Delta.Emitters;
+﻿using Delta.Middleware.Patterns;
 using Microsoft.Extensions.DependencyInjection;
-using System;
 
 namespace Delta.Middleware
 {
@@ -9,8 +8,11 @@ namespace Delta.Middleware
     /// </summary>
     public static class ServicesExtensions
     {
-        private static readonly ModuleEmitter moduleEmitter = new ModuleEmitter();
-        private static readonly Type interceptAttributeType = typeof(InterceptAttribute);
+#if NET461_OR_GREATER && DEBUG
+        private static readonly ModuleEmitter moduleEmitter = new ModuleEmitter(true, "Delta.Override.Middleware");
+#else
+        private static readonly ModuleEmitter moduleEmitter = new ModuleEmitter("Delta.Override.Middleware");
+#endif
 
         /// <summary>
         /// 使用拦截器。
@@ -24,7 +26,7 @@ namespace Delta.Middleware
             {
                 ServiceDescriptor descriptor = services[i];
 
-                if (!Intercept(descriptor.ServiceType) && !Intercept(descriptor.ImplementationType))
+                if (!ProxyByServiceType.Intercept(descriptor))
                 {
                     continue;
                 }
@@ -35,46 +37,26 @@ namespace Delta.Middleware
                 {
                     if (descriptor.ImplementationInstance is null)
                     {
-                        byPattern = new ProxyByInstance(moduleEmitter, descriptor.ServiceType, descriptor.ImplementationInstance);
+                        byPattern = new ProxyByFactory(moduleEmitter, descriptor.ServiceType, descriptor.ImplementationFactory, descriptor.Lifetime);
                     }
                     else
                     {
-                        byPattern = new ProxyByFactory(moduleEmitter, descriptor.ServiceType, descriptor.ImplementationFactory, descriptor.Lifetime);
+                        byPattern = new ProxyByInstance(moduleEmitter, descriptor.ServiceType, descriptor.ImplementationInstance);
                     }
                 }
                 else
                 {
                     byPattern = new ProxyByImplementationType(moduleEmitter, descriptor.ServiceType, descriptor.ImplementationType, descriptor.Lifetime);
-
                 }
 
                 services[i] = byPattern.Ref();
             }
 
+#if NET461_OR_GREATER && DEBUG
+            moduleEmitter.SaveAssembly();
+#endif
+
             return services;
-        }
-
-        private static bool Intercept(Type serviceType)
-        {
-            if (serviceType is null)
-            {
-                return false;
-            }
-
-            if (serviceType.IsDefined(interceptAttributeType, true))
-            {
-                return true;
-            }
-
-            foreach (var methodInfo in serviceType.GetMethods())
-            {
-                if (methodInfo.IsDefined(interceptAttributeType, true))
-                {
-                    return true;
-                }
-            }
-
-            return false;
         }
     }
 }

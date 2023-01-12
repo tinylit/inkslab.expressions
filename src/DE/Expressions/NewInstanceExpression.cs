@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Delta.Emitters;
+using System;
 using System.Diagnostics;
 using System.Linq;
 using System.Reflection;
@@ -43,11 +44,6 @@ namespace Delta.Expressions
             if (parameters?.Length != parameterInfos.Length)
             {
                 throw new AstException("指定参数和构造函数参数个数不匹配!");
-            }
-
-            if (constructorInfo.DeclaringType.ContainsGenericParameters)
-            {
-                throw new AstException($"类型“{constructorInfo.DeclaringType}”包含未指定的泛型参数！");
             }
 
             if (!parameterInfos.Zip(parameters, (x, y) =>

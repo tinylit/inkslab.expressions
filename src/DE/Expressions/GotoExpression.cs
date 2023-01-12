@@ -10,9 +10,9 @@ namespace Delta.Expressions
     {
         private readonly Label label;
 
-        internal GotoExpression(Label label) : base(typeof(void))
+        internal GotoExpression(Label label)
         {
-            this.label = label;
+            this.label = label ?? throw new ArgumentNullException(nameof(label));
         }
 
         /// <summary>

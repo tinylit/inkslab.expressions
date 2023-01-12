@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Delta.Emitters;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Globalization;
@@ -1115,14 +1116,14 @@ namespace Delta
 
                         break;
                     case AbstractTypeEmitter typeEmitter:
-                        ilg.Emit(OpCodes.Ldtoken, typeEmitter.AsRumtimeType());
+                        ilg.Emit(OpCodes.Ldtoken, typeEmitter.Value);
                         ilg.Emit(OpCodes.Call, GetTypeFromHandle);
 
                         ilg.Emit(OpCodes.Castclass, valueType);
                         break;
                     case MethodEmitter methodEmitter:
                         {
-                            MethodInfo methodInfo = methodEmitter.AsRuntimeMethod();
+                            MethodInfo methodInfo = methodEmitter.Value;
 
                             ilg.Emit(OpCodes.Ldtoken, methodInfo);
 

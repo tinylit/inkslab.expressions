@@ -53,7 +53,7 @@ namespace Delta
             return Sort(interfaces);
         }
 
-        internal static Type[] GetAllInterfaces(this Type type)  // NOTE: also used by Windsor
+        public static Type[] GetAllInterfaces(this Type type)  // NOTE: also used by Windsor
         {
             return GetAllInterfaces(new Type[1] { type });
         }
@@ -63,28 +63,36 @@ namespace Delta
             var array = new Type[types.Count];
             types.CopyTo(array, 0);
             //NOTE: is there a better, stable way to sort Types. We will need to revise this once we allow open generics
-            Array.Sort(array, TypeNameComparer.Instance);
+            Array.Sort(array, TypeComparer.Instance);
             //                ^^^^^^^^^^^^^^^^^^^^^^^^^
             // Using a `IComparer<T>` object instead of a `Comparison<T>` delegate prevents
             // an unnecessary level of indirection inside the framework (as the latter get
             // wrapped as `IComparer<T>` objects).
             return array;
         }
-        private sealed class TypeNameComparer : IComparer<Type>
-        {
-            public static readonly TypeNameComparer Instance = new TypeNameComparer();
+    }
 
-            public int Compare(Type x, Type y)
-            {
-                // Comparing by `type.AssemblyQualifiedName` would give the same result,
-                // but it performs a hidden concatenation (and therefore string allocation)
-                // of `type.FullName` and `type.Assembly.FullName`. We can avoid this
-                // overhead by comparing the two properties separately.
-                int result = string.CompareOrdinal(x.FullName, y.FullName);
-                return result == 0
-                    ? string.CompareOrdinal(x.Assembly.FullName, y.Assembly.FullName)
-                    : result;
-            }
+    /// <summary>
+    /// 类型比较（优先按照类型名称比较，名称相同，按照程序集名称比较）。
+    /// </summary>
+    public sealed class TypeComparer : IComparer<Type>
+    {
+        /// <summary>
+        /// 实例。
+        /// </summary>
+        public static readonly TypeComparer Instance = new TypeComparer();
+        
+        /// <inheritdoc/>
+        public int Compare(Type x, Type y)
+        {
+            // Comparing by `type.AssemblyQualifiedName` would give the same result,
+            // but it performs a hidden concatenation (and therefore string allocation)
+            // of `type.FullName` and `type.Assembly.FullName`. We can avoid this
+            // overhead by comparing the two properties separately.
+            int result = string.CompareOrdinal(x.FullName, y.FullName);
+            return result == 0
+                ? string.CompareOrdinal(x.Assembly.FullName, y.Assembly.FullName)
+                : result;
         }
     }
 }

@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Reflection.Emit;
 
 namespace Delta.Expressions
 {
@@ -8,56 +7,82 @@ namespace Delta.Expressions
     /// </summary>
     public class ReturnExpression : Expression
     {
-        private LocalBuilder local;
-        private System.Reflection.Emit.Label label;
+        private Label label;
+        private VariableExpression variable;
+        private readonly Expression body;
 
-        internal ReturnExpression(Type returnType) : base(returnType)
+        internal ReturnExpression() { }
+
+        internal ReturnExpression(Expression body) : base(body.RuntimeType)
         {
-            IsReturnVoid = returnType == typeof(void);
+            if (body.IsVoid)
+            {
+                throw new AstException("表达式“void”无效！");
+            }
+
+            this.body = body;
         }
 
         /// <summary>
-        /// 无返回值。
-        /// </summary>
-        public bool IsReturnVoid { get; }
-
-        /// <summary>
-        /// 加载数据。
+        /// 生成。
         /// </summary>
         /// <param name="ilg">指令。</param>
-        public override void Load(ILGenerator ilg)
+        public override void Load(System.Reflection.Emit.ILGenerator ilg)
         {
-            if (!IsReturnVoid)
+            if (label is null)
             {
-                ilg.Emit(OpCodes.Stloc, local);
+                throw new NullReferenceException(nameof(label));
             }
 
-            ilg.Emit(OpCodes.Leave, label);
-        }
-
-        internal void Emit(System.Reflection.Emit.Label label)
-        {
-            if (IsReturnVoid)
+            if (body is null)
             {
-                this.label = label;
+
+            }
+            else if (variable is null)
+            {
+                throw new AstException("由于代码块是无返回值，返回表达式必须也是无返回值类型！");
+            }
+            else if (variable.RuntimeType == RuntimeType)
+            {
+                Assign(variable, body)
+                    .Load(ilg);
+            }
+            else if (EmitUtils.EqualSignatureTypes(body.RuntimeType, variable.RuntimeType) || variable.RuntimeType.IsAssignableFrom(body.RuntimeType))
+            {
+                Assign(variable, Convert(body, variable.RuntimeType))
+                    .Load(ilg);
             }
             else
             {
-                throw new NotImplementedException();
+                throw new AstException($"无法将类型“{body.RuntimeType}”隐式转换为“{variable.RuntimeType}”!");
+            }
+
+            label.Goto(ilg);
+        }
+
+        /// <inheritdoc/>
+        protected internal override void MarkLabel(Label label)
+        {
+            if (label is null)
+            {
+                throw new ArgumentNullException(nameof(label));
+            }
+
+            if (label.Kind == LabelKind.Return)
+            {
+                this.label = label;
             }
         }
 
-        internal void Emit(LocalBuilder local, System.Reflection.Emit.Label label)
+        /// <inheritdoc/>
+        protected internal override void StoredLocal(VariableExpression variable)
         {
-            if (IsReturnVoid)
+            if (body is null)
             {
-                throw new NotImplementedException();
+                throw new NotSupportedException();
             }
-            else
-            {
-                this.local = local;
-                this.label = label;
-            }
+
+            this.variable = variable ?? throw new ArgumentNullException(nameof(variable));
         }
     }
 }

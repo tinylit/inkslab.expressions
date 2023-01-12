@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Delta.Emitters;
+using System;
 using System.Diagnostics;
 using System.Reflection;
 using System.Reflection.Emit;
@@ -44,21 +45,36 @@ namespace Delta.Expressions
                 throw new ArgumentNullException(nameof(arguments));
             }
 
-            if (methodInfo.ContainsGenericParameters)
+            if (methodInfo is not DynamicMethod)
             {
-                throw new AstException($"类型“{methodInfo.DeclaringType}.{methodInfo.Name}”包含未指定的泛型参数！");
+                foreach (var genericArgumentType in methodInfo.GetGenericArguments())
+                {
+                    if (genericArgumentType.IsGenericParameter)
+                    {
+                        if (genericArgumentType is GenericTypeParameterBuilder)
+                        {
+                            continue;
+                        }
+
+                        throw new AstException($"类型“{methodInfo.DeclaringType}.{methodInfo.Name}”包含未指定的泛型参数！");
+                    }
+                }
             }
 
-            if (methodInfo.IsStatic ^ (instanceAst is null))
+            if (methodInfo.IsStatic)
             {
-                if (methodInfo.IsStatic)
+                if (instanceAst is not null)
                 {
-                    throw new ArgumentException($"方法“{methodInfo.Name}”是静态的，不能指定实例！");
+                    throw new AstException($"方法“{methodInfo.Name}”是静态的，不能指定实例！");
                 }
-                else
-                {
-                    throw new ArgumentException($"方法“{methodInfo.Name}”不是静态的，必须指定实例！");
-                }
+            }
+            else if (instanceAst is null)
+            {
+                throw new AstException($"方法“{methodInfo.Name}”不是静态的，必须指定实例！");
+            }
+            else if (!methodInfo.DeclaringType.IsAssignableFrom(instanceAst.RuntimeType))
+            {
+                throw new AstException($"方法“{methodInfo.Name}”不属于实例(“{instanceAst.RuntimeType}”)！");
             }
 
             if (!arguments.RuntimeType.IsArray)
@@ -72,7 +88,7 @@ namespace Delta.Expressions
             }
 
             this.instanceAst = instanceAst;
-            this.methodAst = new ConstantExpression(methodInfo, typeof(MethodInfo));
+            this.methodAst = Constant(methodInfo, typeof(MethodInfo));
             this.arguments = arguments;
         }
 
@@ -81,7 +97,7 @@ namespace Delta.Expressions
         /// </summary>
         /// <param name="methodAst">方法。</param>
         /// <param name="arguments">调用参数。</param>
-        public InvocationExpression(Expression methodAst, Expression arguments) : this(null, methodAst, arguments)
+        internal InvocationExpression(Expression methodAst, Expression arguments) : this(null, methodAst, arguments)
         {
         }
 
@@ -91,7 +107,7 @@ namespace Delta.Expressions
         /// <param name="instanceAst">实例。</param>
         /// <param name="methodAst">方法。</param>
         /// <param name="arguments">调用参数。</param>
-        public InvocationExpression(Expression instanceAst, Expression methodAst, Expression arguments) : base(typeof(object))
+        internal InvocationExpression(Expression instanceAst, Expression methodAst, Expression arguments) : base(typeof(object))
         {
             if (instanceAst is null)
             {
@@ -121,7 +137,7 @@ namespace Delta.Expressions
             if (methodAst.RuntimeType == typeof(MethodInfo) || typeof(MethodInfo).IsAssignableFrom(methodAst.RuntimeType))
             {
                 this.instanceAst = instanceAst;
-                this.methodAst = methodAst;
+                this.methodAst = methodAst is MethodEmitter ? Constant(methodAst, typeof(MethodInfo)) : methodAst;
                 this.arguments = arguments;
             }
             else
@@ -149,11 +165,11 @@ namespace Delta.Expressions
 
             arguments.Load(ilg);
 
-            ilg.Emit(OpCodes.Callvirt, InvokeMethod);
+            ilg.Emit(OpCodes.Call, InvokeMethod);
 
             if (RuntimeType != typeof(object))
             {
-                if (RuntimeType == typeof(void))
+                if (IsVoid)
                 {
                     ilg.Emit(OpCodes.Pop);
                 }

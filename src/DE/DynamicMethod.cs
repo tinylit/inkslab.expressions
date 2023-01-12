@@ -1,7 +1,11 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Globalization;
+using System.Linq;
 using System.Reflection;
+using System.Reflection.Emit;
+using System.Runtime.InteropServices;
 
 namespace Delta
 {
@@ -51,7 +55,7 @@ namespace Delta
         public override Delegate CreateDelegate(Type delegateType, object target) => methodInfoDeclaration.CreateDelegate(delegateType, target);
 #endif
 
-        public override Type[] GetGenericArguments() => methodInfoDeclaration.GetGenericArguments();
+        public override Type[] GetGenericArguments() => methodInfoOriginal.GetGenericArguments();
 
         public override ICustomAttributeProvider ReturnTypeCustomAttributes => methodInfoOriginal.ReturnTypeCustomAttributes;
 
@@ -108,11 +112,14 @@ namespace Delta
         {
             var methodInfoDeclaration = methodInfoOriginal.IsGenericMethodDefinition
                 ? methodInfoOriginal.MakeGenericMethod(typeArguments)
-                : methodInfoOriginal.GetGenericMethodDefinition().MakeGenericMethod(typeArguments);
+                : methodInfoOriginal.GetGenericMethodDefinition()
+                    .MakeGenericMethod(typeArguments);
+
+            var returnType = methodInfoDeclaration.ReturnType;
 
             return hasDeclaringTypes
-                ? new DynamicMethod(methodInfoOriginal, methodInfoDeclaration, declaringType, MakeGenericParameter(methodInfoDeclaration.ReturnType, typeArguments, declaringTypeParameters), declaringTypeParameters, hasDeclaringTypes)
-                : new DynamicMethod(methodInfoOriginal, methodInfoDeclaration, declaringType, methodInfoDeclaration.ReturnType, declaringTypeParameters, hasDeclaringTypes);
+                ? new DynamicMethod(methodInfoOriginal, methodInfoDeclaration, declaringType, MakeGenericParameter(returnType, typeArguments, declaringTypeParameters), declaringTypeParameters, hasDeclaringTypes)
+                : new DynamicMethod(methodInfoOriginal, methodInfoDeclaration, declaringType, returnType, declaringTypeParameters, hasDeclaringTypes);
         }
 
         public override string ToString() => methodInfoOriginal.ToString();

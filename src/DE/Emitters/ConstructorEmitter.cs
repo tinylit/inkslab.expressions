@@ -12,10 +12,11 @@ namespace Delta.Emitters
     /// </summary>
     public class ConstructorEmitter : BlockExpression
     {
+        private static readonly ParameterEmitter[] EmptyParameters = new ParameterEmitter[0];
+
         private int parameterIndex = 0;
-        private readonly ReturnExpression returnAst;
+        private readonly TypeBuilder typeBuilder;
         private readonly List<ParameterEmitter> parameters = new List<ParameterEmitter>();
-        private readonly AbstractTypeEmitter typeEmitter;
 
         private class ConstructorExpression : Expression
         {
@@ -68,28 +69,57 @@ namespace Delta.Emitters
             }
         }
 
+        private class InitConstructorEmitter : ConstructorEmitter
+        {
+            private readonly Type[] typeArguments;
+            private readonly ConstructorEmitter constructorEmitter;
+
+            public InitConstructorEmitter(ConstructorEmitter constructorEmitter, Type[] typeArguments) : base(constructorEmitter.typeBuilder, constructorEmitter.Attributes, constructorEmitter.Conventions)
+            {
+                this.constructorEmitter = constructorEmitter;
+                this.typeArguments = typeArguments;
+            }
+
+            internal override ConstructorInfo Value => TypeBuilder.GetConstructor(constructorEmitter.typeBuilder.MakeGenericType(typeArguments), constructorEmitter.Value);
+
+            public override ParameterEmitter[] GetParameters() => constructorEmitter.GetParameters();
+
+            public override ParameterEmitter DefineParameter(Type parameterType, ParameterAttributes attributes, string parameterName)
+            {
+                return constructorEmitter.DefineParameter(parameterType, attributes, parameterName);
+            }
+            public override void InvokeBaseConstructor(ConstructorInfo constructor, params Expression[] parameters)
+            {
+                constructorEmitter.InvokeBaseConstructor(constructor, parameters);
+            }
+            public override ConstructorEmitter MakeGenericConstructor(params Type[] typeArguments)
+            {
+                return constructorEmitter.MakeGenericConstructor(typeArguments);
+            }
+        }
+
+        private ConstructorBuilder constructorBuilder;
+
         /// <summary>
         /// 构造函数。
         /// </summary>
-        /// <param name="typeEmitter">父类型。</param>
+        /// <param name="typeBuilder">父类型。</param>
         /// <param name="attributes">属性。</param>
-        public ConstructorEmitter(AbstractTypeEmitter typeEmitter, MethodAttributes attributes) : this(typeEmitter, attributes, CallingConventions.Standard)
+        public ConstructorEmitter(TypeBuilder typeBuilder, MethodAttributes attributes) : this(typeBuilder, attributes, CallingConventions.Standard)
         {
         }
 
         /// <summary>
         /// 构造函数。
         /// </summary>
-        /// <param name="typeEmitter">父类型。</param>
+        /// <param name="typeBuilder">父类型。</param>
         /// <param name="attributes">属性。</param>
         /// <param name="conventions">调用约定。</param>
-        public ConstructorEmitter(AbstractTypeEmitter typeEmitter, MethodAttributes attributes, CallingConventions conventions) : base(typeof(void))
+        public ConstructorEmitter(TypeBuilder typeBuilder, MethodAttributes attributes, CallingConventions conventions) : base(typeBuilder)
         {
-            this.typeEmitter = typeEmitter;
+            this.typeBuilder = typeBuilder;
             Attributes = attributes;
             Conventions = conventions;
-
-            returnAst = new ReturnExpression(typeof(void));
         }
 
         /// <summary>
@@ -108,9 +138,24 @@ namespace Delta.Emitters
         public CallingConventions Conventions { get; }
 
         /// <summary>
+        /// 成员。
+        /// </summary>
+        internal virtual ConstructorInfo Value => constructorBuilder ?? throw new NotImplementedException();
+
+        private ParameterEmitter[] _parameters = EmptyParameters;
+
+        /// <summary>
         /// 参数。
         /// </summary>
-        public ParameterEmitter[] Parameters => parameters.ToArray();
+        public virtual ParameterEmitter[] GetParameters()
+        {
+            if (parameters.Count > _parameters.Length)
+            {
+                _parameters = parameters.ToArray();
+            }
+
+            return _parameters;
+        }
 
         /// <summary>
         /// 声明参数。
@@ -139,11 +184,11 @@ namespace Delta.Emitters
         /// </summary>
         /// <param name="parameterType">参数类型。</param>
         /// <param name="attributes">属性。</param>
-        /// <param name="strParamName">名称。</param>
+        /// <param name="parameterName">名称。</param>
         /// <returns></returns>
-        public ParameterEmitter DefineParameter(Type parameterType, ParameterAttributes attributes, string strParamName)
+        public virtual ParameterEmitter DefineParameter(Type parameterType, ParameterAttributes attributes, string parameterName)
         {
-            var parameter = new ParameterEmitter(parameterType, ++parameterIndex, attributes, strParamName);
+            var parameter = new ParameterEmitter(parameterType, ++parameterIndex, attributes, parameterName);
 
             parameters.Add(parameter);
 
@@ -151,9 +196,19 @@ namespace Delta.Emitters
         }
 
         /// <summary>
-        /// 跳转到当前代码块末尾。
+        /// 返回使用指定泛型类型参数从当前泛型方法定义构造的构造函数。
         /// </summary>
-        public ReturnExpression Return => returnAst;
+        /// <param name="typeArguments">表示泛型方法的类型参数的 <see cref="Type"/> 对象的数组。</param>
+        /// <returns>一个 <see cref="ConstructorEmitter"/>，它表示使用指定泛型类型参数从当前泛型方法定义构造的构造函数。</returns>
+        public virtual ConstructorEmitter MakeGenericConstructor(params Type[] typeArguments)
+        {
+            if (typeArguments?.Length > 0)
+            {
+                return new InitConstructorEmitter(this, typeArguments);
+            }
+
+            return this;
+        }
 
         /// <summary>
         /// 调用父类构造函数。
@@ -162,7 +217,7 @@ namespace Delta.Emitters
         {
             var flags = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
 
-            var type = typeEmitter.BaseType;
+            var type = typeBuilder.BaseType;
 
             if (type.IsGenericParameter)
             {
@@ -176,21 +231,28 @@ namespace Delta.Emitters
         /// 调用父类构造函数。
         /// </summary>
         /// <param name="constructor">构造函数。</param>
-        public void InvokeBaseConstructor(ConstructorInfo constructor) => Append(new ConstructorExpression(constructor));
+        public void InvokeBaseConstructor(ConstructorInfo constructor) => InvokeBaseConstructor(constructor, System.Array.Empty<Expression>());
 
         /// <summary>
         /// 调用父类构造函数。
         /// </summary>
         /// <param name="constructor">构造函数。</param>
         /// <param name="parameters">参数。</param>
-        public void InvokeBaseConstructor(ConstructorInfo constructor, params Expression[] parameters) => Append(new ConstructorExpression(constructor, parameters));
+        public virtual void InvokeBaseConstructor(ConstructorInfo constructor, params Expression[] parameters) => Append(new ConstructorExpression(constructor, parameters ?? System.Array.Empty<Expression>()));
 
         /// <summary>
         /// 发行。
         /// </summary>
-        public void Emit(ConstructorBuilder builder)
+        public void Emit(ConstructorBuilder constructorBuilder)
         {
-            var attributes = builder.MethodImplementationFlags;
+            if (constructorBuilder is null)
+            {
+                throw new ArgumentNullException(nameof(constructorBuilder));
+            }
+
+            this.constructorBuilder = constructorBuilder;
+
+            var attributes = constructorBuilder.MethodImplementationFlags;
 
             if ((attributes & MethodImplAttributes.Runtime) != MethodImplAttributes.IL)
             {
@@ -204,12 +266,12 @@ namespace Delta.Emitters
 
             foreach (var parameter in parameters)
             {
-                parameter.Emit(builder.DefineParameter(parameter.Position, parameter.Attributes, parameter.ParameterName));
+                parameter.Emit(constructorBuilder.DefineParameter(parameter.Position, parameter.Attributes, parameter.ParameterName));
             }
 
-            var ilg = builder.GetILGenerator();
+            var ilg = constructorBuilder.GetILGenerator();
 
-            base.Load(ilg);
+            Load(ilg);
 
             ilg.Emit(OpCodes.Ret);
         }
@@ -220,15 +282,13 @@ namespace Delta.Emitters
         /// <param name="ilg">指令。</param>
         public override void Load(ILGenerator ilg)
         {
-            var label = ilg.DefineLabel();
+            var label = new Label(LabelKind.Return);
 
-            returnAst.Emit(label);
+            MarkLabel(label);
 
             base.Load(ilg);
 
-            ilg.MarkLabel(label);
-
-            ilg.Emit(OpCodes.Nop);
+            label.MarkLabel(ilg);
         }
     }
 }

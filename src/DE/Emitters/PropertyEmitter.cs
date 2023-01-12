@@ -6,7 +6,7 @@ using System.Reflection;
 using System.Reflection.Emit;
 using System.Text;
 
-namespace Delta
+namespace Delta.Emitters
 {
     /// <summary>
     /// 属性。
@@ -95,8 +95,8 @@ namespace Delta
                     sb.Append(" set;");
                 }
 
-               return sb.Append(" }")
-                        .ToString();
+                return sb.Append(" }")
+                         .ToString();
             }
         }
 
@@ -104,6 +104,7 @@ namespace Delta
         /// 属性的名称。
         /// </summary>
         public string Name { get; }
+
         /// <summary>
         /// 属性的特性。
         /// </summary>
@@ -114,10 +115,16 @@ namespace Delta
         /// </summary>
         public Type[] ParameterTypes { get; }
 
-        /// <summary>
-        /// 是否可写。
-        /// </summary>
+        /// <inheritdoc/>
+        public override bool CanRead => _Setter is not null;
+
+        /// <inheritdoc/>
         public override bool CanWrite => _Setter is not null;
+
+        private bool? isStatic;
+
+        /// <inheritdoc/>
+        public override bool IsStatic => isStatic ?? throw new NotImplementedException();
 
         /// <summary>
         /// 设置Get方法。
@@ -129,6 +136,16 @@ namespace Delta
             if (getter is null)
             {
                 throw new ArgumentNullException(nameof(getter));
+            }
+
+            if (isStatic.HasValue && isStatic.Value != getter.IsStatic)
+            {
+                throw new InvalidOperationException();
+            }
+
+            if (getter.IsStatic)
+            {
+                isStatic = true;
             }
 
             _Getter = getter;
@@ -145,6 +162,16 @@ namespace Delta
             if (setter is null)
             {
                 throw new ArgumentNullException(nameof(setter));
+            }
+
+            if (isStatic.HasValue && isStatic.Value != setter.IsStatic)
+            {
+                throw new InvalidOperationException();
+            }
+
+            if (setter.IsStatic)
+            {
+                isStatic = true;
             }
 
             _Setter = setter;
@@ -199,17 +226,17 @@ namespace Delta
         {
             if (_Getter is null && _Setter is null)
             {
-                throw new InvalidOperationException($"属性不能既不可读，也不可写!");
+                throw new InvalidOperationException("属性不能既不可读，也不可写!");
             }
 
             if (_Getter != null)
             {
-                builder.SetGetMethod(_Getter.Value);
+                builder.SetGetMethod((MethodBuilder)_Getter.Value);
             }
 
             if (_Setter != null)
             {
-                builder.SetSetMethod(_Setter.Value);
+                builder.SetSetMethod((MethodBuilder)_Setter.Value);
             }
 
             if (hasDefaultValue)
@@ -227,11 +254,16 @@ namespace Delta
         /// 获取成员数据。
         /// </summary>
         /// <param name="ilg">指令。</param>
-        protected override void LoadCore(ILGenerator ilg)
+        public override void Load(ILGenerator ilg)
         {
             if (_Getter is null)
             {
                 throw new AstException($"属性“{Name}”不可读!");
+            }
+
+            if (!IsStatic)
+            {
+                ilg.Emit(OpCodes.Ldarg_0);
             }
 
             ilg.Emit(OpCodes.Callvirt, _Getter.Value);
@@ -243,8 +275,18 @@ namespace Delta
         /// </summary>
         /// <param name="ilg">指令。</param>
         /// <param name="value">值。</param>
-        protected override void AssignCore(ILGenerator ilg, Expression value)
+        protected override void Assign(ILGenerator ilg, Expression value)
         {
+            if (_Setter is null)
+            {
+                throw new AstException($"属性“{Name}”不可写!");
+            }
+
+            if (!IsStatic)
+            {
+                ilg.Emit(OpCodes.Ldarg_0);
+            }
+
             value.Load(ilg);
 
             ilg.Emit(OpCodes.Call, _Setter.Value);

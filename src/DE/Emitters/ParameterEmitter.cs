@@ -6,7 +6,7 @@ using System.Globalization;
 using System.Reflection;
 using System.Reflection.Emit;
 
-namespace Delta
+namespace Delta.Emitters
 {
     /// <summary>
     /// 参数成员。

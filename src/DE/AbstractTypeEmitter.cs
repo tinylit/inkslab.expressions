@@ -17,7 +17,12 @@ namespace Delta
     /// </summary>
     public abstract class AbstractTypeEmitter
     {
-        private readonly TypeBuilder builder;
+        private bool initializedGenericType = false;
+        private readonly int initializedGenericCount = 0;
+        private readonly List<Type> genericArguments = new List<Type>();
+        private readonly Type baseType;
+        private readonly Type[] interfaces;
+        private readonly TypeBuilder typeBuilder;
         private readonly INamingScope namingScope;
         private readonly List<MethodEmitter> methods = new List<MethodEmitter>();
         private readonly List<AbstractTypeEmitter> abstracts = new List<AbstractTypeEmitter>();
@@ -25,12 +30,14 @@ namespace Delta
         private readonly Dictionary<string, FieldEmitter> fields = new Dictionary<string, FieldEmitter>(StringComparer.OrdinalIgnoreCase);
         private readonly Dictionary<string, PropertyEmitter> properties = new Dictionary<string, PropertyEmitter>(StringComparer.OrdinalIgnoreCase);
 
+        private readonly object lockObj = new object();
+
         /// <summary>
         /// 静态构造函数。
         /// </summary>
         public class TypeInitializerEmitter : BlockExpression
         {
-            internal TypeInitializerEmitter() : base(typeof(void))
+            internal TypeInitializerEmitter()
             {
             }
 
@@ -48,7 +55,14 @@ namespace Delta
 
                 var ilg = builder.GetILGenerator();
 
-                base.Load(ilg);
+                if (IsEmpty)
+                {
+                    ilg.Emit(OpCodes.Nop);
+                }
+                else
+                {
+                    base.Load(ilg);
+                }
 
                 ilg.Emit(OpCodes.Ret);
             }
@@ -117,8 +131,123 @@ namespace Delta
         /// <param name="namingScope">命名。</param>
         protected AbstractTypeEmitter(TypeBuilder builder, INamingScope namingScope)
         {
-            this.builder = builder ?? throw new ArgumentNullException(nameof(builder));
+            this.typeBuilder = builder ?? throw new ArgumentNullException(nameof(builder));
             this.namingScope = namingScope?.BeginScope() ?? throw new ArgumentNullException(nameof(namingScope));
+        }
+
+        /// <summary>
+        /// 在此模块中用指定的名称为私有类型构造 TypeBuilder。
+        /// </summary>
+        /// <param name="moduleEmitter">模块。</param>
+        /// <param name="name">类型的完整路径，其中包括命名空间。 name 不能包含嵌入的 null。</param>
+        protected AbstractTypeEmitter(ModuleEmitter moduleEmitter, string name)
+        {
+            if (moduleEmitter is null)
+            {
+                throw new ArgumentNullException(nameof(moduleEmitter));
+            }
+
+            namingScope = moduleEmitter.BeginScope();
+            typeBuilder = ModuleEmitter.DefineType(moduleEmitter, name);
+        }
+
+        /// <summary>
+        /// 在给定类型名称和类型特性的情况下，构造 TypeBuilder。
+        /// </summary>
+        /// <param name="moduleEmitter">模块。</param>
+        /// <param name="name">类型的完整路径。 name 不能包含嵌入的 null。</param>
+        /// <param name="attributes">已定义类型的属性。</param>
+        protected AbstractTypeEmitter(ModuleEmitter moduleEmitter, string name, TypeAttributes attributes) : this(moduleEmitter, name, attributes, null)
+        {
+        }
+
+        /// <summary>
+        /// 在给定类型名称、类型特性和已定义类型扩展的类型的情况下，构造 TypeBuilder。
+        /// </summary>
+        /// <param name="moduleEmitter">模块。</param>
+        /// <param name="name">类型的完整路径。 name 不能包含嵌入的 null。</param>
+        /// <param name="attributes">与类型关联的属性。</param>
+        /// <param name="baseType">已定义类型扩展的类型。</param>
+        protected AbstractTypeEmitter(ModuleEmitter moduleEmitter, string name, TypeAttributes attributes, Type baseType) : this(moduleEmitter, name, attributes, baseType, null)
+        {
+        }
+
+        /// <summary>
+        /// 在给定类型名称、特性、已定义类型扩展的类型和已定义类型实现的接口的情况下，构造 TypeBuilder。
+        /// </summary>
+        /// <param name="moduleEmitter">模块。</param>
+        /// <param name="name">类型的完整路径。 name 不能包含嵌入的 null。</param>
+        /// <param name="attributes">与类型关联的特性。</param>
+        /// <param name="baseType">已定义类型扩展的类型。</param>
+        /// <param name="interfaces">类型实现的接口列表。</param>
+        protected AbstractTypeEmitter(ModuleEmitter moduleEmitter, string name, TypeAttributes attributes, Type baseType, Type[] interfaces)
+        {
+            if (moduleEmitter is null)
+            {
+                throw new ArgumentNullException(nameof(moduleEmitter));
+            }
+
+            if (name is null)
+            {
+                throw new ArgumentNullException(nameof(name));
+            }
+
+            if (baseType is null)
+            {
+                if (interfaces?.Length > 0)
+                {
+                    if (interfaces.Any(x => x.IsGenericTypeDefinition))
+                    {
+                        this.interfaces = interfaces;
+
+                        AnalyzeGenericParameters(interfaces);
+
+                        initializedGenericCount = genericArguments.Count;
+                    }
+                    else
+                    {
+                        typeBuilder = ModuleEmitter.DefineType(moduleEmitter, name, attributes, typeof(object), interfaces);
+                    }
+                }
+                else
+                {
+                    typeBuilder = ModuleEmitter.DefineType(moduleEmitter, name, attributes);
+                }
+            }
+            else if (baseType.IsGenericTypeDefinition)
+            {
+                this.baseType = baseType;
+                this.interfaces = interfaces;
+
+                AnalyzeGenericParameters(baseType, interfaces);
+
+                initializedGenericCount = genericArguments.Count;
+
+                typeBuilder = ModuleEmitter.DefineType(moduleEmitter, name, attributes);
+            }
+            else if (interfaces?.Length > 0)
+            {
+                if (interfaces.Any(x => x.IsGenericTypeDefinition))
+                {
+                    this.interfaces = interfaces;
+
+                    AnalyzeGenericParameters(interfaces);
+
+                    initializedGenericCount = genericArguments.Count;
+
+                    typeBuilder = ModuleEmitter.DefineType(moduleEmitter, name, attributes, baseType);
+                }
+                else
+                {
+                    typeBuilder = ModuleEmitter.DefineType(moduleEmitter, name, attributes, baseType, interfaces);
+                }
+            }
+            else
+            {
+                typeBuilder = ModuleEmitter.DefineType(moduleEmitter, name, attributes, baseType);
+            }
+
+            namingScope = moduleEmitter.BeginScope();
         }
 
         /// <summary>
@@ -128,6 +257,8 @@ namespace Delta
         /// <param name="name">匿名类型名称。</param>
         protected AbstractTypeEmitter(AbstractTypeEmitter typeEmitter, string name) : this(typeEmitter, name, TypeAttributes.NotPublic)
         {
+            namingScope = typeEmitter.BeginScope();
+            typeBuilder = DefineType(typeEmitter, name);
         }
 
         /// <summary>
@@ -136,7 +267,7 @@ namespace Delta
         /// <param name="typeEmitter">匿名类型的所属类型。</param>
         /// <param name="name">匿名类型名称。</param>
         /// <param name="attributes">匿名函数类型。</param>
-        protected AbstractTypeEmitter(AbstractTypeEmitter typeEmitter, string name, TypeAttributes attributes) : this(typeEmitter, name, attributes, typeof(object))
+        protected AbstractTypeEmitter(AbstractTypeEmitter typeEmitter, string name, TypeAttributes attributes) : this(typeEmitter, name, attributes, null)
         {
         }
 
@@ -159,17 +290,11 @@ namespace Delta
         /// <param name="attributes">匿名函数类型。</param>
         /// <param name="baseType">匿名函数基类。</param>
         /// <param name="interfaces">匿名函数实现接口。</param>
-        protected AbstractTypeEmitter(AbstractTypeEmitter typeEmitter, string name, TypeAttributes attributes, Type baseType, Type[] interfaces) : this(DefineNestedTypeBuilder(typeEmitter.builder, name, attributes, baseType, interfaces), typeEmitter.namingScope)
+        protected AbstractTypeEmitter(AbstractTypeEmitter typeEmitter, string name, TypeAttributes attributes, Type baseType, Type[] interfaces)
         {
-            typeEmitter.abstracts.Add(this);
-        }
-
-        private static readonly Regex NamingPattern = new Regex("[^0-9a-zA-Z]+[1-9][0-9]*", RegexOptions.Singleline | RegexOptions.Compiled);
-        private static TypeBuilder DefineNestedTypeBuilder(TypeBuilder typeBuilder, string name, TypeAttributes attributes, Type baseType, Type[] interfaces)
-        {
-            if (typeBuilder is null)
+            if (typeEmitter is null)
             {
-                throw new ArgumentNullException(nameof(typeBuilder));
+                throw new ArgumentNullException(nameof(typeEmitter));
             }
 
             if (name is null)
@@ -177,8 +302,78 @@ namespace Delta
                 throw new ArgumentNullException(nameof(name));
             }
 
-            name = NamingPattern.Replace(name, string.Empty);
+            if (baseType is null)
+            {
+                if (interfaces?.Length > 0)
+                {
+                    if (interfaces.Any(x => x.IsGenericTypeDefinition))
+                    {
+                        this.interfaces = interfaces;
 
+                        AnalyzeGenericParameters(interfaces);
+
+                        initializedGenericCount = genericArguments.Count;
+
+                        typeBuilder = DefineType(typeEmitter, name, attributes);
+                    }
+                    else
+                    {
+                        typeBuilder = DefineType(typeEmitter, name, attributes, typeof(object), interfaces);
+                    }
+                }
+                else
+                {
+                    typeBuilder = DefineType(typeEmitter, name, attributes);
+                }
+            }
+            else if (baseType.IsGenericTypeDefinition)
+            {
+                this.baseType = baseType;
+                this.interfaces = interfaces;
+
+                AnalyzeGenericParameters(baseType, interfaces);
+
+                initializedGenericCount = genericArguments.Count;
+
+                typeBuilder = DefineType(typeEmitter, name, attributes);
+            }
+            else if (interfaces?.Length > 0)
+            {
+                if (interfaces.Any(x => x.IsGenericTypeDefinition))
+                {
+                    this.interfaces = interfaces;
+
+                    AnalyzeGenericParameters(interfaces);
+
+                    initializedGenericCount = genericArguments.Count;
+
+                    typeBuilder = DefineType(typeEmitter, name, attributes, baseType);
+                }
+                else
+                {
+                    typeBuilder = DefineType(typeEmitter, name, attributes, baseType, interfaces);
+                }
+            }
+            else
+            {
+                typeBuilder = DefineType(typeEmitter, name, attributes, baseType);
+            }
+
+            namingScope = typeEmitter.BeginScope();
+
+            typeEmitter.abstracts.Add(this);
+        }
+
+        /// <summary>
+        /// 开始名称范围。
+        /// </summary>
+        /// <returns></returns>
+        public INamingScope BeginScope() => namingScope.BeginScope();
+
+        private string GetUniqueName(string name) => namingScope.GetUniqueName(name);
+
+        private static TypeAttributes MakeTypeAttributes(TypeAttributes attributes)
+        {
             if ((attributes & TypeAttributes.Public) == TypeAttributes.Public)
             {
                 attributes ^= TypeAttributes.Public;
@@ -191,235 +386,277 @@ namespace Delta
                 attributes |= TypeAttributes.NestedPrivate;
             }
 
-            if (baseType is null && interfaces is null)
+            return attributes;
+        }
+
+        private static TypeBuilder DefineType(AbstractTypeEmitter emitter, string name) => emitter.typeBuilder.DefineNestedType(emitter.GetUniqueName(name));
+        private static TypeBuilder DefineType(AbstractTypeEmitter emitter, string name, TypeAttributes attr) => emitter.typeBuilder.DefineNestedType(emitter.GetUniqueName(name), MakeTypeAttributes(attr));
+        private static TypeBuilder DefineType(AbstractTypeEmitter emitter, string name, TypeAttributes attr, Type parent) => emitter.typeBuilder.DefineNestedType(emitter.GetUniqueName(name), MakeTypeAttributes(attr), parent);
+        private static TypeBuilder DefineType(AbstractTypeEmitter emitter, string name, TypeAttributes attr, Type parent, Type[] interfaces) => emitter.typeBuilder.DefineNestedType(emitter.GetUniqueName(name), MakeTypeAttributes(attr), parent, interfaces);
+
+        private GenericTypeParameterBuilder[] DefineGenericParameters()
+        {
+            if (genericArguments.Count == 0)
             {
-                return typeBuilder.DefineNestedType(name, attributes);
+                return Array.Empty<GenericTypeParameterBuilder>();
+            }
+
+            var names = new string[genericArguments.Count];
+
+            for (int i = 0; i < genericArguments.Count; i++)
+            {
+                names[i] = genericArguments[i].Name;
+            }
+
+            var typeParameterBuilders = typeBuilder.DefineGenericParameters(names.ToArray());
+
+            for (int i = 0; i < genericArguments.Count; i++)
+            {
+                var g = genericArguments[i];
+                var t = typeParameterBuilders[i];
+
+                t.SetGenericParameterAttributes(g.GenericParameterAttributes);
+
+                t.SetInterfaceConstraints(AdjustGenericConstraints(typeParameterBuilders, g.GetGenericParameterConstraints()));
+
+                //? 避免重复约束。 T2 where T, T, new()
+                if (g.BaseType.IsGenericParameter)
+                {
+                    continue;
+                }
+
+                if (g.BaseType == typeof(object))
+                {
+                    continue;
+                }
+
+                if (HasGenericParameter(g.BaseType))
+                {
+                    t.SetBaseTypeConstraint(MakeGenericParameter(g.BaseType, typeParameterBuilders));
+                }
+                else
+                {
+                    t.SetBaseTypeConstraint(g.BaseType);
+                }
+            }
+
+            if (baseType is null || !baseType.IsGenericTypeDefinition)
+            {
+                if (baseType != null)
+                {
+                    typeBuilder.SetParent(baseType);
+                }
+
+                if (interfaces?.Length > 0)
+                {
+                    bool invalidFlag = true;
+                    bool isGenericTypeDefinition = false;
+
+                    var results = new List<Type>(interfaces.Length);
+
+                    foreach (var interfaceType in interfaces)
+                    {
+                        if (interfaceType.IsGenericTypeDefinition)
+                        {
+                            isGenericTypeDefinition = true;
+
+                            var interfaceTypes = interfaceType.GetInterfaces();
+
+                            if (Array.TrueForAll(interfaces, x => !x.IsGenericTypeDefinition || Array.IndexOf(interfaceTypes, x) > -1))
+                            {
+                                invalidFlag = false;
+
+                                Array.ForEach(interfaceTypes, x => results.Remove(x));
+
+                                var serviceType = MakeGenericType(interfaceType, typeParameterBuilders);
+
+                                results.Add(serviceType);
+                                results.AddRange(serviceType.GetInterfaces());
+
+                                break;
+                            }
+                        }
+                        else
+                        {
+                            results.Add(interfaceType);
+                        }
+                    }
+
+                    if (invalidFlag && isGenericTypeDefinition)
+                    {
+                        throw new AstException("无法分析多个没有继承关系的泛型定义接口，请自己实现泛型关系！");
+                    }
+
+                    if (baseType != null)
+                    {
+                        foreach (var interfaceType in baseType.GetInterfaces())
+                        {
+                            if (results.Contains(interfaceType))
+                            {
+                                continue;
+                            }
+
+                            results.Add(interfaceType);
+                        }
+                    }
+
+                    results.Sort(TypeComparer.Instance);
+
+                    foreach (var interfaceType in results)
+                    {
+                        typeBuilder.AddInterfaceImplementation(interfaceType);
+                    }
+                }
             }
             else if (interfaces is null || interfaces.Length == 0)
             {
-                if (!baseType.IsGenericType)
+                var serviceType = MakeGenericType(baseType, typeParameterBuilders);
+
+                typeBuilder.SetParent(serviceType);
+
+                foreach (var interfaceType in serviceType.GetInterfaces())
                 {
-                    return typeBuilder.DefineNestedType(name, attributes, baseType, baseType.GetAllInterfaces());
+                    typeBuilder.AddInterfaceImplementation(interfaceType);
                 }
-
-                var genericArguments = baseType.GetGenericArguments();
-
-                if (!Array.Exists(genericArguments, x => x.IsGenericParameter))
-                {
-                    return typeBuilder.DefineNestedType(name, attributes, baseType);
-                }
-
-                var names = new List<string>(genericArguments.Length);
-
-                Array.ForEach(genericArguments, x =>
-                {
-                    if (x.IsGenericParameter)
-                    {
-                        names.Add(x.Name);
-                    }
-                });
-
-                var builder = typeBuilder.DefineNestedType($"{name}`{names.Count}", attributes);
-
-                var typeParameterBuilders = builder.DefineGenericParameters(names.ToArray());
-
-                for (int i = 0; i < genericArguments.Length; i++)
-                {
-                    var g = genericArguments[i];
-                    var t = typeParameterBuilders[i];
-
-                    t.SetGenericParameterAttributes(g.GenericParameterAttributes);
-
-                    t.SetInterfaceConstraints(AdjustGenericConstraints(typeParameterBuilders, genericArguments, g.GetGenericParameterConstraints()));
-
-                    //? 避免重复约束。 T2 where T, T, new()
-                    if (g.BaseType.IsGenericParameter)
-                    {
-                        continue;
-                    }
-
-                    if (HasGenericParameter(g.BaseType))
-                    {
-                        t.SetBaseTypeConstraint(MakeGenericParameter(g.BaseType, typeParameterBuilders));
-                    }
-                    else
-                    {
-                        t.SetBaseTypeConstraint(g.BaseType);
-                    }
-                }
-
-                int offset = 0;
-
-                for (int i = 0; i < genericArguments.Length; i++)
-                {
-                    if (genericArguments[i].IsGenericParameter)
-                    {
-                        genericArguments[i] = typeParameterBuilders[i - offset];
-                    }
-                    else
-                    {
-                        offset--;
-                    }
-                }
-
-                var destinationType = baseType.GetGenericTypeDefinition()
-                    .MakeGenericType(genericArguments);
-
-                builder.SetParent(destinationType);
-
-                var destinationTypes = destinationType.GetAllInterfaces();
-
-                for (int i = 0; i < destinationTypes.Length; i++)
-                {
-                    builder.AddInterfaceImplementation(destinationTypes[i]);
-                }
-
-                return builder;
             }
             else
             {
-                //? 父类型是否有泛型参数。
-                bool flag = false;
 
-                var names = new Dictionary<Type, string>();
+                var interfaceTypes = baseType.GetInterfaces();
 
-                if (baseType?.IsGenericType ?? false)
+                var results = new List<Type>(interfaceTypes.Length);
+
+                results.AddRange(interfaceTypes);
+
+                if (Array.Exists(interfaces, x => x.IsGenericTypeDefinition))
                 {
-                    Array.ForEach(baseType.GetGenericArguments(), x =>
+                    if (Array.TrueForAll(interfaces, x => !x.IsGenericTypeDefinition || results.Contains(x)))
                     {
-                        if (x.IsGenericParameter)
-                        {
-                            flag = true;
-
-                            names.Add(x, x.Name);
-                        }
-                    });
-                }
-
-                Array.ForEach(interfaces, x =>
-                {
-                    if (x.IsGenericType)
-                    {
-                        Array.ForEach(x.GetGenericArguments(), y =>
-                        {
-                            if (y.IsGenericParameter && !names.ContainsKey(y))
-                            {
-                                names.Add(y, y.Name);
-                            }
-                        });
+                        goto label_makeGeneric;
                     }
-                });
 
+                    throw new AstException("存在没有被基础类实现的泛型声明接口！");
 
-                if (names.Count == 0)
-                {
-                    Type[] types = new Type[interfaces.Length + 1];
-
-                    types[0] = baseType;
-
-                    Array.Copy(interfaces, 0, types, 1, interfaces.Length);
-
-                    return typeBuilder.DefineNestedType(name, attributes, baseType, types.GetAllInterfaces());
                 }
 
-                var builder = flag
-                    ? typeBuilder.DefineNestedType($"{name}`{names.Count}", attributes)
-                    : typeBuilder.DefineNestedType($"{name}`{names.Count}", attributes, baseType);
+label_makeGeneric:
+                var serviceType = MakeGenericType(baseType, typeParameterBuilders);
 
-                var typeParameterBuilders = builder.DefineGenericParameters(names.Values.ToArray());
-
-                var genericTypes = names.Keys.ToArray();
-
-                for (int i = 0; i < genericTypes.Length; i++)
+                foreach (var interfaceType in interfaces)
                 {
-                    var g = genericTypes[i];
-                    var t = typeParameterBuilders[i];
-
-                    t.SetGenericParameterAttributes(g.GenericParameterAttributes);
-
-                    t.SetInterfaceConstraints(AdjustGenericConstraints(typeParameterBuilders, genericTypes, g.GetGenericParameterConstraints()));
-
-                    //? 避免重复约束。 T2 where T, T, new()
-                    if (g.BaseType.IsGenericParameter)
+                    if (results.Contains(interfaceType))
                     {
                         continue;
                     }
 
-                    if (HasGenericParameter(g.BaseType))
-                    {
-                        t.SetBaseTypeConstraint(MakeGenericParameter(g.BaseType, typeParameterBuilders));
-                    }
-                    else
-                    {
-                        t.SetBaseTypeConstraint(g.BaseType);
-                    }
+                    results.Add(interfaceType);
                 }
 
-                Type destinationType = baseType;
+                results.RemoveAll(x => Array.IndexOf(interfaceTypes, x) > -1);
 
-                if (flag)
+                results.AddRange(serviceType.GetInterfaces());
+
+                results.Sort(TypeComparer.Instance);
+
+                typeBuilder.SetParent(serviceType);
+
+                foreach (var interfaceType in results)
                 {
-                    var genericArguments = baseType.GetGenericArguments();
-
-                    for (int i = 0; i < genericArguments.Length; i++)
-                    {
-                        int index = Array.IndexOf(genericTypes, genericArguments[i]);
-
-                        if (index > -1)
-                        {
-                            genericArguments[i] = typeParameterBuilders[index];
-                        }
-                    }
-
-                    builder.SetParent(destinationType = baseType.GetGenericTypeDefinition().MakeGenericType(genericArguments));
+                    typeBuilder.AddInterfaceImplementation(interfaceType);
                 }
+            }
 
-                var destinationTypes = new Type[interfaces.Length + 1];
+            return typeParameterBuilders;
+        }
 
-                destinationTypes[0] = baseType;
+        private static Type MakeGenericType(Type serviceType, GenericTypeParameterBuilder[] typeParameterBuilders)
+        {
+            int offset = 0;
 
-                Array.Copy(interfaces, 0, destinationTypes, 1, interfaces.Length);
+            var genericArguments = serviceType.GenericTypeArguments;
 
-                Array.ForEach(destinationTypes.GetAllInterfaces(), x =>
+            for (int i = 0; i < genericArguments.Length; i++)
+            {
+                if (genericArguments[i].IsGenericParameter)
                 {
-                    if (x.IsGenericType)
+                    genericArguments[i] = typeParameterBuilders[i - offset];
+                }
+                else
+                {
+                    offset--;
+                }
+            }
+
+            if (!serviceType.IsGenericTypeDefinition)
+            {
+                serviceType = serviceType.GetGenericTypeDefinition();
+            }
+
+            return serviceType.MakeGenericType(genericArguments);
+        }
+
+        private void AnalyzeGenericParameters(Type[] interfaces)
+        {
+            bool invalidFlag = true;
+            bool isGenericTypeDefinition = false;
+
+            foreach (var interfaceType in interfaces)
+            {
+                if (interfaceType.IsGenericTypeDefinition)
+                {
+                    isGenericTypeDefinition = true;
+
+                    var interfaceTypes = interfaceType.GetInterfaces();
+
+                    if (Array.TrueForAll(interfaces, x => !x.IsGenericTypeDefinition || Array.IndexOf(interfaceTypes, x) > -1))
                     {
-                        var genericArguments = x.GetGenericArguments();
+                        invalidFlag = false;
 
-                        for (int j = 0; j < genericArguments.Length; j++)
-                        {
-                            int index = Array.IndexOf(genericTypes, genericArguments[j]);
+                        genericArguments.AddRange(interfaceType.GenericTypeArguments);
 
-                            if (index > -1)
-                            {
-                                genericArguments[j] = typeParameterBuilders[index];
-                            }
-                        }
-
-                        builder.AddInterfaceImplementation(x.GetGenericTypeDefinition()
-                            .MakeGenericType(genericArguments));
+                        break;
                     }
-                    else
-                    {
-                        builder.AddInterfaceImplementation(x);
-                    }
-                });
+                }
+            }
 
-                return builder;
+            if (invalidFlag && isGenericTypeDefinition)
+            {
+                throw new AstException("无法分析多个没有继承关系的泛型定义接口，请自己实现泛型关系！");
             }
         }
-        private sealed class TypeNameComparer : IComparer<Type>
-        {
-            public static readonly TypeNameComparer Instance = new TypeNameComparer();
 
-            public int Compare(Type x, Type y)
+        private void AnalyzeGenericParameters(Type baseType, Type[] interfaces)
+        {
+            if (baseType is null || !baseType.IsGenericTypeDefinition)
             {
-                // Comparing by `type.AssemblyQualifiedName` would give the same result,
-                // but it performs a hidden concatenation (and therefore string allocation)
-                // of `type.FullName` and `type.Assembly.FullName`. We can avoid this
-                // overhead by comparing the two properties separately.
-                int result = string.CompareOrdinal(x.FullName, y.FullName);
-                return result != 0 ? result : string.CompareOrdinal(x.Assembly.FullName, y.Assembly.FullName);
+                AnalyzeGenericParameters(interfaces);
+            }
+            else if (interfaces is null || interfaces.Length == 0)
+            {
+                if (baseType.IsGenericTypeDefinition)
+                {
+                    genericArguments.AddRange(baseType.GenericTypeArguments);
+                }
+            }
+            else
+            {
+                if (Array.Exists(interfaces, x => x.IsGenericTypeDefinition))
+                {
+                    var interfaceTypes = baseType.GetInterfaces();
+
+                    if (Array.TrueForAll(interfaces, x => !x.IsGenericTypeDefinition || Array.IndexOf(interfaceTypes, x) > -1))
+                    {
+                        genericArguments.AddRange(baseType.GenericTypeArguments);
+                    }
+                    else
+                    {
+                        throw new AstException("存在没有被基础类实现的泛型声明接口！");
+                    }
+                }
+                else
+                {
+                    genericArguments.AddRange(baseType.GenericTypeArguments);
+                }
             }
         }
 
@@ -431,13 +668,36 @@ namespace Delta
         /// <summary>
         /// 是否为泛型类。
         /// </summary>
-        public bool IsGenericType => builder.IsGenericType;
+        public bool IsGenericType => genericArguments.Count > 0;
 
         /// <summary>
         /// 泛型参数。
         /// </summary>
         /// <returns></returns>
-        public Type[] GetGenericArguments() => builder.GetGenericArguments();
+        public Type[] GetGenericArguments()
+        {
+            if (initializedGenericType)
+            {
+                return typeBuilder.GetGenericArguments();
+            }
+
+            lock (lockObj)
+            {
+                if (initializedGenericType)
+                {
+                    return typeBuilder.GetGenericArguments();
+                }
+
+                initializedGenericType = true;
+
+                return DefineGenericParameters();
+            }
+        }
+
+        /// <summary>
+        /// 类名称。
+        /// </summary>
+        public string Name => typeBuilder.Name;
 
         /// <summary>
         /// 父类型。
@@ -446,20 +706,82 @@ namespace Delta
         {
             get
             {
-                if (builder.IsInterface)
+                if (typeBuilder.IsInterface)
                 {
                     return typeof(object);
                 }
 
-                return builder.BaseType;
+                return typeBuilder.BaseType;
             }
         }
 
         /// <summary>
-        /// 转为运行时类型。
+        /// 当前类型。
         /// </summary>
-        /// <returns></returns>
-        protected internal virtual Type AsRumtimeType() => builder;
+        internal Type Value => typeBuilder;
+
+        /// <summary>
+        /// 声明泛型。
+        /// </summary>
+        /// <param name="genericTypeArguments">泛型参数数组。</param>
+        /// <exception cref="ArgumentNullException">参数 <paramref name="genericTypeArguments"/> 为 null。</exception>
+        /// <exception cref="InvalidOperationException">类型已经定义了泛型约束。</exception>
+        /// <exception cref="NotSupportedException">数组约束 <see cref="Type.IsGenericParameter"/> 为 false。</exception>
+        /// <returns>指定 <paramref name="genericTypeArguments"/> 泛型数组与类的泛型顺序对应的泛型类型数组。</returns>
+        public GenericTypeParameterBuilder[] DefineGenericParameters(Type[] genericTypeArguments)
+        {
+            if (genericTypeArguments is null)
+            {
+                throw new ArgumentNullException(nameof(genericTypeArguments));
+            }
+
+            if (initializedGenericType)
+            {
+                throw new InvalidOperationException("类型已经定义了泛型约束！");
+            }
+
+            lock (lockObj)
+            {
+                if (initializedGenericType)
+                {
+                    throw new InvalidOperationException("类型已经定义了泛型约束！");
+                }
+
+                initializedGenericType = true;
+
+                for (int i = 0; i < genericTypeArguments.Length; i++)
+                {
+                    var genericType = genericTypeArguments[i];
+
+                    if (genericType.IsGenericParameter)
+                    {
+                        genericArguments.Add(genericType);
+                    }
+                    else
+                    {
+                        throw new NotSupportedException($"类型“{genericType}”不是泛型类型参数！");
+                    }
+                }
+
+                if (genericTypeArguments.Length == 0)
+                {
+                    return Array.Empty<GenericTypeParameterBuilder>();
+                }
+
+                var typeParameterBuilders = DefineGenericParameters();
+
+                if (initializedGenericCount == 0)
+                {
+                    return typeParameterBuilders;
+                }
+
+                var typeParameters = new GenericTypeParameterBuilder[genericTypeArguments.Length];
+
+                Array.Copy(typeParameterBuilders, 0, typeParameters, initializedGenericCount, genericTypeArguments.Length);
+
+                return typeParameters;
+            }
+        }
 
         /// <summary>
         /// 创建字段。
@@ -634,7 +956,7 @@ namespace Delta
                 parameterTypes[i] = parameterInfos[i].ParameterType;
             }
 
-            var methodBuilder = builder.DefineMethod(methodInfoDeclaration.Name, ObtainAttributes(methodInfoDeclaration), CallingConventions.Standard);
+            var methodBuilder = typeBuilder.DefineMethod(methodInfoDeclaration.Name, ObtainAttributes(methodInfoDeclaration), CallingConventions.Standard);
 
             var genericArguments = Type.EmptyTypes;
             Type returnType = methodInfoDeclaration.ReturnType;
@@ -646,7 +968,7 @@ namespace Delta
 
             if (HasGenericParameter(methodInfoOriginal.DeclaringType))
             {
-                Type declaringType = builder;
+                Type declaringType = typeBuilder;
 
                 var typeDefinition = methodInfoOriginal
                         .DeclaringType
@@ -664,7 +986,7 @@ namespace Delta
                 }
                 else
                 {
-                    foreach (var interfaceType in builder.GetInterfaces())
+                    foreach (var interfaceType in typeBuilder.GetInterfaces())
                     {
                         if (interfaceType.IsGenericType && interfaceType.GetGenericTypeDefinition() == typeDefinition)
                         {
@@ -871,7 +1193,7 @@ namespace Delta
         /// <returns></returns>
         public ConstructorEmitter DefineConstructor(MethodAttributes attributes, CallingConventions conventions)
         {
-            var member = new ConstructorEmitter(this, attributes, conventions);
+            var member = new ConstructorEmitter(typeBuilder, attributes, conventions);
             constructors.Add(member);
             return member;
         }
@@ -882,7 +1204,7 @@ namespace Delta
         /// <returns></returns>
         public void DefineDefaultConstructor()
         {
-            constructors.Add(new ConstructorEmitter(this, MethodAttributes.Public));
+            constructors.Add(new ConstructorEmitter(typeBuilder, MethodAttributes.Public));
         }
 
         /// <summary>
@@ -896,7 +1218,7 @@ namespace Delta
                 throw new ArgumentNullException(nameof(attributeData));
             }
 
-            builder.SetCustomAttribute(EmitUtils.CreateCustomAttribute(attributeData));
+            typeBuilder.SetCustomAttribute(EmitUtils.CreateCustomAttribute(attributeData));
         }
 
         /// <summary>
@@ -905,7 +1227,7 @@ namespace Delta
         /// <param name="attribute">标记。</param>
         public void DefineCustomAttribute(CustomAttributeBuilder attribute)
         {
-            builder.SetCustomAttribute(attribute);
+            typeBuilder.SetCustomAttribute(attribute);
         }
 
         /// <summary>
@@ -964,12 +1286,25 @@ namespace Delta
         /// </summary>
         protected virtual Type Emit()
         {
-            foreach (FieldEmitter emitter in fields.Values)
+            if (!initializedGenericType)
             {
-                emitter.Emit(builder.DefineField(emitter.Name, emitter.RuntimeType, emitter.Attributes));
+                lock (lockObj)
+                {
+                    if (!initializedGenericType)
+                    {
+                        initializedGenericType = true;
+
+                        DefineGenericParameters();
+                    }
+                }
             }
 
-            if (!builder.IsInterface && constructors.Count == 0)
+            foreach (FieldEmitter emitter in fields.Values)
+            {
+                emitter.Emit(typeBuilder.DefineField(emitter.Name, emitter.RuntimeType, emitter.Attributes));
+            }
+
+            if (!typeBuilder.IsInterface && constructors.Count == 0)
             {
                 DefineDefaultConstructor();
             }
@@ -981,29 +1316,38 @@ namespace Delta
 
             foreach (ConstructorEmitter emitter in constructors)
             {
-                emitter.Emit(builder.DefineConstructor(emitter.Attributes, emitter.Conventions, emitter.Parameters.Select(x => x.RuntimeType).ToArray()));
+                var parameters = emitter.GetParameters();
+
+                var parameterTypes = new Type[parameters.Length];
+
+                for (int i = 0; i < parameters.Length; i++)
+                {
+                    parameterTypes[i] = parameters[i].RuntimeType;
+                }
+
+                emitter.Emit(typeBuilder.DefineConstructor(emitter.Attributes, emitter.Conventions, parameterTypes));
             }
 
             foreach (MethodEmitter emitter in methods)
             {
-                emitter.Emit(builder);
+                emitter.Emit(typeBuilder);
             }
 
             foreach (PropertyEmitter emitter in properties.Values)
             {
-                emitter.Emit(builder.DefineProperty(emitter.Name, emitter.Attributes, emitter.RuntimeType, emitter.ParameterTypes));
+                emitter.Emit(typeBuilder.DefineProperty(emitter.Name, emitter.Attributes, emitter.RuntimeType, emitter.ParameterTypes));
             }
 
-            TypeInitializer.Emit(builder.DefineTypeInitializer());
+            TypeInitializer.Emit(typeBuilder.DefineTypeInitializer());
 
 #if NETSTANDARD2_0_OR_GREATER
-            return builder.CreateTypeInfo().AsType();
+            return typeBuilder.CreateTypeInfo().AsType();
 #else
-            return builder.CreateType();
+            return typeBuilder.CreateType();
 #endif
         }
 
-        private static Type AdjustConstraintToNewGenericParameters(Type constraint, Type[] originalGenericParameters, GenericTypeParameterBuilder[] newGenericParameters)
+        private static Type AdjustConstraintToNewGenericParameters(Type constraint, GenericTypeParameterBuilder[] newGenericParameters)
         {
             if (constraint.IsGenericType)
             {
@@ -1011,11 +1355,15 @@ namespace Delta
 
                 for (var i = 0; i < genericArgumentsOfConstraint.Length; ++i)
                 {
-                    genericArgumentsOfConstraint[i] =
-                        AdjustConstraintToNewGenericParameters(genericArgumentsOfConstraint[i], originalGenericParameters, newGenericParameters);
+                    genericArgumentsOfConstraint[i] = AdjustConstraintToNewGenericParameters(genericArgumentsOfConstraint[i], newGenericParameters);
                 }
 
-                return constraint.GetGenericTypeDefinition().MakeGenericType(genericArgumentsOfConstraint);
+                if (!constraint.IsGenericTypeDefinition)
+                {
+                    constraint = constraint.GetGenericTypeDefinition();
+                }
+
+                return constraint.MakeGenericType(genericArgumentsOfConstraint);
             }
             else
             {
@@ -1023,13 +1371,15 @@ namespace Delta
             }
         }
 
-        private static Type[] AdjustGenericConstraints(GenericTypeParameterBuilder[] newGenericParameters, Type[] originalGenericArguments, Type[] constraints)
+        private static Type[] AdjustGenericConstraints(GenericTypeParameterBuilder[] newGenericParameters, Type[] constraints)
         {
             Type[] adjustedConstraints = new Type[constraints.Length];
+
             for (var i = 0; i < constraints.Length; i++)
             {
-                adjustedConstraints[i] = AdjustConstraintToNewGenericParameters(constraints[i], originalGenericArguments, newGenericParameters);
+                adjustedConstraints[i] = AdjustConstraintToNewGenericParameters(constraints[i], newGenericParameters);
             }
+
             return adjustedConstraints;
         }
 
@@ -1279,6 +1629,6 @@ namespace Delta
         /// 是否已创建。
         /// </summary>
         /// <returns></returns>
-        public bool IsCreated() => builder.IsCreated();
+        public bool IsCreated() => typeBuilder.IsCreated();
     }
 }

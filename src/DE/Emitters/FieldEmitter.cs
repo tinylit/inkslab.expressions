@@ -5,7 +5,7 @@ using System.Diagnostics;
 using System.Reflection;
 using System.Reflection.Emit;
 
-namespace Delta
+namespace Delta.Emitters
 {
     /// <summary>
     /// 字段。
@@ -16,7 +16,6 @@ namespace Delta
         private FieldBuilder builder;
         private object defaultValue;
         private bool hasDefaultValue = false;
-        private readonly bool isStatic;
         private readonly List<CustomAttributeBuilder> customAttributes = new List<CustomAttributeBuilder>();
 
         /// <summary>
@@ -29,11 +28,10 @@ namespace Delta
         {
         }
 
-        private FieldEmitter(string name, Type returnType, FieldAttributes attributes, bool isStatic) : base(returnType, isStatic)
+        private FieldEmitter(string name, Type returnType, FieldAttributes attributes, bool isStatic) : base(returnType)
         {
             Name = name;
             Attributes = attributes;
-            this.isStatic = isStatic;
         }
 
         /// <summary>
@@ -46,10 +44,11 @@ namespace Delta
         /// </summary>
         public FieldAttributes Attributes { get; }
 
-        /// <summary>
-        /// 是否可写。
-        /// </summary>
+        /// <inheritdoc/>
         public override bool CanWrite => true;
+
+        /// <inheritdoc/>
+        public override bool IsStatic => (Attributes & FieldAttributes.Static) == FieldAttributes.Static;
 
         /// <summary>
         /// 设置默认值。
@@ -72,7 +71,7 @@ namespace Delta
             {
                 throw new ArgumentNullException(nameof(attributeData));
             }
-            
+
             customAttributes.Add(EmitUtils.CreateCustomAttribute(attributeData));
         }
 
@@ -90,37 +89,36 @@ namespace Delta
             customAttributes.Add(customBuilder);
         }
 
-        /// <summary>
-        /// 获取成员数据。
-        /// </summary>
-        /// <param name="ilg">指令。</param>
-        protected override void LoadCore(ILGenerator ilg)
+        /// <inheritdoc/>
+        public override void Load(ILGenerator ilg)
         {
-            if (isStatic)
+            if (IsStatic)
             {
                 ilg.Emit(OpCodes.Ldsfld, builder);
             }
             else
             {
+                ilg.Emit(OpCodes.Ldarg_0);
+
                 ilg.Emit(OpCodes.Ldfld, builder);
             }
         }
 
-        /// <summary>
-        /// 赋值。
-        /// </summary>
-        /// <param name="ilg">指令。</param>
-        /// <param name="value">值。</param>
-        protected override void AssignCore(ILGenerator ilg, Expression value)
+        /// <inheritdoc/>
+        protected override void Assign(ILGenerator ilg, Expression value)
         {
-            value.Load(ilg);
-
-            if (isStatic)
+            if (IsStatic)
             {
+                value.Load(ilg);
+
                 ilg.Emit(OpCodes.Stsfld, builder);
             }
             else
             {
+                ilg.Emit(OpCodes.Ldarg_0);
+
+                value.Load(ilg);
+
                 ilg.Emit(OpCodes.Stfld, builder);
             }
         }

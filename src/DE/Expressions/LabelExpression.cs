@@ -16,7 +16,7 @@ namespace Delta.Expressions
         /// <param name="label">标签。</param>
         internal LabelExpression(Label label) : base(typeof(void))
         {
-            this.label = label;
+            this.label = label ?? throw new ArgumentNullException(nameof(label));
         }
 
         /// <summary>

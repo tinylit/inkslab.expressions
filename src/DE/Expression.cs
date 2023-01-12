@@ -1,4 +1,5 @@
-﻿using Delta.Expressions;
+﻿using Delta.Emitters;
+using Delta.Expressions;
 using System;
 using System.Diagnostics;
 using System.Reflection;
@@ -11,21 +12,44 @@ namespace Delta
     /// </summary>
     public abstract class Expression
     {
+        private sealed class DynamicType
+        {
+        }
+
+        private static readonly Type _dynamicType = typeof(DynamicType);
+
+        /// <summary>
+        /// 构造函数（无返回值）。
+        /// </summary>
+        protected Expression()
+        {
+            IsVoid = true;
+            RuntimeType = typeof(void);
+        }
+
         /// <summary>
         /// 构造函数。
         /// </summary>
         /// <param name="returnType">返回类型。</param>
-        protected Expression(Type returnType) => RuntimeType = returnType ?? throw new ArgumentNullException(nameof(returnType));
+        protected Expression(Type returnType)
+        {
+            RuntimeType = returnType ?? throw new ArgumentNullException(nameof(returnType));
+
+            IsVoid = returnType == typeof(void);
+            IsContext = returnType == _dynamicType;
+        }
 
         /// <summary>
         /// 当前上下文。
         /// </summary>
-        public static Expression This => ThisExpression.Instance;
+        /// <param name="instanceType">实例类型。</param>
+        public static Expression This(Type instanceType) => new ThisExpression(instanceType);
 
         /// <summary>
-        /// 清除堆栈顶部数据。
+        /// 当前上下文。
         /// </summary>
-        public static Expression Nop => NopExpression.Instance;
+        /// <param name="typeEmitter">实例类型。</param>
+        public static Expression This(AbstractTypeEmitter typeEmitter) => new ThisExpression(typeEmitter.Value);
 
         /// <summary>
         /// 空表达式数组。
@@ -38,9 +62,38 @@ namespace Delta
         public virtual bool CanWrite => false;
 
         /// <summary>
+        /// 无返回值。
+        /// </summary>
+        public bool IsVoid { get; }
+
+        /// <summary>
+        /// 是上下文对象（this/base）。
+        /// </summary>
+        public bool IsContext { get; }
+
+        /// <summary>
         /// 类型。
         /// </summary>
-        public Type RuntimeType { get; private set; }
+        public Type RuntimeType
+        {
+            get;
+        }
+
+        /// <summary>
+        /// 标记标签。
+        /// </summary>
+        /// <param name="label">标签。</param>
+        protected internal virtual void MarkLabel(Label label)
+        {
+        }
+
+        /// <summary>
+        /// 将数据存储到方法返回值的变量中。
+        /// </summary>
+        /// <param name="variable">变量。</param>
+        protected internal virtual void StoredLocal(VariableExpression variable)
+        {
+        }
 
         /// <summary>
         /// 加载数据。
@@ -53,7 +106,7 @@ namespace Delta
         /// </summary>
         /// <param name="left">被赋值的表达式。</param>
         /// <param name="right">值。</param>
-        private static bool AssignChecked(Expression left, Expression right)
+        private static void AssignChecked(Expression left, Expression right)
         {
             if (left is null)
             {
@@ -67,7 +120,7 @@ namespace Delta
 
             if (!left.CanWrite)
             {
-                return false;
+                throw new ArgumentException("左侧表达式不可写!");
             }
 
             var returnType = left.RuntimeType;
@@ -79,7 +132,7 @@ namespace Delta
 
             if (right is ThisExpression)
             {
-                return true;
+                return;
             }
 
             var valueType = right.RuntimeType;
@@ -91,7 +144,7 @@ namespace Delta
 
             if (valueType == returnType || returnType.IsAssignableFrom(valueType))
             {
-                return true;
+                return;
             }
 
             if (valueType.IsByRef || returnType.IsByRef)
@@ -108,7 +161,7 @@ namespace Delta
 
                 if (valueType == returnType || returnType.IsAssignableFrom(valueType))
                 {
-                    return true;
+                    return;
                 }
             }
 
@@ -126,13 +179,16 @@ namespace Delta
 
                 if (valueType == returnType || returnType.IsAssignableFrom(valueType))
                 {
-                    return true;
+                    return;
                 }
             }
 
             if (returnType.IsNullable())
             {
-                return Enum.GetUnderlyingType(returnType) == valueType;
+                if (Enum.GetUnderlyingType(returnType) == valueType)
+                {
+                    return;
+                }
             }
 
             throw new AstException($"“{right.RuntimeType}”无法对类型“{left.RuntimeType}”赋值!");
@@ -165,16 +221,10 @@ namespace Delta
             /// <exception cref="ArgumentException"></exception>
             public AssignExpression(Expression left, Expression right) : base(right.RuntimeType)
             {
-                this.left = left ?? throw new ArgumentNullException(nameof(left));
+                AssignChecked(left, right);
 
-                if (AssignChecked(left, right))
-                {
-                    this.right = right ?? throw new ArgumentNullException(nameof(right));
-                }
-                else
-                {
-                    throw new ArgumentException("表达式左侧只读!");
-                }
+                this.left = left ?? throw new ArgumentNullException(nameof(left));
+                this.right = right ?? throw new ArgumentNullException(nameof(right));
             }
 
             /// <summary>
@@ -182,55 +232,6 @@ namespace Delta
             /// </summary>
             /// <param name="ilg">指令。</param>
             public override void Load(ILGenerator ilg) => left.Assign(ilg, Convert(right, RuntimeType));
-        }
-
-        /// <summary>
-        /// 成员本身。
-        /// </summary>
-        [DebuggerDisplay("this")]
-        private class ThisExpression : Expression
-        {
-            /// <summary>
-            /// 单例。
-            /// </summary>
-            public static ThisExpression Instance = new ThisExpression();
-
-            /// <summary>
-            /// 构造函数。
-            /// </summary>
-            private ThisExpression() : base(typeof(object))
-            {
-            }
-
-            /// <summary>
-            /// 加载。
-            /// </summary>
-            /// <param name="ilg">指令。</param>
-            public override void Load(ILGenerator ilg)
-            {
-                ilg.Emit(OpCodes.Ldarg_0);
-            }
-        }
-
-        private class NopExpression : Expression
-        {
-            /// <summary>
-            /// 单例。
-            /// </summary>
-            public static NopExpression Instance = new NopExpression();
-
-            /// <summary>
-            /// 构造函数。
-            /// </summary>
-            private NopExpression() : base(typeof(void))
-            {
-            }
-
-            /// <summary>
-            /// 加载。
-            /// </summary>
-            /// <param name="ilg">指令。</param>
-            public override void Load(ILGenerator ilg) => ilg.Emit(OpCodes.Nop);
         }
         #endregion
 
@@ -285,14 +286,14 @@ namespace Delta
         /// </summary>
         /// <param name="instanceType">实例类型。</param>
         /// <returns>创建实例表达式。</returns>
-        public static NewInstanceExpression New(Type instanceType) => new NewInstanceExpression(instanceType);
+        public static Expression New(Type instanceType) => new NewInstanceExpression(instanceType);
 
         /// <summary>
         /// 创建实例。
         /// </summary>
         /// <param name="constructor">构造函数。</param>
         /// <returns>创建实例表达式。</returns>
-        public static NewInstanceExpression New(ConstructorInfo constructor) => new NewInstanceExpression(constructor);
+        public static Expression New(ConstructorInfo constructor) => new NewInstanceExpression(constructor);
 
         /// <summary>
         /// 创建实例。
@@ -300,7 +301,7 @@ namespace Delta
         /// <param name="instanceType">实例类型。</param>
         /// <param name="parameters">参数。</param>
         /// <returns>创建实例表达式。</returns>
-        public static NewInstanceExpression New(Type instanceType, params Expression[] parameters) => new NewInstanceExpression(instanceType, parameters);
+        public static Expression New(Type instanceType, params Expression[] parameters) => new NewInstanceExpression(instanceType, parameters);
 
         /// <summary>
         /// 创建实例。
@@ -308,7 +309,22 @@ namespace Delta
         /// <param name="constructor">构造函数。</param>
         /// <param name="parameters">参数。</param>
         /// <returns>创建实例表达式。</returns>
-        public static NewInstanceExpression New(ConstructorInfo constructor, params Expression[] parameters) => new NewInstanceExpression(constructor, parameters);
+        public static Expression New(ConstructorInfo constructor, params Expression[] parameters) => new NewInstanceExpression(constructor, parameters);
+
+        /// <summary>
+        /// 创建实例。
+        /// </summary>
+        /// <param name="constructorEmitter">构造函数。</param>
+        /// <returns>创建实例表达式。</returns>
+        public static Expression New(ConstructorEmitter constructorEmitter) => new NewInstanceEmitter(constructorEmitter);
+
+        /// <summary>
+        /// 创建实例。
+        /// </summary>
+        /// <param name="constructorEmitter">构造函数。</param>
+        /// <param name="parameters">参数。</param>
+        /// <returns>创建实例表达式。</returns>
+        public static Expression New(ConstructorEmitter constructorEmitter, params Expression[] parameters) => new NewInstanceEmitter(constructorEmitter, parameters);
 
         /// <summary>
         /// 创建 object[]。
@@ -672,28 +688,16 @@ namespace Delta
         /// 流程（无返回值）。
         /// </summary>
         /// <param name="switchValue">判断依据。</param>
-        /// <param name="breakLabel">跳出流程。</param>
         /// <returns> 流程控制表达式。</returns>
-        public static SwitchExpression Switch(Expression switchValue, Label breakLabel) => new SwitchExpression(switchValue, breakLabel);
+        public static SwitchExpression Switch(Expression switchValue) => new SwitchExpression(switchValue);
 
         /// <summary>
         /// 流程(无返回值)。
         /// </summary>
         /// <param name="switchValue">判断依据。</param>
         /// <param name="defaultAst">默认流程。</param>
-        /// <param name="breakLabel">跳出流程。</param>
         /// <returns> 流程控制表达式。</returns>
-        public static SwitchExpression Switch(Expression switchValue, Expression defaultAst, Label breakLabel) => new SwitchExpression(switchValue, defaultAst, breakLabel);
-
-        /// <summary>
-        /// 流程(返回“<paramref name="returnType"/>”类型)。
-        /// </summary>
-        /// <param name="switchValue">判断依据。</param>
-        /// <param name="defaultAst">默认流程。</param>
-        /// <param name="returnType">流程返回值。</param>
-        /// <param name="breakLabel">跳出流程。</param>
-        /// <returns> switch 表达式。</returns>
-        public static SwitchExpression Switch(Expression switchValue, Expression defaultAst, Type returnType, Label breakLabel) => new SwitchExpression(switchValue, defaultAst, returnType, breakLabel);
+        public static SwitchExpression Switch(Expression switchValue, Expression defaultAst) => new SwitchExpression(switchValue, defaultAst);
 
         /// <summary>
         /// 条件判断。
@@ -736,7 +740,7 @@ namespace Delta
         /// </summary>
         /// <param name="methodInfo">方法。</param>
         /// <returns>方法调用表达式。</returns>
-        public static MethodCallExpression Call(MethodInfo methodInfo) => new MethodCallExpression(methodInfo);
+        public static Expression Call(MethodInfo methodInfo) => new MethodCallExpression(methodInfo);
 
         /// <summary>
         /// 调用方法。
@@ -744,7 +748,7 @@ namespace Delta
         /// <param name="methodInfo">方法。</param>
         /// <param name="arguments">方法参数。</param>
         /// <returns>方法调用表达式。</returns>
-        public static MethodCallExpression Call(MethodInfo methodInfo, params Expression[] arguments) => new MethodCallExpression(methodInfo, arguments);
+        public static Expression Call(MethodInfo methodInfo, params Expression[] arguments) => new MethodCallExpression(methodInfo, arguments);
 
         /// <summary>
         /// 调用方法。
@@ -752,7 +756,7 @@ namespace Delta
         /// <param name="instanceAst">实例。</param>
         /// <param name="methodInfo">方法。</param>
         /// <returns>方法调用表达式。</returns>
-        public static MethodCallExpression Call(Expression instanceAst, MethodInfo methodInfo) => new MethodCallExpression(instanceAst, methodInfo);
+        public static Expression Call(Expression instanceAst, MethodInfo methodInfo) => new MethodCallExpression(instanceAst, methodInfo);
 
         /// <summary>
         /// 调用方法。
@@ -761,7 +765,39 @@ namespace Delta
         /// <param name="methodInfo">方法。</param>
         /// <param name="arguments">方法参数。</param>
         /// <returns>方法调用表达式。</returns>
-        public static MethodCallExpression Call(Expression instanceAst, MethodInfo methodInfo, params Expression[] arguments) => new MethodCallExpression(instanceAst, methodInfo, arguments);
+        public static Expression Call(Expression instanceAst, MethodInfo methodInfo, params Expression[] arguments) => new MethodCallExpression(instanceAst, methodInfo, arguments);
+
+        /// <summary>
+        /// 调用方法。
+        /// </summary>
+        /// <param name="methodEmitter">方法。</param>
+        /// <returns>方法调用表达式。</returns>
+        public static Expression Call(MethodEmitter methodEmitter) => new MethodCallEmitter(methodEmitter);
+
+        /// <summary>
+        /// 调用方法。
+        /// </summary>
+        /// <param name="methodEmitter">方法。</param>
+        /// <param name="arguments">方法参数。</param>
+        /// <returns>方法调用表达式。</returns>
+        public static Expression Call(MethodEmitter methodEmitter, params Expression[] arguments) => new MethodCallEmitter(methodEmitter, arguments);
+
+        /// <summary>
+        /// 调用方法（若方法 <paramref name="methodInfo"/> 不为抽象方法，则直接调用方法，而不是被重写的方法；否则，调用重写方法。）。
+        /// </summary>
+        /// <param name="instanceAst">实例。</param>
+        /// <param name="methodInfo">方法。</param>
+        /// <returns>方法调用表达式。</returns>
+        public static Expression DeclaringCall(Expression instanceAst, MethodInfo methodInfo) => new MethodCallExpression(instanceAst, methodInfo) { VirtualCall = methodInfo.DeclaringType.IsInterface || (methodInfo.Attributes & MethodAttributes.Abstract) == MethodAttributes.Abstract };
+
+        /// <summary>
+        /// 调用方法（若方法 <paramref name="methodInfo"/> 不为抽象方法，则直接调用方法，而不是被重写的方法；否则，调用重写方法。）。
+        /// </summary>
+        /// <param name="instanceAst">实例。</param>
+        /// <param name="methodInfo">方法。</param>
+        /// <param name="arguments">方法参数。</param>
+        /// <returns>方法调用表达式。</returns>
+        public static Expression DeclaringCall(Expression instanceAst, MethodInfo methodInfo, params Expression[] arguments) => new MethodCallExpression(instanceAst, methodInfo, arguments) { VirtualCall = methodInfo.DeclaringType.IsInterface || (methodInfo.Attributes & MethodAttributes.Abstract) == MethodAttributes.Abstract };
 
         /// <summary>
         /// 调用方法：返回“<paramref name="methodInfo"/>.ReturnType”。。<see cref="MethodBase.Invoke(object, object[])"/>
@@ -769,7 +805,7 @@ namespace Delta
         /// <param name="methodInfo">方法。</param>
         /// <param name="arguments">参数<see cref="object"/>[]。</param>
         /// <returns>方法调用表达式。</returns>
-        public static InvocationExpression Invoke(MethodInfo methodInfo, Expression arguments) => new InvocationExpression(methodInfo, arguments);
+        public static Expression Invoke(MethodInfo methodInfo, Expression arguments) => new InvocationExpression(methodInfo, arguments);
 
         /// <summary>
         /// 调用方法：返回“<paramref name="methodInfo"/>.ReturnType”。<see cref="MethodBase.Invoke(object, object[])"/>
@@ -778,7 +814,24 @@ namespace Delta
         /// <param name="methodInfo">方法。</param>
         /// <param name="arguments">参数<see cref="object"/>[]。</param>
         /// <returns>方法调用表达式。</returns>
-        public static InvocationExpression Invoke(Expression instanceAst, MethodInfo methodInfo, Expression arguments) => new InvocationExpression(instanceAst, methodInfo, arguments);
+        public static Expression Invoke(Expression instanceAst, MethodInfo methodInfo, Expression arguments) => new InvocationExpression(instanceAst, methodInfo, arguments);
+
+        /// <summary>
+        /// 调用静态方法。<see cref="MethodBase.Invoke(object, object[])"/>
+        /// </summary>
+        /// <param name="methodEmitter">方法表达式。</param>
+        /// <param name="arguments">参数<see cref="object"/>[]。</param>
+        /// <returns>方法调用表达式。</returns>
+        public static Expression Invoke(MethodEmitter methodEmitter, Expression arguments) => new InvocationEmitter(methodEmitter, arguments);
+
+        /// <summary>
+        /// 调用方法。<see cref="MethodBase.Invoke(object, object[])"/>
+        /// </summary>
+        /// <param name="instanceAst">实例。</param>
+        /// <param name="methodEmitter">方法表达式。</param>
+        /// <param name="arguments">参数<see cref="object"/>[]。</param>
+        /// <returns>方法调用表达式。</returns>
+        public static Expression Invoke(Expression instanceAst, MethodEmitter methodEmitter, Expression arguments) => new InvocationEmitter(instanceAst, methodEmitter, arguments);
 
         /// <summary>
         /// 调用静态方法。<see cref="MethodBase.Invoke(object, object[])"/>
@@ -786,7 +839,7 @@ namespace Delta
         /// <param name="methodAst">方法表达式。</param>
         /// <param name="arguments">参数<see cref="object"/>[]。</param>
         /// <returns>方法调用表达式。</returns>
-        public static InvocationExpression Invoke(Expression methodAst, Expression arguments) => new InvocationExpression(methodAst, arguments);
+        public static Expression Invoke(Expression methodAst, Expression arguments) => new InvocationExpression(methodAst, arguments);
 
         /// <summary>
         /// 调用方法。<see cref="MethodBase.Invoke(object, object[])"/>
@@ -795,23 +848,19 @@ namespace Delta
         /// <param name="methodAst">方法表达式。</param>
         /// <param name="arguments">参数<see cref="object"/>[]。</param>
         /// <returns>方法调用表达式。</returns>
-        public static InvocationExpression Invoke(Expression instanceAst, Expression methodAst, Expression arguments) => new InvocationExpression(instanceAst, methodAst, arguments);
+        public static Expression Invoke(Expression instanceAst, Expression methodAst, Expression arguments) => new InvocationExpression(instanceAst, methodAst, arguments);
 
         /// <summary>
         /// 循环代码块。
         /// </summary>
-        /// <param name="returnType">表达式类型。</param>
-        /// <param name="breakLabel">跳出循环标记。</param>
-        /// <param name="continueLabel">继续循环标记。</param>
         /// <returns>循环表达式。</returns>
-        public static LoopExpression Loop(Type returnType, Label breakLabel, Label continueLabel) => new LoopExpression(returnType, breakLabel, continueLabel);
+        public static LoopExpression Loop() => new LoopExpression();
 
         /// <summary>
         /// 代码块。
         /// </summary>
-        /// <param name="returnType">返回值。</param>
         /// <returns>代码片段。</returns>
-        public static BlockExpression Block(Type returnType) => new BlockExpression(returnType);
+        public static BlockExpression Block() => new BlockExpression();
 
         /// <summary>
         /// 抛出异常。
@@ -838,17 +887,15 @@ namespace Delta
         /// <summary>
         /// 异常处理。
         /// </summary>
-        /// <param name="returnType">返回值。</param>
         /// <returns>流程控制表达式。</returns>
-        public static TryExpression Try(Type returnType) => new TryExpression(returnType);
+        public static TryExpression Try() => new TryExpression();
 
         /// <summary>
         /// 异常处理。
         /// </summary>
-        /// <param name="returnType">返回值。</param>
         /// <param name="finallyAst">一定会执行的代码。</param>
         /// <returns>流程控制表达式。</returns>
-        public static TryExpression Try(Type returnType, Expression finallyAst) => new TryExpression(returnType, finallyAst);
+        public static TryExpression Try(Expression finallyAst) => new TryExpression(finallyAst);
 
         /// <summary>
         /// 字段。
@@ -858,11 +905,27 @@ namespace Delta
         public static FieldExpression Field(FieldInfo field) => new FieldExpression(field);
 
         /// <summary>
+        /// 字段。
+        /// </summary>
+        /// <param name="instanceAst">字段所在实例。</param>
+        /// <param name="field">字段。</param>
+        /// <returns>字段表达式。</returns>
+        public static FieldExpression Field(Expression instanceAst, FieldInfo field) => new FieldExpression(instanceAst, field);
+
+        /// <summary>
         /// 属性。
         /// </summary>
         /// <param name="property">属性。</param>
         /// <returns>属性表达式。</returns>
         public static PropertyExpression Property(PropertyInfo property) => new PropertyExpression(property);
+
+        /// <summary>
+        /// 属性。
+        /// </summary>
+        /// <param name="instanceAst">属性所在实例。</param>
+        /// <param name="property">属性。</param>
+        /// <returns>属性表达式。</returns>
+        public static PropertyExpression Property(Expression instanceAst, PropertyInfo property) => new PropertyExpression(instanceAst, property);
 
         /// <summary>
         /// 参数。
@@ -879,10 +942,10 @@ namespace Delta
         public static VariableExpression Variable(Type variableType) => new VariableExpression(variableType);
 
         /// <summary>
-        /// 标签。
+        /// 跳转标签。
         /// </summary>
         /// <returns>标签。</returns>
-        public static Label Label() => new Label();
+        public static Label Label() => new Label(LabelKind.Goto);
 
         /// <summary>
         /// 标记标签。
@@ -897,5 +960,30 @@ namespace Delta
         /// <param name="label">标签。</param>
         /// <returns>跳转到标签表达式。</returns>
         public static GotoExpression Goto(Label label) => new GotoExpression(label);
+
+        /// <summary>
+        /// 跳出封闭式循环。
+        /// </summary>
+        /// <returns>跳出封闭式循环表达式。</returns>
+        public static BreakExpression Break() => new BreakExpression();
+
+        /// <summary>
+        /// 继续封闭式循环。
+        /// </summary>
+        /// <returns>继续封闭式循环表达式。</returns>
+        public static ContinueExpression Continue() => new ContinueExpression();
+
+        /// <summary>
+        /// 结束方法（无返回值）。
+        /// </summary>
+        /// <returns>结束方法表达式。</returns>
+        public static ReturnExpression Return() => new ReturnExpression();
+
+        /// <summary>
+        /// 结束方法（返回数据）。
+        /// </summary>
+        /// <param name="body">返回结果。</param>
+        /// <returns>结束方法表达式。</returns>
+        public static ReturnExpression Return(Expression body) => new ReturnExpression(body);
     }
 }

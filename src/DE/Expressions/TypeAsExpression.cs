@@ -21,6 +21,11 @@ namespace Delta.Expressions
         internal TypeAsExpression(Expression body, Type type) : base(type)
         {
             this.body = body ?? throw new ArgumentNullException(nameof(body));
+
+            if (body.IsVoid)
+            {
+                throw new AstException("表达式“as”无效!");
+            }
         }
 
         /// <summary>
@@ -29,7 +34,11 @@ namespace Delta.Expressions
         /// <param name="ilg">指令。</param>
         public override void Load(ILGenerator ilg)
         {
-            if (RuntimeType.IsValueType)
+            if (body.RuntimeType == RuntimeType)
+            {
+                body.Load(ilg);
+            }
+            else if (RuntimeType.IsValueType)
             {
                 var local = ilg.DeclareLocal(RuntimeType);
 

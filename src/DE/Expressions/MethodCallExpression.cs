@@ -1,9 +1,9 @@
-﻿using System;
+﻿using Delta.Emitters;
+using System;
 using System.Diagnostics;
 using System.Linq;
 using System.Reflection;
 using System.Reflection.Emit;
-using System.Runtime.InteropServices;
 using System.Text;
 
 namespace Delta.Expressions
@@ -30,21 +30,36 @@ namespace Delta.Expressions
                 throw new ArgumentNullException(nameof(arguments));
             }
 
-            if (methodInfo.ContainsGenericParameters)
+            if (methodInfo is not DynamicMethod)
             {
-                throw new AstException($"类型“{methodInfo.DeclaringType}.{methodInfo.Name}”包含未指定的泛型参数！");
+                foreach (var genericArgumentType in methodInfo.GetGenericArguments())
+                {
+                    if (genericArgumentType.IsGenericParameter)
+                    {
+                        if (genericArgumentType is GenericTypeParameterBuilder)
+                        {
+                            continue;
+                        }
+
+                        throw new AstException($"类型“{methodInfo.DeclaringType}.{methodInfo.Name}”包含未指定的泛型参数！");
+                    }
+                }
             }
 
-            if (methodInfo.IsStatic ^ (instanceAst is null))
+            if (methodInfo.IsStatic)
             {
-                if (methodInfo.IsStatic)
+                if (instanceAst is not null)
                 {
                     throw new AstException($"方法“{methodInfo.Name}”是静态的，不能指定实例！");
                 }
-                else
-                {
-                    throw new AstException($"方法“{methodInfo.Name}”不是静态的，必须指定实例！");
-                }
+            }
+            else if (instanceAst is null)
+            {
+                throw new AstException($"方法“{methodInfo.Name}”不是静态的，必须指定实例！");
+            }
+            else if (!methodInfo.DeclaringType.IsAssignableFrom(instanceAst.RuntimeType))
+            {
+                throw new AstException($"方法“{methodInfo.Name}”不属于实例(“{instanceAst.RuntimeType}”)！");
             }
 
             var parameterInfos = methodInfo.IsGenericMethod
@@ -113,12 +128,18 @@ namespace Delta.Expressions
         /// <param name="arguments">参数。</param>
         internal MethodCallExpression(Expression instanceAst, MethodInfo methodInfo, Expression[] arguments) : base(GetReturnType(instanceAst, methodInfo, arguments))
         {
-            this.instanceAst = instanceAst is null || methodInfo.DeclaringType == instanceAst.RuntimeType
-                ? instanceAst
-                : Convert(instanceAst, methodInfo.DeclaringType);
-
+            this.instanceAst = instanceAst;
             this.methodInfo = methodInfo;
             this.arguments = arguments;
+
+            if (methodInfo.IsStatic || methodInfo.DeclaringType.IsValueType)
+            {
+                virtualCall = false;
+            }
+            else if (instanceAst is ThisExpression)
+            {
+                virtualCall = false;
+            }
         }
 
         [DebuggerHidden]
@@ -140,17 +161,30 @@ namespace Delta.Expressions
                 sb.Append('.')
                     .Append(methodInfo.Name)
                     .Append('(')
-                    .Append("{ ")
                     .Append("...args");
 
                 return sb.Append(')').ToString();
             }
         }
 
+        private bool virtualCall = true;
+
         /// <summary>
-        /// 加载数据。
+        /// 虚拟方法调用。
         /// </summary>
-        /// <param name="ilg">指令。</param>
+        public bool VirtualCall
+        {
+            get => virtualCall;
+            set
+            {
+                if (virtualCall)
+                {
+                    virtualCall = value;
+                }
+            }
+        }
+
+        /// <inheritdoc/>
         public override void Load(ILGenerator ilg)
         {
             if (!methodInfo.IsStatic)
@@ -158,6 +192,34 @@ namespace Delta.Expressions
                 instanceAst.Load(ilg);
             }
 
+            LoadArgs(ilg);
+
+            if (methodInfo is DynamicMethod dynamicMethod)
+            {
+                if (virtualCall)
+                {
+                    ilg.Emit(OpCodes.Callvirt, dynamicMethod.RuntimeMethod);
+                }
+                else
+                {
+                    ilg.Emit(OpCodes.Call, dynamicMethod.RuntimeMethod);
+                }
+            }
+            else
+            {
+                if (virtualCall)
+                {
+                    ilg.Emit(OpCodes.Callvirt, methodInfo);
+                }
+                else
+                {
+                    ilg.Emit(OpCodes.Call, methodInfo);
+                }
+            }
+        }
+
+        private void LoadArgs(ILGenerator ilg)
+        {
             foreach (var item in arguments)
             {
                 if (item is ParameterExpression parameterAst && parameterAst.IsByRef) //? 仅加载参数位置。
@@ -191,29 +253,6 @@ namespace Delta.Expressions
                 else
                 {
                     item.Load(ilg);
-                }
-            }
-
-            if (methodInfo is DynamicMethod dynamicMethod)
-            {
-                if (methodInfo.IsStatic || methodInfo.DeclaringType.IsValueType)
-                {
-                    ilg.Emit(OpCodes.Call, dynamicMethod.RuntimeMethod);
-                }
-                else
-                {
-                    ilg.Emit(OpCodes.Callvirt, dynamicMethod.RuntimeMethod);
-                }
-            }
-            else
-            {
-                if (methodInfo.IsStatic || methodInfo.DeclaringType.IsValueType)
-                {
-                    ilg.Emit(OpCodes.Call, methodInfo);
-                }
-                else
-                {
-                    ilg.Emit(OpCodes.Callvirt, methodInfo);
                 }
             }
         }

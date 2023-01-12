@@ -6,7 +6,7 @@ using System.Reflection;
 using System.Reflection.Emit;
 using System.Text;
 
-namespace Delta
+namespace Delta.Emitters
 {
     /// <summary>
     /// 方法。
@@ -17,9 +17,43 @@ namespace Delta
         private int parameterIndex = 0;
         private MethodBuilder methodBuilder;
 
-        private readonly ReturnExpression returnAst;
         private readonly List<ParameterEmitter> parameters = new List<ParameterEmitter>();
         private readonly List<CustomAttributeBuilder> customAttributes = new List<CustomAttributeBuilder>();
+
+        private class InitMethodEmitter : MethodEmitter
+        {
+            private readonly Type[] typeArguments;
+            private readonly MethodEmitter methodEmitter;
+
+            public InitMethodEmitter(MethodEmitter methodEmitter, Type[] typeArguments) : base(methodEmitter.Name, methodEmitter.Attributes, methodEmitter.RuntimeType)
+            {
+                this.methodEmitter = methodEmitter;
+                this.typeArguments = typeArguments;
+            }
+
+            internal override MethodInfo Value => methodEmitter.Value.MakeGenericMethod(typeArguments);
+
+            public override ParameterEmitter[] GetParameters() => methodEmitter.GetParameters();
+
+            public override bool IsGenericMethod => methodEmitter.IsGenericMethod;
+
+            public override Type[] GetGenericArguments() => typeArguments;
+
+            public override ParameterEmitter DefineParameter(Type parameterType, ParameterAttributes attributes, string name)
+            {
+                return methodEmitter.DefineParameter(parameterType, attributes, name);
+            }
+
+            public override MethodEmitter MakeGenericMethod(params Type[] typeArguments)
+            {
+                return methodEmitter.MakeGenericMethod(typeArguments);
+            }
+
+            public override void SetCustomAttribute(CustomAttributeBuilder customBuilder)
+            {
+                methodEmitter.SetCustomAttribute(customBuilder);
+            }
+        }
 
         /// <summary>
         /// 构造函数。
@@ -31,8 +65,6 @@ namespace Delta
         {
             Name = name;
             Attributes = attributes;
-
-            returnAst = new ReturnExpression(returnType);
         }
 
         [DebuggerHidden]
@@ -104,7 +136,7 @@ namespace Delta
         /// <summary>
         /// 成员。
         /// </summary>
-        internal MethodBuilder Value => methodBuilder ?? throw new NotImplementedException();
+        internal virtual MethodInfo Value => TypeBuilder.GetMethod(methodBuilder.DeclaringType, methodBuilder ?? throw new NotImplementedException());
 
         /// <summary>
         /// 方法的名称。
@@ -112,26 +144,26 @@ namespace Delta
         public string Name { get; }
 
         /// <summary>
+        /// 是否为静态方法。
+        /// </summary>
+        public bool IsStatic => (Attributes & MethodAttributes.Static) == MethodAttributes.Static;
+
+        /// <summary>
         /// 方法的属性。
         /// </summary>
         public MethodAttributes Attributes { get; }
 
         /// <summary>
-        /// 结束方法。
-        /// </summary>
-        public ReturnExpression Return => returnAst;
-
-        /// <summary>
         /// 参数。
         /// </summary>
-        public ParameterEmitter[] GetParameters() => parameters.ToArray();
+        public virtual ParameterEmitter[] GetParameters() => parameters.ToArray();
 
         /// <summary>
         /// 声明参数。
         /// </summary>
         /// <param name="parameterInfo">参数。</param>
         /// <returns></returns>
-        public virtual ParameterEmitter DefineParameter(ParameterInfo parameterInfo)
+        public ParameterEmitter DefineParameter(ParameterInfo parameterInfo)
         {
             var parameter = DefineParameter(parameterInfo.ParameterType, parameterInfo.Attributes, parameterInfo.Name);
 
@@ -173,6 +205,21 @@ namespace Delta
         }
 
         /// <summary>
+        /// 返回使用指定泛型类型参数从当前泛型方法定义构造的泛型方法。
+        /// </summary>
+        /// <param name="typeArguments">表示泛型方法的类型参数的 <see cref="Type"/> 对象的数组。</param>
+        /// <returns>一个 <see cref="MethodEmitter"/>，它表示使用指定泛型类型参数从当前泛型方法定义构造的泛型方法。</returns>
+        public virtual MethodEmitter MakeGenericMethod(params Type[] typeArguments)
+        {
+            if (typeArguments?.Length > 0)
+            {
+                return new InitMethodEmitter(this, typeArguments);
+            }
+
+            return this;
+        }
+
+        /// <summary>
         /// 设置属性标记。
         /// </summary>
         /// <param name="attributeData">属性。</param>
@@ -183,14 +230,14 @@ namespace Delta
                 throw new ArgumentNullException(nameof(attributeData));
             }
 
-            customAttributes.Add(EmitUtils.CreateCustomAttribute(attributeData));
+            SetCustomAttribute(EmitUtils.CreateCustomAttribute(attributeData));
         }
 
         /// <summary>
         /// 设置属性标记。
         /// </summary>
         /// <param name="customBuilder">属性。</param>
-        public void SetCustomAttribute(CustomAttributeBuilder customBuilder)
+        public virtual void SetCustomAttribute(CustomAttributeBuilder customBuilder)
         {
             if (customBuilder is null)
             {
@@ -201,18 +248,12 @@ namespace Delta
         }
 
         /// <summary>
-        /// 转为方法。
-        /// </summary>
-        /// <returns></returns>
-        protected internal virtual MethodInfo AsRuntimeMethod() => methodBuilder;
-
-        /// <summary>
         /// 发行方法。
         /// </summary>
         /// <param name="methodBuilder">方法。</param>
         protected virtual void Emit(MethodBuilder methodBuilder)
         {
-            this.methodBuilder = methodBuilder;
+            this.methodBuilder = methodBuilder ?? throw new ArgumentNullException(nameof(methodBuilder));
 
             foreach (var parameter in parameters)
             {
@@ -226,7 +267,7 @@ namespace Delta
 
             var ilg = methodBuilder.GetILGenerator();
 
-            base.Load(methodBuilder.GetILGenerator());
+            Load(methodBuilder.GetILGenerator());
 
             ilg.Emit(OpCodes.Ret);
         }
@@ -237,6 +278,11 @@ namespace Delta
         /// <param name="builder">构造器。</param>
         public virtual void Emit(TypeBuilder builder)
         {
+            if (builder is null)
+            {
+                throw new ArgumentNullException(nameof(builder));
+            }
+
             int index = 0;
 
             var parameterTypes = new Type[parameters.Count];
@@ -255,29 +301,27 @@ namespace Delta
         /// <param name="ilg">指令。</param>
         public override void Load(ILGenerator ilg)
         {
-            var label = ilg.DefineLabel();
+            var label = new Label(LabelKind.Return);
 
-            if (RuntimeType == typeof(void))
+            MarkLabel(label);
+
+            if (IsVoid)
             {
-                returnAst.Emit(label);
-
                 base.Load(ilg);
 
-                ilg.MarkLabel(label);
-
-                ilg.Emit(OpCodes.Nop);
+                label.MarkLabel(ilg);
             }
             else
             {
-                var local = ilg.DeclareLocal(RuntimeType);
+                var variable = Variable(ReturnType);
 
-                returnAst.Emit(local, label);
+                StoredLocal(variable);
 
                 base.Load(ilg);
 
-                ilg.MarkLabel(label);
+                label.MarkLabel(ilg);
 
-                ilg.Emit(OpCodes.Ldloc, local);
+                variable.Load(ilg);
             }
         }
     }

@@ -1,7 +1,5 @@
 <Project>
 	<PropertyGroup>
-		<TargetFrameworks Condition="'$(LibraryFrameworks)'==''">net461;netstandard2.1;</TargetFrameworks>
-		<TargetFrameworks Condition="'$(LibraryFrameworks)'!=''">$(LibraryFrameworks)</TargetFrameworks>
 		<!-- 版本 -->
 		<Version>1.0.1</Version>
 		<!-- C#语法版本-->
@@ -10,6 +8,9 @@
 		<!-- 语法提示 -->
 		<Features>strict</Features>
 		<TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+
+		<!-- 生成 xml 文件。 -->
+		<GenerateDocumentationFile>true</GenerateDocumentationFile>
 
 		<Authors>影子和树</Authors>
 		<Company>TINYLIT</Company>
@@ -24,11 +25,20 @@
 		<!-- 生成 xml 文件。 -->
 		<GenerateDocumentationFile>true</GenerateDocumentationFile>
 	</PropertyGroup>
-	
+
 	<ItemGroup>
 		<None Include="..\..\.editorconfig" Link=".editorconfig" />
 	</ItemGroup>
-	
+
+	<Choose>
+		<When Condition="!$(MSBuildProjectName.EndsWith('.Tests')) ">
+			<PropertyGroup>
+				<TargetFrameworks Condition="'$(LibraryFrameworks)'==''">net461;netstandard2.1;</TargetFrameworks>
+				<TargetFrameworks Condition="'$(LibraryFrameworks)'!=''">$(LibraryFrameworks)</TargetFrameworks>
+			</PropertyGroup>
+		</When>
+	</Choose>
+
 	<Choose>
 		<When Condition="$(MSBuildProjectName)=='DE.Middleware' ">
 			<ItemGroup Condition="'$(TargetFramework)' == 'netstandard2.1'">

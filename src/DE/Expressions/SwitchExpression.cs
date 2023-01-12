@@ -15,8 +15,7 @@ namespace Delta.Expressions
     {
         private readonly Expression defaultAst;
         private readonly Expression switchValue;
-        private readonly Label breakLabel;
-        private readonly List<IPrivateCaseHandler> switchCases;
+        private readonly List<SwitchCaseExpression> switchCases;
 
         private readonly Type switchValueType;
         private readonly MySwitchValueKind switchValueKind;
@@ -59,7 +58,7 @@ namespace Delta.Expressions
                     sb.AppendLine()
                         .Append("default:");
 
-                    if (RuntimeType == typeof(void))
+                    if (IsVoid)
                     {
                         sb.Append(defaultAst)
                             .Append("; break;");
@@ -96,6 +95,10 @@ namespace Delta.Expressions
             void EmitEqual(ILGenerator ilg);
 
             void Emit(ILGenerator ilg, MyVariableExpression variable);
+
+            void MarkLabel(Label label);
+
+            void StoredLocal(VariableExpression variable);
         }
 
         private class MyVariableExpression : Expression
@@ -113,21 +116,13 @@ namespace Delta.Expressions
             }
         }
 
-        private class SwitchCaseArithmeticExpression : BlockExpression, IPrivateCaseHandler
+        private abstract class SwitchCaseExpression : BlockExpression, ICaseHandler
         {
-            private readonly ConstantExpression constant;
+            public abstract void EmitEqual(ILGenerator ilg);
 
-            public SwitchCaseArithmeticExpression(ConstantExpression constant, Type returnType) : base(returnType)
-            {
-                this.constant = constant;
-            }
+            public abstract OpCode Equal_S { get; }
 
-            public void EmitEqual(ILGenerator ilg)
-            {
-                constant.Load(ilg);
-            }
-
-            public OpCode Equal_S => OpCodes.Beq_S;
+            public virtual void Emit(ILGenerator ilg, MyVariableExpression variable) => Load(ilg);
 
             ICaseHandler ICaseHandler.Append(Expression code)
             {
@@ -135,12 +130,24 @@ namespace Delta.Expressions
 
                 return this;
             }
+        }
 
-            void IPrivateCaseHandler.Emit(ILGenerator ilg, MyVariableExpression variable) => Load(ilg);
+        private class SwitchCaseArithmeticExpression : SwitchCaseExpression
+        {
+            private readonly ConstantExpression constant;
+
+            public SwitchCaseArithmeticExpression(ConstantExpression constant)
+            {
+                this.constant = constant;
+            }
+
+            public override void EmitEqual(ILGenerator ilg) => constant.Load(ilg);
+
+            public override OpCode Equal_S => OpCodes.Beq_S;
 
             public override string ToString()
             {
-                if (RuntimeType == typeof(void))
+                if (IsVoid)
                 {
                     return $"case {constant}: /*TODO:somethings...*/ break;";
                 }
@@ -149,16 +156,16 @@ namespace Delta.Expressions
             }
         }
 
-        private class SwitchCaseRuntimeTypeExpression : BlockExpression, IPrivateCaseHandler
+        private class SwitchCaseRuntimeTypeExpression : SwitchCaseExpression
         {
             private readonly VariableExpression variableAst;
 
-            public SwitchCaseRuntimeTypeExpression(VariableExpression variableAst, Type returnType) : base(returnType)
+            public SwitchCaseRuntimeTypeExpression(VariableExpression variableAst)
             {
                 this.variableAst = variableAst;
             }
 
-            public void EmitEqual(ILGenerator ilg)
+            public override void EmitEqual(ILGenerator ilg)
             {
                 if (variableAst.RuntimeType.IsNullable())
                 {
@@ -170,16 +177,9 @@ namespace Delta.Expressions
                 }
             }
 
-            public OpCode Equal_S => variableAst.RuntimeType.IsValueType ? OpCodes.Brfalse_S : OpCodes.Brtrue_S;
+            public override OpCode Equal_S => variableAst.RuntimeType.IsValueType ? OpCodes.Brfalse_S : OpCodes.Brtrue_S;
 
-            ICaseHandler ICaseHandler.Append(Expression code)
-            {
-                Append(code);
-
-                return this;
-            }
-
-            void IPrivateCaseHandler.Emit(ILGenerator ilg, MyVariableExpression variable)
+            public override void Emit(ILGenerator ilg, MyVariableExpression variable)
             {
                 Assign(variableAst, Convert(variable, variableAst.RuntimeType))
                     .Load(ilg);
@@ -189,7 +189,7 @@ namespace Delta.Expressions
 
             public override string ToString()
             {
-                if (RuntimeType == typeof(void))
+                if (IsVoid)
                 {
                     return $"case {variableAst}: /*TODO:somethings...*/ break;";
                 }
@@ -198,18 +198,18 @@ namespace Delta.Expressions
             }
         }
 
-        private class SwitchCaseEqualityAst : BlockExpression, IPrivateCaseHandler
+        private class SwitchCaseEqualityAst : SwitchCaseExpression
         {
             private readonly ConstantExpression constant;
             private readonly MethodInfo comparison;
 
-            public SwitchCaseEqualityAst(ConstantExpression constant, MethodInfo comparison, Type returnType) : base(returnType)
+            public SwitchCaseEqualityAst(ConstantExpression constant, MethodInfo comparison)
             {
                 this.constant = constant;
                 this.comparison = comparison;
             }
 
-            public void EmitEqual(ILGenerator ilg)
+            public override void EmitEqual(ILGenerator ilg)
             {
                 constant.Load(ilg);
 
@@ -223,31 +223,13 @@ namespace Delta.Expressions
                 }
             }
 
-            public OpCode Equal_S => OpCodes.Brtrue_S;
-
-            ICaseHandler ICaseHandler.Append(Expression code)
-            {
-                Append(code);
-
-                return this;
-            }
-
-            void IPrivateCaseHandler.Emit(ILGenerator ilg, MyVariableExpression variable) => Load(ilg);
+            public override OpCode Equal_S => OpCodes.Brtrue_S;
         }
 
-        private class SwitchCase
-        {
-            public SwitchCase(ConstantExpression value, Expression body)
-            {
-                Value = value;
-                Body = body;
-            }
-
-            public ConstantExpression Value { get; }
-            public Expression Body { get; }
-        }
-
-        internal SwitchExpression(Expression switchValue, Type returnType, Label breakLabel) : base(returnType)
+        /// <summary>
+        /// 流程（无返回值）。
+        /// </summary>
+        internal SwitchExpression(Expression switchValue)
         {
             if (switchValue is null)
             {
@@ -271,46 +253,55 @@ namespace Delta.Expressions
                 switchValueKind = MySwitchValueKind.Equality;
             }
 
-            switchCases = new List<IPrivateCaseHandler>();
+            switchCases = new List<SwitchCaseExpression>();
 
             this.switchValue = switchValue;
-            this.breakLabel = breakLabel;
         }
 
         /// <summary>
         /// 流程（无返回值）。
         /// </summary>
-        internal SwitchExpression(Expression switchValue, Label breakLabel) : this(switchValue, typeof(void), breakLabel)
-        {
-
-        }
-
-        /// <summary>
-        /// 流程（无返回值）。
-        /// </summary>
-        internal SwitchExpression(Expression switchValue, Expression defaultAst, Label breakLabel) : this(switchValue, breakLabel)
+        internal SwitchExpression(Expression switchValue, Expression defaultAst) : this(switchValue)
         {
             this.defaultAst = defaultAst ?? throw new ArgumentNullException(nameof(defaultAst));
         }
 
-        /// <summary>
-        /// 流程。
-        /// </summary>
-        internal SwitchExpression(Expression switchValue, Expression defaultAst, Type returnType, Label breakLabel) : this(switchValue, returnType, breakLabel)
+        /// <inheritdoc/>
+        protected internal override void MarkLabel(Label label)
         {
-            if (defaultAst is null)
+            if (label is null)
             {
-                throw new ArgumentNullException(nameof(defaultAst));
+                throw new ArgumentNullException(nameof(label));
             }
 
-            if (returnType == typeof(void) || EmitUtils.EqualSignatureTypes(defaultAst.RuntimeType, returnType) || defaultAst.RuntimeType.IsAssignableFrom(RuntimeType))
+            switchValue.MarkLabel(label);
+
+            if (label.Kind != LabelKind.Break)
             {
-                this.defaultAst = defaultAst;
+                foreach (var item in switchCases)
+                {
+                    item.MarkLabel(label);
+                }
+
+                defaultAst?.MarkLabel(label);
             }
-            else
+        }
+        /// <inheritdoc/>
+        protected internal override void StoredLocal(VariableExpression variable)
+        {
+            if (variable is null)
             {
-                throw new NotSupportedException($"默认模块“{defaultAst.RuntimeType}”和返回“{returnType}”类型无法默认转换!");
+                throw new ArgumentNullException(nameof(variable));
             }
+
+            switchValue.StoredLocal(variable);
+
+            foreach (var item in switchCases)
+            {
+                item.StoredLocal(variable);
+            }
+
+            defaultAst?.StoredLocal(variable);
         }
 
         /// <summary>
@@ -324,12 +315,12 @@ namespace Delta.Expressions
                 throw new ArgumentNullException(nameof(constant));
             }
 
-            IPrivateCaseHandler handler;
+            SwitchCaseExpression switchCase;
 
             switch (switchValueKind)
             {
                 case MySwitchValueKind.Arithmetic when IsArithmetic(constant.RuntimeType):
-                    handler = new SwitchCaseArithmeticExpression(constant, RuntimeType);
+                    switchCase = new SwitchCaseArithmeticExpression(constant);
                     break;
                 case MySwitchValueKind.RuntimeType:
                     throw new AstException("当前流程控制为类型转换，请使用“{Case(VariableAst variable)}”方法处理！");
@@ -364,22 +355,21 @@ label_equals:
                     }
 
 label_break:
-
                     if (comparison is null)
                     {
                         throw new InvalidOperationException($"未找到“{constant.RuntimeType}”和“{switchValueType}”有效的比较函数!");
                     }
 
-                    handler = new SwitchCaseEqualityAst(constant, comparison, RuntimeType);
+                    switchCase = new SwitchCaseEqualityAst(constant, comparison);
 
                     break;
                 default:
                     throw new NotSupportedException();
             }
 
-            switchCases.Add(handler);
+            switchCases.Add(switchCase);
 
-            return handler;
+            return switchCase;
         }
 
         /// <summary>
@@ -393,23 +383,15 @@ label_break:
                 throw new ArgumentNullException(nameof(variable));
             }
 
-            IPrivateCaseHandler handler;
-
-            switch (switchValueKind)
+            SwitchCaseExpression switchCase = switchValueKind switch
             {
-                case MySwitchValueKind.RuntimeType:
-                    handler = new SwitchCaseRuntimeTypeExpression(variable, RuntimeType);
-                    break;
-                case MySwitchValueKind.Arithmetic:
-                case MySwitchValueKind.Equality:
-                    throw new AstException("当前流程控制为值比较转换，请使用“{Case(ConstantAst constant)}”方法处理！");
-                default:
-                    throw new NotSupportedException();
-            }
+                MySwitchValueKind.RuntimeType => new SwitchCaseRuntimeTypeExpression(variable),
+                MySwitchValueKind.Arithmetic or MySwitchValueKind.Equality => throw new AstException("当前流程控制为值比较转换，请使用“{Case(ConstantAst constant)}”方法处理！"),
+                _ => throw new NotSupportedException(),
+            };
+            switchCases.Add(switchCase);
 
-            switchCases.Add(handler);
-
-            return handler;
+            return switchCase;
         }
 
         /// <summary>
@@ -427,28 +409,27 @@ label_break:
 
                 defaultAst.Load(ilg);
             }
-            else if (RuntimeType == typeof(void))
-            {
-                Emit(ilg);
-
-                breakLabel.MarkLabel(ilg);
-
-                ilg.Emit(OpCodes.Nop);
-            }
             else
             {
-                var local = ilg.DeclareLocal(RuntimeType);
+                var label = new Label(LabelKind.Break);
+
+                foreach (var item in switchCases)
+                {
+                    item.MarkLabel(label);
+                }
+
+                defaultAst?.MarkLabel(label);
 
                 Emit(ilg);
 
-                breakLabel.MarkLabel(ilg);
+                label.MarkLabel(ilg);
 
-                ilg.Emit(OpCodes.Ldloc, local);
+                ilg.Emit(OpCodes.Nop);
             }
         }
 
         /// <summary>
-        /// 发行（有返回值）。
+        /// 发行。
         /// </summary>
         /// <param name="ilg">指令。</param>
         protected virtual void Emit(ILGenerator ilg)

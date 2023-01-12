@@ -32,8 +32,13 @@ namespace Delta.Expressions
         /// <param name="isType">类型。</param>
         internal TypeIsExpression(Expression body, Type isType) : base(typeof(bool))
         {
-            this.body = body;
-            this.isType = isType;
+            this.body = body ?? throw new ArgumentNullException(nameof(body));
+            this.isType = isType ?? throw new ArgumentNullException(nameof(isType));
+
+            if (body.IsVoid)
+            {
+                throw new AstException("表达式“is”无效！");
+            }
         }
 
         /// <summary>
@@ -101,6 +106,11 @@ namespace Delta.Expressions
             if (operandType == typeof(void))
             {
                 return AnalyzeTypeIsResult.KnownFalse;
+            }
+
+            if (operandType == testType)
+            {
+                return AnalyzeTypeIsResult.KnownTrue;
             }
 
             Type nnOperandType = IsNullable(operandType) ? Nullable.GetUnderlyingType(operandType) : operandType;
