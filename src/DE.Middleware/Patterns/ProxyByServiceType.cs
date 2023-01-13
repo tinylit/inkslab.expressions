@@ -247,12 +247,12 @@ label_continue:
 
                 implementationType = implementationType.BaseType;
 
-                if (implementationType == serviceType)
+                if (implementationType is null || implementationType == serviceType)
                 {
                     yield break;
                 }
 
-            } while (implementationType != null && implementationType != typeof(object));
+            } while (implementationType != typeof(object));
         }
 
         private static IEnumerable<CustomAttributeData> GetCustomAttributeDatasByMulti(MethodInfo referenceInfo, Type serviceType, Type implementationType, BindingFlags bindingFlags, ParameterInfo[] parameterInfos)
