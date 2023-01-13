@@ -19,8 +19,8 @@
 		<Copyright>..\..\LICENSE</Copyright>
 		<PackageIcon>inkslab-mini.jpg</PackageIcon>
 		<PackageReadmeFile>README.md</PackageReadmeFile>
-		<RepositoryUrl>https://github.com/tinylit/inkslab</RepositoryUrl>
-		<PackageProjectUrl>https://github.com/tinylit/inkslab</PackageProjectUrl>
+		<RepositoryUrl>https://github.com/tinylit/DeltaExpression</RepositoryUrl>
+		<PackageProjectUrl>https://github.com/tinylit/DeltaExpression</PackageProjectUrl>
 
 		<!-- 生成 xml 文件。 -->
 		<GenerateDocumentationFile>true</GenerateDocumentationFile>
