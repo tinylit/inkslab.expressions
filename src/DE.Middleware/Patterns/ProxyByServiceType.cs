@@ -80,6 +80,11 @@ namespace Delta.Middleware.Patterns
                 return true;
             }
 
+            if (!methodInfo.IsVirtual)
+            {
+                return false;
+            }
+
             if (methodInfo.IsDefined(noninterceptAttributeType, true))
             {
                 return false;
@@ -98,7 +103,11 @@ namespace Delta.Middleware.Patterns
             switch (descriptor.Lifetime)
             {
                 case ServiceLifetime.Singleton:
-                    return Intercept(descriptor.ImplementationInstance?.GetType());
+                    if (descriptor.ImplementationInstance != null)
+                    {
+                        return Intercept(descriptor.ImplementationInstance.GetType());
+                    }
+                    goto default;
                 case ServiceLifetime.Scoped:
                 case ServiceLifetime.Transient:
                 default:
@@ -509,16 +518,27 @@ label_continue:
                 ? (returnType.IsGenericType ? returnType.GetGenericTypeDefinition() == typeof(ValueTask<>) : returnType == typeof(ValueTask))
                 : (returnType.IsGenericType ? returnType.GetGenericTypeDefinition() == typeof(Task<>) : returnType == typeof(Task)))
             {
+                Expression bodyAst;
+
                 if (returnType.IsGenericType)
                 {
                     var interceptRunFn = TypeCompiler.GetMethod(middlewareInterceptGenericAsyncType.MakeGenericType(returnType.GetGenericArguments()), middlewareInterceptAsyncGenericRunFn);
 
-                    blockAst.Append(Return(Call(interceptVar, interceptRunFn, contextVar)));
+                    bodyAst = Call(interceptVar, interceptRunFn, contextVar);
                 }
                 else
                 {
-                    blockAst.Append(Return(Call(interceptVar, middlewareInterceptAsyncRunFn, contextVar)));
+                    bodyAst = Call(interceptVar, middlewareInterceptAsyncRunFn, contextVar);
                 }
+
+                if (returnType.IsValueType)
+                {
+                    var valueTaskCtor = returnType.GetConstructor(new Type[] { bodyAst.RuntimeType });
+
+                    bodyAst = New(valueTaskCtor, bodyAst);
+                }
+
+                blockAst.Append(Return(bodyAst));
             }
             else if (returnType == typeof(void))
             {

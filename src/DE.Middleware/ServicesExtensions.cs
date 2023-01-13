@@ -37,6 +37,11 @@ namespace Delta.Middleware
                 {
                     if (descriptor.ImplementationInstance is null)
                     {
+                        if (descriptor.ImplementationFactory is null)
+                        {
+                            continue;
+                        }
+
                         byPattern = new ProxyByFactory(moduleEmitter, descriptor.ServiceType, descriptor.ImplementationFactory, descriptor.Lifetime);
                     }
                     else

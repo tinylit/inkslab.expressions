@@ -61,7 +61,7 @@ namespace DeltaExpression.Middleware.Tests
         /// <summary>
         /// 异步加法。
         /// </summary>
-        Task<int> AddAsync(int i, int j);
+        ValueTask<int> AddAsync(int i, int j);
     }
 
     /// <summary>
@@ -93,7 +93,7 @@ namespace DeltaExpression.Middleware.Tests
         /// 异步加法。
         /// </summary>
         [ServiceTypeIntercept]
-        public virtual Task<int> AddAsync(int i, int j) => Task.FromResult(i + j);
+        public virtual ValueTask<int> AddAsync(int i, int j) => new ValueTask<int>(Task.FromResult(i + j));
     }
 
     /// <summary>
@@ -250,11 +250,41 @@ namespace DeltaExpression.Middleware.Tests
         /// 代理服务。
         /// </summary>
         [Fact]
+        public async Task ProxyIServiceTypeFactory()
+        {
+            var services = new ServiceCollection();
+
+            services.AddTransient<IServiceType>(x => new ServiceType())
+                .UseIntercept();
+
+            var provider = services.BuildServiceProvider();
+
+            var serviceType = provider.GetRequiredService<IServiceType>();
+
+            serviceType.Records();
+
+            int i = 5, j = 100;
+
+            var ij = serviceType.Add(i, ref j);
+
+            Assert.Equal(ij, i + j);
+
+            await serviceType.RecordsAsync();
+
+            var ijAsync = await serviceType.AddAsync(i, j);
+
+            Assert.Equal(ijAsync, i + j);
+        }
+
+        /// <summary>
+        /// 代理服务。
+        /// </summary>
+        [Fact]
         public async Task ProxyServiceType()
         {
             var services = new ServiceCollection();
 
-            services.AddTransient<ServiceType>()
+            services.AddSingleton(new ServiceType())
                 .UseIntercept();
 
             var provider = services.BuildServiceProvider();

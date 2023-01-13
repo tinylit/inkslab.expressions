@@ -99,7 +99,7 @@ namespace Delta.Middleware.Patterns
             return OverrideType(instanceAst, classEmitter, serviceType, implementationType);
         }
 
-        private Type ResolveIsClass()
+        protected virtual Type ResolveIsClass()
         {
             string name = string.Concat(serviceType.Name, "Override");
 
