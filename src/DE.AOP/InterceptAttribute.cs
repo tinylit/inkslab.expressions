@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Threading.Tasks;
 
-namespace Delta.Middleware
+namespace Delta.AOP
 {
     /// <summary>
     /// 拦截属性。

@@ -2,7 +2,7 @@
 using System;
 using System.Collections.Generic;
 
-namespace Delta.Middleware
+namespace Delta.AOP
 {
     /// <summary>
     /// 代理方式。

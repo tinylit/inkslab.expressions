@@ -14,11 +14,11 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution 
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{8A207234-8E6F-4EF6-B784-E3F3C4F9C3EF}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DE.Middleware", "src\DE.Middleware\DE.Middleware.csproj", "{5B76BC4A-E3C8-41D5-A65C-02F5734425C2}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DE.AOP", "src\DE.AOP\DE.AOP.csproj", "{5B76BC4A-E3C8-41D5-A65C-02F5734425C2}"
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{4DBCB98D-604D-4D13-83DD-DF73CA228512}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DeltaExpression.Middleware.Tests", "tests\DeltaExpression.Middleware.Tests\DeltaExpression.Middleware.Tests.csproj", "{9DE7F5C2-9AA2-43E4-82B1-B4B38722B577}"
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "DeltaExpression.AOP.Tests", "tests\DeltaExpression.AOP.Tests\DeltaExpression.AOP.Tests.csproj", "{9DE7F5C2-9AA2-43E4-82B1-B4B38722B577}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

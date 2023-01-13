@@ -7,7 +7,7 @@ using System.Reflection;
 using System.Text;
 using System.Threading.Tasks;
 
-namespace Delta.Middleware.Patterns
+namespace Delta.AOP.Patterns
 {
     using static Delta.Expression;
 

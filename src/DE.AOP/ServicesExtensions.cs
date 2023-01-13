@@ -1,7 +1,7 @@
-﻿using Delta.Middleware.Patterns;
+﻿using Delta.AOP.Patterns;
 using Microsoft.Extensions.DependencyInjection;
 
-namespace Delta.Middleware
+namespace Delta.AOP
 {
     /// <summary>
     /// 拦截中间件。
@@ -9,9 +9,9 @@ namespace Delta.Middleware
     public static class ServicesExtensions
     {
 #if NET461_OR_GREATER && DEBUG
-        private static readonly ModuleEmitter moduleEmitter = new ModuleEmitter(true, "Delta.Override.Middleware");
+        private static readonly ModuleEmitter moduleEmitter = new ModuleEmitter(true, "Delta.Override.AOP");
 #else
-        private static readonly ModuleEmitter moduleEmitter = new ModuleEmitter("Delta.Override.Middleware");
+        private static readonly ModuleEmitter moduleEmitter = new ModuleEmitter("Delta.Override.AOP");
 #endif
 
         /// <summary>

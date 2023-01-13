@@ -1,11 +1,11 @@
-using Delta.Middleware;
+using Delta.AOP;
 using Microsoft.Extensions.DependencyInjection;
 using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using Xunit;
 
-namespace DeltaExpression.Middleware.Tests
+namespace DeltaExpression.AOP.Tests
 {
     /// <summary>
     /// Ìí¼Ó¡£

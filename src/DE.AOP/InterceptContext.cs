@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Reflection;
 
-namespace Delta.Middleware
+namespace Delta.AOP
 {
     /// <summary>
     /// 拦截上下文。

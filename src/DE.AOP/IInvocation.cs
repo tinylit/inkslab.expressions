@@ -1,4 +1,4 @@
-﻿namespace Delta.Middleware
+﻿namespace Delta.AOP
 {
     /// <summary>
     /// 调用方法。

@@ -1,12 +1,11 @@
 ﻿using System;
-using System.Threading.Tasks;
 
-namespace Delta.Middleware
+namespace Delta.AOP
 {
     /// <summary>
     /// 拦截执行方法。
     /// </summary>
-    public class InterceptAsync
+    public class Intercept
     {
         private readonly IInvocation invocation;
 
@@ -15,7 +14,7 @@ namespace Delta.Middleware
         /// </summary>
         /// <param name="invocation">调用。</param>
         /// <exception cref="ArgumentNullException">参数 <paramref name="invocation"/> 为null。</exception>
-        public InterceptAsync(IInvocation invocation)
+        public Intercept(IInvocation invocation)
         {
             this.invocation = invocation ?? throw new ArgumentNullException(nameof(invocation));
         }
@@ -24,23 +23,13 @@ namespace Delta.Middleware
         /// 调用方法。
         /// </summary>
         /// <param name="context">上下文。</param>
-        public virtual Task RunAsync(InterceptContext context)
-        {
-            var returnValue = invocation.Invoke(context.Inputs);
-
-            if (returnValue is ValueTask valueTask)
-            {
-                return valueTask.AsTask();
-            }
-
-            return (Task)returnValue;
-        }
+        public virtual void Run(InterceptContext context) => invocation.Invoke(context.Inputs);
     }
 
     /// <summary>
     /// 拦截执行方法。
     /// </summary>
-    public class InterceptAsync<T>
+    public class Intercept<T>
     {
         private readonly IInvocation invocation;
 
@@ -49,7 +38,7 @@ namespace Delta.Middleware
         /// </summary>
         /// <param name="invocation">调用。</param>
         /// <exception cref="ArgumentNullException">参数 <paramref name="invocation"/> 为null。</exception>
-        public InterceptAsync(IInvocation invocation)
+        public Intercept(IInvocation invocation)
         {
             this.invocation = invocation ?? throw new ArgumentNullException(nameof(invocation));
         }
@@ -58,16 +47,6 @@ namespace Delta.Middleware
         /// 调用方法。
         /// </summary>
         /// <param name="context">上下文。</param>
-        public virtual Task<T> RunAsync(InterceptContext context)
-        {
-            var returnValue = invocation.Invoke(context.Inputs);
-
-            if (returnValue is ValueTask<T> valueTask)
-            {
-                return valueTask.AsTask();
-            }
-
-            return (Task<T>)returnValue;
-        }
+        public virtual T Run(InterceptContext context) => (T)invocation.Invoke(context.Inputs);
     }
 }

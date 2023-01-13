@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace Delta.Middleware
+namespace Delta.AOP
 {
     /// <summary>
     /// 不拦截拦截属性。

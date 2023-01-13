@@ -1,7 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 	<PropertyGroup>
-		<RootNamespace>Delta.Middleware</RootNamespace>
-		<AssemblyName>DeltaExpression.Middleware</AssemblyName>
+		<RootNamespace>Delta.AOP</RootNamespace>
+		<AssemblyName>DeltaExpression.AOP</AssemblyName>
 	</PropertyGroup>
 	
 	<ItemGroup>

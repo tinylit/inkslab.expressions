@@ -1,6 +1,6 @@
 ﻿using System.Threading.Tasks;
 
-namespace Delta.Middleware
+namespace Delta.AOP
 {
     /// <summary>
     /// 异步拦截器中间件。
