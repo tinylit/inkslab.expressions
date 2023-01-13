@@ -17,7 +17,7 @@
 		<Copyright>2022 TINYLIT.</Copyright>
 		<RepositoryType>git</RepositoryType>
 		<Copyright>..\..\LICENSE</Copyright>
-		<PackageIcon>inkslab-mini.jpg</PackageIcon>
+		<PackageIcon>delta-mini.png</PackageIcon>
 		<PackageReadmeFile>README.md</PackageReadmeFile>
 		<RepositoryUrl>https://github.com/tinylit/DeltaExpression</RepositoryUrl>
 		<PackageProjectUrl>https://github.com/tinylit/DeltaExpression</PackageProjectUrl>
@@ -29,7 +29,14 @@
 	<ItemGroup>
 		<None Include="..\..\.editorconfig" Link=".editorconfig" />
 	</ItemGroup>
-
+	
+	<ItemGroup>
+		<None Include="..\..\delta-mini.png">
+			<Pack>True</Pack>
+			<PackagePath>\</PackagePath>
+		</None>
+	</ItemGroup>
+	
 	<Choose>
 		<When Condition="!$(MSBuildProjectName.EndsWith('.Tests')) ">
 			<PropertyGroup>

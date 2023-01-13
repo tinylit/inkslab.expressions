@@ -1,11 +1,6 @@
-﻿using Delta.Emitters;
-using Microsoft.Extensions.DependencyInjection;
+﻿using Microsoft.Extensions.DependencyInjection;
 using System;
-using System.Collections.Generic;
-using System.Linq;
 using System.Reflection;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace Delta.AOP.Patterns
 {
@@ -99,7 +94,7 @@ namespace Delta.AOP.Patterns
             return OverrideType(instanceAst, classEmitter, serviceType, implementationType);
         }
 
-        protected virtual Type ResolveIsClass()
+        private Type ResolveIsClass()
         {
             string name = string.Concat(serviceType.Name, "Override");
 

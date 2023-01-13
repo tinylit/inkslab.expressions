@@ -95,24 +95,7 @@ namespace Delta.AOP.Patterns
 
         public static bool Intercept(ServiceDescriptor descriptor)
         {
-            if (Intercept(descriptor.ServiceType))
-            {
-                return true;
-            }
-
-            switch (descriptor.Lifetime)
-            {
-                case ServiceLifetime.Singleton:
-                    if (descriptor.ImplementationInstance != null)
-                    {
-                        return Intercept(descriptor.ImplementationInstance.GetType());
-                    }
-                    goto default;
-                case ServiceLifetime.Scoped:
-                case ServiceLifetime.Transient:
-                default:
-                    return Intercept(descriptor.ImplementationType);
-            }
+            return Intercept(descriptor.ServiceType) || Intercept(descriptor.ImplementationType);
         }
 
         private static bool Intercept(Type serviceType)
