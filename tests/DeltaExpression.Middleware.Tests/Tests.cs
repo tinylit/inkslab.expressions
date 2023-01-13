@@ -45,6 +45,7 @@ namespace DeltaExpression.Middleware.Tests
         /// <summary>
         /// ¼ÇÂ¼¡£
         /// </summary>
+        [ServiceTypeIntercept]
         void Records();
 
         /// <summary>
@@ -224,7 +225,7 @@ namespace DeltaExpression.Middleware.Tests
             var services = new ServiceCollection();
 
             services.AddTransient<IServiceType, ServiceType>()
-                .UseMiddleware();
+                .UseIntercept();
 
             var provider = services.BuildServiceProvider();
 
@@ -254,7 +255,7 @@ namespace DeltaExpression.Middleware.Tests
             var services = new ServiceCollection();
 
             services.AddTransient<ServiceType>()
-                .UseMiddleware();
+                .UseIntercept();
 
             var provider = services.BuildServiceProvider();
 
@@ -285,7 +286,7 @@ namespace DeltaExpression.Middleware.Tests
             var services = new ServiceCollection();
 
             services.AddTransient<ServiceGenericMethodType>()
-                .UseMiddleware();
+                .UseIntercept();
 
             var provider = services.BuildServiceProvider();
 
@@ -310,7 +311,7 @@ namespace DeltaExpression.Middleware.Tests
             var services = new ServiceCollection();
 
             services.AddTransient(typeof(ServiceGenericType<>))
-                .UseMiddleware();
+                .UseIntercept();
 
             var provider = services.BuildServiceProvider();
 
@@ -334,7 +335,7 @@ namespace DeltaExpression.Middleware.Tests
             var services = new ServiceCollection();
 
             services.AddTransient(typeof(ServiceGenericMethodAndGenericType<>))
-                .UseMiddleware();
+                .UseIntercept();
 
             var provider = services.BuildServiceProvider();
 

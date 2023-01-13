@@ -141,17 +141,12 @@ namespace Delta.Middleware.Patterns
                 throw new ArgumentNullException(nameof(implementationType));
             }
 
-            if (methodInfo.DeclaringType == implementationType)
-            {
-                return GetCustomAttributeDatas(methodInfo, serviceType);
-            }
-
-            return GetCustomAttributeDatas(GetMethod(methodInfo, implementationType), serviceType);
+            return GetCustomAttributeDatasByMulti(methodInfo, serviceType, implementationType);
         }
 
         private static MethodInfo GetMethod(MethodInfo referenceInfo, Type implementationType)
         {
-            BindingFlags bindingFlags = BindingFlags.Instance;
+            BindingFlags bindingFlags = BindingFlags.Instance | BindingFlags.DeclaredOnly;
 
             if (referenceInfo.IsPublic)
             {
@@ -201,30 +196,130 @@ label_continue:
             throw new MissingMethodException(implementationType.Name, referenceInfo.Name);
         }
 
-        private static IEnumerable<CustomAttributeData> GetCustomAttributeDatas(MethodInfo methodInfo, Type serviceType)
+        private static IEnumerable<CustomAttributeData> GetCustomAttributeDatasByMulti(MethodInfo referenceInfo, Type serviceType, Type implementationType)
         {
-            var hashSet = new HashSet<MethodInfo> { methodInfo };
+            BindingFlags bindingFlags = BindingFlags.Instance | BindingFlags.DeclaredOnly;
+
+            if (referenceInfo.IsPublic)
+            {
+                bindingFlags |= BindingFlags.Public;
+            }
+            else
+            {
+                bindingFlags |= BindingFlags.NonPublic;
+            }
+
+            var interfaceTypes = new HashSet<Type>();
+
+            var parameterInfos = referenceInfo.GetParameters();
 
             do
             {
-                if (methodInfo.IsDefined(noninterceptAttributeType, false) || methodInfo.DeclaringType.IsDefined(noninterceptAttributeType, false))
+                if (implementationType.IsDefined(noninterceptAttributeType, false))
                 {
-                    break;
+                    yield break;
                 }
 
-                bool serviceFlag = methodInfo.DeclaringType == serviceType;
-
-                foreach (var customAttributeData in methodInfo.CustomAttributes.Concat(methodInfo.DeclaringType.CustomAttributes))
+                foreach (var customAttributeData in GetCustomAttributeDatasByMulti(referenceInfo, serviceType, implementationType, bindingFlags, parameterInfos))
                 {
-                    if (serviceFlag || interceptAttributeType.IsAssignableFrom(customAttributeData.AttributeType))
+                    yield return customAttributeData;
+                }
+
+                foreach (var interfaceType in implementationType.GetInterfaces())
+                {
+                    if (!interfaceTypes.Add(interfaceType))
+                    {
+                        continue;
+                    }
+
+                    if (interfaceType.IsDefined(noninterceptAttributeType, false))
+                    {
+                        System.Array.ForEach(interfaceType.GetInterfaces(), x => interfaceTypes.Add(x));
+
+                        continue;
+                    }
+
+                    foreach (var customAttributeData in GetCustomAttributeDatasByMulti(referenceInfo, serviceType, interfaceType, bindingFlags, parameterInfos))
                     {
                         yield return customAttributeData;
                     }
                 }
 
-                methodInfo = methodInfo.GetBaseDefinition();
+                implementationType = implementationType.BaseType;
 
-            } while (hashSet.Add(methodInfo));
+                if (implementationType == serviceType)
+                {
+                    yield break;
+                }
+
+            } while (implementationType != null && implementationType != typeof(object));
+        }
+
+        private static IEnumerable<CustomAttributeData> GetCustomAttributeDatasByMulti(MethodInfo referenceInfo, Type serviceType, Type implementationType, BindingFlags bindingFlags, ParameterInfo[] parameterInfos)
+        {
+            foreach (var methodInfo in implementationType.GetMethods(bindingFlags))
+            {
+                if (methodInfo.Name != referenceInfo.Name)
+                {
+                    continue;
+                }
+
+                if (methodInfo.IsGenericMethod ^ referenceInfo.IsGenericMethod)
+                {
+                    continue;
+                }
+
+                var parameters = methodInfo.GetParameters();
+
+                if (parameters.Length != parameterInfos.Length)
+                {
+                    continue;
+                }
+
+                for (int i = 0; i < parameters.Length; i++)
+                {
+                    if (parameters[i].ParameterType == parameterInfos[i].ParameterType)
+                    {
+                        continue;
+                    }
+
+                    goto label_continue;
+                }
+
+                foreach (var customAttributeData in GetCustomAttributeDatas(methodInfo, serviceType))
+                {
+                    yield return customAttributeData;
+                }
+label_continue:
+                continue;
+            }
+
+        }
+
+        private static IEnumerable<CustomAttributeData> GetCustomAttributeDatas(MethodInfo methodInfo, Type serviceType)
+        {
+            if (methodInfo.IsDefined(noninterceptAttributeType, false))
+            {
+                yield break;
+            }
+
+            bool serviceFlag = methodInfo.DeclaringType == serviceType;
+
+            foreach (var customAttributeData in methodInfo.GetCustomAttributesData())
+            {
+                if (serviceFlag || interceptAttributeType.IsAssignableFrom(customAttributeData.AttributeType))
+                {
+                    yield return customAttributeData;
+                }
+            }
+
+            foreach (var customAttributeData in methodInfo.DeclaringType.GetCustomAttributesData())
+            {
+                if (serviceFlag || interceptAttributeType.IsAssignableFrom(customAttributeData.AttributeType))
+                {
+                    yield return customAttributeData;
+                }
+            }
         }
 
         private static Type[] GetIndexParameterTypes(PropertyInfo propertyInfo)

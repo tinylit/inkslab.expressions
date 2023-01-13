@@ -5,7 +5,7 @@
     /// </summary>
     public class MiddlewareIntercept : Intercept
     {
-        private int interceptCount = 0;
+        private int interceptCount = -1;
         private readonly InterceptAttribute[] interceptAttributes;
 
         /// <summary>
@@ -21,24 +21,22 @@
         /// <inheritdoc/>
         public override void Run(InterceptContext context)
         {
-            if (interceptAttributes.Length > interceptCount)
+            try
             {
-                InterceptAttribute interceptAttribute = interceptAttributes[interceptCount];
-
                 interceptCount++;
 
-                try
+                if (interceptAttributes.Length == interceptCount)
                 {
-                    interceptAttribute.Run(context, this);
+                    base.Run(context);
                 }
-                finally
+                else
                 {
-                    interceptCount--;
+                    interceptAttributes[interceptCount].Run(context, this);
                 }
             }
-            else
+            finally
             {
-                base.Run(context);
+                interceptCount--;
             }
         }
     }
@@ -48,7 +46,7 @@
     /// </summary>
     public class MiddlewareIntercept<T> : Intercept<T>
     {
-        private int interceptCount = 0;
+        private int interceptCount = -1;
         private readonly InterceptAttribute[] interceptAttributes;
 
         /// <summary>
@@ -64,24 +62,22 @@
         /// <inheritdoc/>
         public override T Run(InterceptContext context)
         {
-            if (interceptAttributes.Length > interceptCount)
+            try
             {
-                InterceptAttribute interceptAttribute = interceptAttributes[interceptCount];
-
                 interceptCount++;
 
-                try
+                if (interceptAttributes.Length == interceptCount)
                 {
-                    return interceptAttribute.Run(context, this);
+                    return base.Run(context);
                 }
-                finally
+                else
                 {
-                    interceptCount--;
+                    return interceptAttributes[interceptCount].Run(context, this);
                 }
             }
-            else
+            finally
             {
-                return base.Run(context);
+                interceptCount--;
             }
         }
     }

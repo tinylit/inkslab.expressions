@@ -7,7 +7,7 @@ namespace Delta.Middleware
     /// </summary>
     public class MiddlewareInterceptAsync : InterceptAsync
     {
-        private int interceptCount = 0;
+        private int interceptCount = -1;
         private readonly InterceptAttribute[] interceptAttributes;
 
         /// <summary>
@@ -23,24 +23,20 @@ namespace Delta.Middleware
         /// <inheritdoc/>
         public override Task RunAsync(InterceptContext context)
         {
-            if (interceptAttributes.Length > interceptCount)
+            try
             {
-                InterceptAttribute interceptAttribute = interceptAttributes[interceptCount];
-
                 interceptCount++;
 
-                try
+                if (interceptAttributes.Length == interceptCount)
                 {
-                    return interceptAttribute.RunAsync(context, this);
+                    return base.RunAsync(context);
                 }
-                finally
-                {
-                    interceptCount--;
-                }
+
+                return interceptAttributes[interceptCount].RunAsync(context, this);
             }
-            else
+            finally
             {
-                return base.RunAsync(context);
+                interceptCount--;
             }
         }
     }
@@ -50,7 +46,7 @@ namespace Delta.Middleware
     /// </summary>
     public class MiddlewareInterceptAsync<T> : InterceptAsync<T>
     {
-        private int interceptCount = 0;
+        private int interceptCount = -1;
         private readonly InterceptAttribute[] interceptAttributes;
 
         /// <summary>
@@ -66,24 +62,20 @@ namespace Delta.Middleware
         /// <inheritdoc/>
         public override Task<T> RunAsync(InterceptContext context)
         {
-            if (interceptAttributes.Length > interceptCount)
+            try
             {
-                InterceptAttribute interceptAttribute = interceptAttributes[interceptCount];
-
                 interceptCount++;
 
-                try
+                if (interceptAttributes.Length == interceptCount)
                 {
-                    return interceptAttribute.RunAsync(context, this);
+                    return base.RunAsync(context);
                 }
-                finally
-                {
-                    interceptCount--;
-                }
+
+                return interceptAttributes[interceptCount].RunAsync(context, this);
             }
-            else
+            finally
             {
-                return base.RunAsync(context);
+                interceptCount--;
             }
         }
     }
