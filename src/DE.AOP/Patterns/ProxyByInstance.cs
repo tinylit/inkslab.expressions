@@ -18,7 +18,11 @@ namespace Delta.AOP.Patterns
         {
             var overrideType = OverrideType();
 
-            return new ServiceDescriptor(serviceType, Activator.CreateInstance(overrideType, instance));
+            return new ServiceDescriptor(serviceType, serviceProvider =>
+            {
+                return Activator.CreateInstance(overrideType, serviceProvider, instance);
+
+            }, ServiceLifetime.Singleton);
         }
     }
 }

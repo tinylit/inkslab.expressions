@@ -2,6 +2,7 @@
 	<PropertyGroup>
 		<RootNamespace>Delta.AOP</RootNamespace>
 		<AssemblyName>DeltaExpression.AOP</AssemblyName>
+		<Description>AOP framework based on method return types.</Description>
 	</PropertyGroup>
 	
 	<ItemGroup>

@@ -41,15 +41,18 @@ namespace Delta.AOP.Patterns
 
             var classEmitter = moduleEmitter.DefineType(name, TypeAttributes.Public | TypeAttributes.Class, null, interfaces);
 
+            var servicesAst = classEmitter.DefineField("____services__", typeof(IServiceProvider), FieldAttributes.Private | FieldAttributes.InitOnly | FieldAttributes.NotSerialized);
             var instanceAst = classEmitter.DefineField("____instance__", serviceType, FieldAttributes.Private | FieldAttributes.InitOnly | FieldAttributes.NotSerialized);
 
             var constructorEmitter = classEmitter.DefineConstructor(MethodAttributes.Public);
 
+            var servicesEmitter = constructorEmitter.DefineParameter(typeof(IServiceProvider), ParameterAttributes.None, "services");
             var parameterEmitter = constructorEmitter.DefineParameter(serviceType, ParameterAttributes.None, "instance");
 
+            constructorEmitter.Append(Assign(servicesAst, servicesEmitter));
             constructorEmitter.Append(Assign(instanceAst, parameterEmitter));
 
-            return OverrideType(instanceAst, classEmitter, serviceType, serviceType);
+            return OverrideType(classEmitter, instanceAst, servicesAst, serviceType, serviceType);
         }
 
         private Type ResolveIsClass(ConstructorInfo constructorInfo)
@@ -60,17 +63,20 @@ namespace Delta.AOP.Patterns
 
             var classEmitter = moduleEmitter.DefineType(name, TypeAttributes.Public | TypeAttributes.Class, serviceType, interfaces);
 
+            var servicesAst = classEmitter.DefineField("____services__", typeof(IServiceProvider), FieldAttributes.Private | FieldAttributes.InitOnly | FieldAttributes.NotSerialized);
             var instanceAst = classEmitter.DefineField("____instance__", serviceType, FieldAttributes.Private | FieldAttributes.InitOnly | FieldAttributes.NotSerialized);
 
             var constructorEmitter = classEmitter.DefineConstructor(MethodAttributes.Public);
 
+            var servicesEmitter = constructorEmitter.DefineParameter(typeof(IServiceProvider), ParameterAttributes.None, "services");
             var parameterEmitter = constructorEmitter.DefineParameter(serviceType, ParameterAttributes.None, "instance");
 
+            constructorEmitter.Append(Assign(servicesAst, servicesEmitter));
             constructorEmitter.Append(Assign(instanceAst, parameterEmitter));
 
             constructorEmitter.InvokeBaseConstructor(constructorInfo);
 
-            return OverrideType(instanceAst, classEmitter, serviceType, serviceType);
+            return OverrideType(classEmitter, instanceAst, servicesAst, serviceType, serviceType);
         }
     }
 }

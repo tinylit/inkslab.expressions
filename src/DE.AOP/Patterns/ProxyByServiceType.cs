@@ -5,7 +5,6 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
-using System.Reflection.Emit;
 using System.Threading.Tasks;
 
 namespace Delta.AOP.Patterns
@@ -23,7 +22,7 @@ namespace Delta.AOP.Patterns
 
         private static readonly MethodInfo invocationInvokeFn = invocationType.GetMethod(nameof(IInvocation.Invoke));
 
-        private static readonly ConstructorInfo interceptContextTypeCtor = interceptContextType.GetConstructor(new Type[] { typeof(MethodInfo), typeof(object[]) });
+        private static readonly ConstructorInfo interceptContextTypeCtor = interceptContextType.GetConstructor(new Type[] { typeof(IServiceProvider), typeof(MethodInfo), typeof(object[]) });
         private static readonly ConstructorInfo implementInvocationCtor = implementInvocationType.GetConstructor(new Type[] { typeof(object), typeof(MethodInfo) });
 
         private static readonly Type middlewareInterceptGenericType;
@@ -328,9 +327,9 @@ label_continue:
             return parameterTypes;
         }
 
-        public static Type OverrideType(ClassEmitter classEmitter, Type serviceType, Type implementationType) => OverrideType(This(classEmitter), classEmitter, serviceType, implementationType);
+        public static Type OverrideType(ClassEmitter classEmitter, FieldEmitter servicesAst, Type serviceType, Type implementationType) => OverrideType(classEmitter, This(classEmitter), servicesAst, serviceType, implementationType);
 
-        public static Type OverrideType(Expression instanceAst, ClassEmitter classEmitter, Type serviceType, Type implementationType)
+        public static Type OverrideType(ClassEmitter classEmitter, Expression instanceAst, FieldEmitter servicesAst, Type serviceType, Type implementationType)
         {
             var propertyMethods = new HashSet<MethodInfo>();
 
@@ -353,7 +352,7 @@ label_continue:
                     {
                         propertyEmitter ??= classEmitter.DefineProperty(propertyInfo.Name, propertyInfo.Attributes, propertyInfo.PropertyType, GetIndexParameterTypes(propertyInfo));
 
-                        propertyEmitter.SetGetMethod(DefineMethodOverride(classEmitter, instanceAst, getter, GetCustomAttributeDatas(getter, serviceType, implementationType)));
+                        propertyEmitter.SetGetMethod(DefineMethodOverride(classEmitter, servicesAst, instanceAst, getter, GetCustomAttributeDatas(getter, serviceType, implementationType)));
                     }
                 }
 
@@ -367,7 +366,7 @@ label_continue:
                     {
                         propertyEmitter ??= classEmitter.DefineProperty(propertyInfo.Name, propertyInfo.Attributes, propertyInfo.PropertyType, GetIndexParameterTypes(propertyInfo));
 
-                        propertyEmitter.SetSetMethod(DefineMethodOverride(classEmitter, instanceAst, setter, GetCustomAttributeDatas(setter, serviceType, implementationType)));
+                        propertyEmitter.SetSetMethod(DefineMethodOverride(classEmitter, servicesAst, instanceAst, setter, GetCustomAttributeDatas(setter, serviceType, implementationType)));
                     }
                 }
             }
@@ -386,7 +385,7 @@ label_continue:
 
                 if (serviceType.IsAbstract || Intercept(methodInfo))
                 {
-                    DefineMethodOverride(classEmitter, instanceAst, methodInfo, GetCustomAttributeDatas(methodInfo, serviceType, implementationType));
+                    DefineMethodOverride(classEmitter, servicesAst, instanceAst, methodInfo, GetCustomAttributeDatas(methodInfo, serviceType, implementationType));
                 }
             }
 
@@ -423,7 +422,7 @@ label_continue:
             return interceptAttributes;
         }
 
-        private static MethodEmitter DefineMethodOverride(ClassEmitter classEmitter, Expression instanceAst, MethodInfo methodInfo, IEnumerable<CustomAttributeData> attributeDatas)
+        private static MethodEmitter DefineMethodOverride(ClassEmitter classEmitter, FieldEmitter servicesAst, Expression instanceAst, MethodInfo methodInfo, IEnumerable<CustomAttributeData> attributeDatas)
         {
             var overrideEmitter = classEmitter.DefineMethodOverride(ref methodInfo);
 
@@ -432,7 +431,7 @@ label_continue:
             var interceptAttributes = MethodOverrideInterceptAttributes(overrideEmitter, attributeDatas);
 
             //? 方法拦截属性。
-            var interceptAttrEmitter = classEmitter.DefineField($"____intercept_attr_{methodInfo.Name}", interceptAttributeArrayType, FieldAttributes.Private | FieldAttributes.Static | FieldAttributes.InitOnly);
+            var interceptAttrEmitter = classEmitter.DefineField($"____intercept_attr_{methodInfo.Name}_{methodInfo.MetadataToken}", interceptAttributeArrayType, FieldAttributes.Private | FieldAttributes.Static | FieldAttributes.InitOnly);
 
             classEmitter.TypeInitializer.Append(Assign(interceptAttrEmitter, Array(interceptAttributeType, interceptAttributes.ToArray())));
 
@@ -449,15 +448,15 @@ label_continue:
             {
                 methodAst = Constant(methodInfo);
 
-                arguments = new Expression[] { methodAst, variableAst };
+                arguments = new Expression[] { servicesAst, methodAst, variableAst };
             }
             else
             {
-                methodAst = classEmitter.DefineField($"____token__{methodInfo.Name}", typeof(MethodInfo), FieldAttributes.Private | FieldAttributes.Static | FieldAttributes.InitOnly);
+                methodAst = classEmitter.DefineField($"____token__{methodInfo.Name}_{methodInfo.MetadataToken}", typeof(MethodInfo), FieldAttributes.Private | FieldAttributes.Static | FieldAttributes.InitOnly);
 
                 classEmitter.TypeInitializer.Append(Assign(methodAst, Constant(methodInfo)));
 
-                arguments = new Expression[] { methodAst, variableAst };
+                arguments = new Expression[] { servicesAst, methodAst, variableAst };
             }
 
             BlockExpression blockAst;
@@ -581,7 +580,7 @@ label_continue:
 
         private static Expression MakeInvocationByGeneric(ClassEmitter classEmitter, Expression instanceAst, MethodInfo methodInfo, ParameterEmitter[] parameterEmitters)
         {
-            var typeEmitter = classEmitter.DefineNestedType($"{classEmitter.Name}_{methodInfo.Name}", TypeAttributes.Public, typeof(object), new Type[] { invocationType });
+            var typeEmitter = classEmitter.DefineNestedType($"{classEmitter.Name}_{methodInfo.Name}_{methodInfo.MetadataToken}", TypeAttributes.Public, typeof(object), new Type[] { invocationType });
 
             var genericArguments = methodInfo.GetGenericArguments();
 

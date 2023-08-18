@@ -75,6 +75,7 @@ namespace Delta.AOP.Patterns
             var classEmitter = moduleEmitter.DefineType(name, TypeAttributes.Public | TypeAttributes.Class, null, interfaces);
 
             var instanceAst = classEmitter.DefineField("____instance__", serviceType, FieldAttributes.Private | FieldAttributes.InitOnly | FieldAttributes.NotSerialized);
+            var servicesAst = classEmitter.DefineField("____services__", typeof(IServiceProvider), FieldAttributes.Private | FieldAttributes.InitOnly | FieldAttributes.NotSerialized);
 
             foreach (var constructorInfo in implementationType.GetConstructors(BindingFlags.Public | BindingFlags.Instance))
             {
@@ -88,10 +89,13 @@ namespace Delta.AOP.Patterns
                     parameterEmiters[i] = constructorEmitter.DefineParameter(parameterInfos[i]);
                 }
 
+                var servicesEmitter = constructorEmitter.DefineParameter(typeof(IServiceProvider), ParameterAttributes.None, "services");
+
                 constructorEmitter.Append(Assign(instanceAst, Convert(New(constructorInfo, parameterEmiters), serviceType)));
+                constructorEmitter.Append(Assign(servicesAst, servicesEmitter));
             }
 
-            return OverrideType(instanceAst, classEmitter, serviceType, implementationType);
+            return OverrideType(classEmitter, instanceAst, servicesAst, serviceType, implementationType);
         }
 
         private Type ResolveIsClass()
@@ -99,6 +103,8 @@ namespace Delta.AOP.Patterns
             string name = string.Concat(serviceType.Name, "Override");
 
             var classEmitter = moduleEmitter.DefineType(name, TypeAttributes.Public | TypeAttributes.Class, implementationType);
+
+            var servicesAst = classEmitter.DefineField("____services__", typeof(IServiceProvider), FieldAttributes.Private | FieldAttributes.InitOnly | FieldAttributes.NotSerialized);
 
             foreach (var constructorInfo in implementationType.GetConstructors(BindingFlags.Public | BindingFlags.Instance))
             {
@@ -113,9 +119,13 @@ namespace Delta.AOP.Patterns
                 }
 
                 constructorEmitter.InvokeBaseConstructor(constructorInfo, parameterEmiters);
+
+                var servicesEmitter = constructorEmitter.DefineParameter(typeof(IServiceProvider), ParameterAttributes.None, "services");
+
+                constructorEmitter.Append(Assign(servicesAst, servicesEmitter));
             }
 
-            return OverrideType(classEmitter, serviceType, implementationType);
+            return OverrideType(classEmitter, servicesAst, serviceType, implementationType);
         }
     }
 }

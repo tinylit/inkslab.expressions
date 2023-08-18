@@ -24,7 +24,7 @@ namespace Delta.AOP.Patterns
             {
                 var instance = implementationFactory.Invoke(serviceProvider);
 
-                return Activator.CreateInstance(overrideType, instance);
+                return Activator.CreateInstance(overrideType, serviceProvider, instance);
 
             }, lifetime);
         }

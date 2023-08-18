@@ -3,6 +3,7 @@
 	<PropertyGroup>
 		<RootNamespace>Delta</RootNamespace>
 		<AssemblyName>DeltaExpression</AssemblyName>
+		<Description>A type generator based on the Emit implementation that encapsulates an expression-like syntax.</Description>
 	</PropertyGroup>
 
 </Project>
