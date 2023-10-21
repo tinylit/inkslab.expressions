@@ -1,7 +1,7 @@
 <Project>
 	<PropertyGroup>
 		<!-- 版本 -->
-		<Version>1.0.2.1</Version>
+		<Version>1.1.0</Version>
 		<!-- C#语法版本-->
 		<LangVersion>9.0</LangVersion>
 
@@ -19,8 +19,8 @@
 		<Copyright>..\..\LICENSE</Copyright>
 		<PackageIcon>inkslab-mini.jpg</PackageIcon>
 		<PackageReadmeFile>README.md</PackageReadmeFile>
-		<RepositoryUrl>https://github.com/tinylit/DeltaExpression</RepositoryUrl>
-		<PackageProjectUrl>https://github.com/tinylit/DeltaExpression</PackageProjectUrl>
+		<RepositoryUrl>https://github.com/tinylit/inkslab.expressions</RepositoryUrl>
+		<PackageProjectUrl>https://github.com/tinylit/inkslab.expressions</PackageProjectUrl>
 
 		<!-- 生成 xml 文件。 -->
 		<GenerateDocumentationFile>true</GenerateDocumentationFile>

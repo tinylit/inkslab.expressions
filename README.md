@@ -17,7 +17,7 @@ PM> Install-Package Inkslab.Expressions
 ```
 
 NuGet 包
---------.Exp
+--------
 
 | Package | NuGet | Downloads | Jane Says <kbd>Markdown</kbd> |
 | ------- | ----- | --------- | --------- |
