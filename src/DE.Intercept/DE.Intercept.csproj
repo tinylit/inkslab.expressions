@@ -1,7 +1,7 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 	<PropertyGroup>
-		<RootNamespace>Delta.AOP</RootNamespace>
-		<AssemblyName>DeltaExpression.AOP</AssemblyName>
+		<RootNamespace>Delta.Intercept</RootNamespace>
+		<AssemblyName>DeltaExpression.Intercept</AssemblyName>
 		<Description>AOP framework based on method return types.</Description>
 	</PropertyGroup>
 	

@@ -1,4 +1,4 @@
-﻿namespace Delta.AOP
+﻿namespace Delta.Intercept
 {
     /// <summary>
     /// 调用方法。

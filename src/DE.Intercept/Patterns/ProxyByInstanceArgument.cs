@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Reflection;
 
-namespace Delta.AOP.Patterns
+namespace Delta.Intercept.Patterns
 {
     using static Delta.Expression;
 

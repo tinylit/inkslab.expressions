@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Threading.Tasks;
 
-namespace Delta.AOP
+namespace Delta.Intercept
 {
     /// <summary>
     /// 拦截属性。
@@ -14,14 +14,14 @@ namespace Delta.AOP
         /// </summary>
         /// <param name="context">上下文。</param>
         /// <param name="intercept">拦截器。</param>
-        public abstract void Run(InterceptContext context, Intercept intercept);
+        public virtual void Run(InterceptContext context, Intercept intercept) => intercept.Run(context);
 
         /// <summary>
         /// 运行方法（非异步且有返回值）。
         /// </summary>
         /// <param name="context">上下文。</param>
         /// <param name="intercept">拦截器。</param>
-        public abstract T Run<T>(InterceptContext context, Intercept<T> intercept);
+        public virtual T Run<T>(InterceptContext context, Intercept<T> intercept) => intercept.Run(context);
 
         /// <summary>
         /// 运行方法（异步无返回值）。
@@ -29,7 +29,7 @@ namespace Delta.AOP
         /// <param name="context">上下文。</param>
         /// <param name="intercept">拦截器。</param>
 
-        public abstract Task RunAsync(InterceptContext context, InterceptAsync intercept);
+        public virtual Task RunAsync(InterceptContext context, InterceptAsync intercept) => intercept.RunAsync(context);
 
         /// <summary>
         /// 运行方法（异步有返回值）。
@@ -37,6 +37,6 @@ namespace Delta.AOP
         /// <param name="context">上下文。</param>
         /// <param name="intercept">拦截器。</param>
 
-        public abstract Task<T> RunAsync<T>(InterceptContext context, InterceptAsync<T> intercept);
+        public virtual Task<T> RunAsync<T>(InterceptContext context, InterceptAsync<T> intercept) => intercept.RunAsync(context);
     }
 }

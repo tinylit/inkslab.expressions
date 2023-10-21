@@ -2,7 +2,7 @@
 using System;
 using System.Collections.Generic;
 
-namespace Delta.AOP
+namespace Delta.Intercept
 {
     /// <summary>
     /// 代理方式。

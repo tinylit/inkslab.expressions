@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Reflection;
 
-namespace Delta.AOP
+namespace Delta.Intercept
 {
     /// <summary>
     /// 拦截上下文。

@@ -1,4 +1,4 @@
-﻿namespace Delta.AOP
+﻿namespace Delta.Intercept
 {
     /// <summary>
     /// 拦截中间件。

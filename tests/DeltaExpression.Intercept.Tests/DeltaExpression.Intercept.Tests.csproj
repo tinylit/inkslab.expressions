@@ -19,7 +19,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\src\DE.AOP\DE.AOP.csproj" />
+    <ProjectReference Include="..\..\src\DE.Intercept\DE.Intercept.csproj" />
   </ItemGroup>
 
 </Project>

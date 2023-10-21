@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace Delta.AOP
+namespace Delta.Intercept
 {
     /// <summary>
     /// 不拦截拦截属性。

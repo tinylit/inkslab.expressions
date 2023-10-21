@@ -1,7 +1,7 @@
 ﻿using Microsoft.Extensions.DependencyInjection;
 using System;
 
-namespace Delta.AOP.Patterns
+namespace Delta.Intercept.Patterns
 {
     class ProxyByFactory : ProxyByInstanceArgument
     {
