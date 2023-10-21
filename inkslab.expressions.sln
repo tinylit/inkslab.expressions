@@ -8,9 +8,10 @@ EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Solution Items", "Solution Items", "{AF50D694-C127-452C-9E99-8C9DA06715D3}"
 	ProjectSection(SolutionItems) = preProject
 		.editorconfig = .editorconfig
-		delta-mini.png = delta-mini.png
-		delta.png = delta.png
 		Directory.Build.props = Directory.Build.props
+		inkslab-mini.jpg = inkslab-mini.jpg
+		inkslab-original.jpg = inkslab-original.jpg
+		inkslab.jpg = inkslab.jpg
 		LICENSE = LICENSE
 		README.md = README.md
 	EndProjectSection
