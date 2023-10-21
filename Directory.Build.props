@@ -17,7 +17,7 @@
 		<Copyright>2022 TINYLIT.</Copyright>
 		<RepositoryType>git</RepositoryType>
 		<Copyright>..\..\LICENSE</Copyright>
-		<PackageIcon>delta-mini.png</PackageIcon>
+		<PackageIcon>inkslab-mini.jpg</PackageIcon>
 		<PackageReadmeFile>README.md</PackageReadmeFile>
 		<RepositoryUrl>https://github.com/tinylit/DeltaExpression</RepositoryUrl>
 		<PackageProjectUrl>https://github.com/tinylit/DeltaExpression</PackageProjectUrl>
@@ -29,25 +29,43 @@
 	<ItemGroup>
 		<None Include="..\..\.editorconfig" Link=".editorconfig" />
 	</ItemGroup>
-	
+
 	<ItemGroup>
-		<None Include="..\..\delta-mini.png">
+		<None Include="..\..\README.md">
 			<Pack>True</Pack>
 			<PackagePath>\</PackagePath>
 		</None>
 	</ItemGroup>
 	
+	<ItemGroup>
+		<None Include="..\..\inkslab-mini.jpg">
+			<Pack>True</Pack>
+			<PackagePath>\</PackagePath>
+		</None>
+	</ItemGroup>
+
 	<Choose>
-		<When Condition="!$(MSBuildProjectName.EndsWith('.Tests')) ">
+		<When Condition="$(MSBuildProjectName)=='Inkslab.Expressions'">
 			<PropertyGroup>
-				<TargetFrameworks Condition="'$(LibraryFrameworks)'==''">net461;netstandard2.1;</TargetFrameworks>
-				<TargetFrameworks Condition="'$(LibraryFrameworks)'!=''">$(LibraryFrameworks)</TargetFrameworks>
+				<RootNamespace>Inkslab</RootNamespace>
+				<AssemblyName>Inkslab.Expressions</AssemblyName>
+				<Description>A type generator based on the Emit implementation that encapsulates an expression-like syntax.</Description>
 			</PropertyGroup>
 		</When>
 	</Choose>
-
+	
 	<Choose>
-		<When Condition="$(MSBuildProjectName)=='DE.Intercept' ">
+		<When Condition="$(MSBuildProjectName)=='Inkslab.Intercept'">
+			<PropertyGroup>
+				<RootNamespace>Inkslab.Intercept</RootNamespace>
+				<AssemblyName>Inkslab.Intercept</AssemblyName>
+				<Description>AOP framework based on method return types.</Description>
+			</PropertyGroup>
+
+			<ItemGroup>
+				<ProjectReference Include="..\Inkslab.Expressions\Inkslab.Expressions.csproj" />
+			</ItemGroup>
+			
 			<ItemGroup Condition="'$(TargetFramework)' == 'netstandard2.1'">
 				<PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions">
 					<Version>7.0.0</Version>
@@ -60,4 +78,14 @@
 			</ItemGroup>
 		</When>
 	</Choose>
+
+	<Choose>
+		<When Condition="!$(MSBuildProjectName.EndsWith('.Tests')) ">
+			<PropertyGroup>
+				<TargetFrameworks Condition="'$(LibraryFrameworks)'==''">net461;netstandard2.1;</TargetFrameworks>
+				<TargetFrameworks Condition="'$(LibraryFrameworks)'!=''">$(LibraryFrameworks)</TargetFrameworks>
+			</PropertyGroup>
+		</When>
+	</Choose>
+	
 </Project>
