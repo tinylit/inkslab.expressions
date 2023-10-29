@@ -1,20 +1,18 @@
 ﻿using System;
-using System.Threading.Tasks;
 
 namespace Inkslab.Intercept
 {
     /// <summary>
-    /// 异步拦截器。
+    /// 有返回值拦截器。
     /// </summary>
     [AttributeUsage(AttributeTargets.Method, AllowMultiple = true, Inherited = true)]
-    public abstract class InterceptAsyncAttribute : Attribute
+    public abstract class ReturnValueInterceptAttribute : Attribute
     {
         /// <summary>
-        /// 运行方法（异步无返回值）。
+        /// 运行方法（非异步且有返回值）。
         /// </summary>
         /// <param name="context">上下文。</param>
         /// <param name="intercept">拦截器。</param>
-
-        public virtual Task RunAsync(InterceptContext context, InterceptAsync intercept) => intercept.RunAsync(context);
+        public virtual T Run<T>(InterceptContext context, Intercept<T> intercept) => intercept.Run(context);
     }
 }

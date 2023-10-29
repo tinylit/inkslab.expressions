@@ -47,14 +47,14 @@
     public class MiddlewareIntercept<T> : Intercept<T>
     {
         private int interceptCount = -1;
-        private readonly InterceptAttribute[] interceptAttributes;
+        private readonly ReturnValueInterceptAttribute[] interceptAttributes;
 
         /// <summary>
         /// 构造函数。
         /// </summary>
         /// <param name="invocation">调用。</param>
         /// <param name="interceptAttributes">拦截标记。</param>
-        public MiddlewareIntercept(IInvocation invocation, InterceptAttribute[] interceptAttributes) : base(invocation)
+        public MiddlewareIntercept(IInvocation invocation, ReturnValueInterceptAttribute[] interceptAttributes) : base(invocation)
         {
             this.interceptAttributes = interceptAttributes;
         }

@@ -14,13 +14,25 @@ namespace Inkslab.Intercept.Patterns
 
     abstract class ProxyByServiceType : IProxyByPattern
     {
+        private enum InterceptWay
+        {
+            Void,
+            ReturnValue,
+            Async,
+            ReturnValueAsync
+        }
+
         private static readonly Type interceptAttributeType = typeof(InterceptAttribute);
         private static readonly Type interceptAsyncAttributeType = typeof(InterceptAsyncAttribute);
+        private static readonly Type returnValueInterceptAttributeType = typeof(ReturnValueInterceptAttribute);
+        private static readonly Type returnValueInterceptAsyncAttributeType = typeof(ReturnValueInterceptAsyncAttribute);
 
         private static readonly Type noninterceptAttributeType = typeof(NoninterceptAttribute);
 
         private static readonly Type interceptAttributeArrayType = typeof(InterceptAttribute[]);
         private static readonly Type interceptAsyncAttributeArrayType = typeof(InterceptAsyncAttribute[]);
+        private static readonly Type returnValueInterceptAttributeArrayType = typeof(ReturnValueInterceptAttribute[]);
+        private static readonly Type returnValueInterceptAsyncAttributeArrayType = typeof(ReturnValueInterceptAsyncAttribute[]);
 
         private static readonly Type interceptContextType = typeof(InterceptContext);
         private static readonly Type implementInvocationType = typeof(ImplementInvocation);
@@ -52,6 +64,8 @@ namespace Inkslab.Intercept.Patterns
 
             var interceptAttributeArrayArg = new Type[] { invocationType, interceptAttributeArrayType };
             var interceptAsyncAttributeArrayArg = new Type[] { invocationType, interceptAsyncAttributeArrayType };
+            var returnValueInterceptAttributeArrayArg = new Type[] { invocationType, returnValueInterceptAttributeType };
+            var returnValueInterceptAsyncAttributeArrayArg = new Type[] { invocationType, returnValueInterceptAsyncAttributeType };
 
             var middlewareInterceptType = typeof(MiddlewareIntercept);
             var middlewareInterceptAsyncType = typeof(MiddlewareInterceptAsync);
@@ -66,14 +80,72 @@ namespace Inkslab.Intercept.Patterns
             middlewareInterceptGenericType = typeof(MiddlewareIntercept<>);
             middlewareInterceptGenericAsyncType = typeof(MiddlewareInterceptAsync<>);
 
-            middlewareInterceptGenericCtor = middlewareInterceptGenericType.GetConstructor(interceptAttributeArrayArg);
+            middlewareInterceptGenericCtor = middlewareInterceptGenericType.GetConstructor(returnValueInterceptAttributeArrayArg);
             middlewareInterceptGenericRunFn = middlewareInterceptGenericType.GetMethod("Run", interceptContextTypeArg);
 
-            middlewareInterceptAsyncGenericCtor = middlewareInterceptGenericAsyncType.GetConstructor(interceptAsyncAttributeArrayArg);
+            middlewareInterceptAsyncGenericCtor = middlewareInterceptGenericAsyncType.GetConstructor(returnValueInterceptAsyncAttributeArrayArg);
             middlewareInterceptAsyncGenericRunFn = middlewareInterceptGenericAsyncType.GetMethod("RunAsync", interceptContextTypeArg);
         }
 
         public abstract ServiceDescriptor Ref();
+
+        private static InterceptWay GetInterceptWay(Type type)
+        {
+            if (type == typeof(void))
+            {
+                return InterceptWay.Void;
+            }
+
+            if (type.IsValueType && type.IsGenericType)
+            {
+                var typeDefinition = type.GetGenericTypeDefinition();
+
+                if (typeDefinition == typeof(ValueTask<>))
+                {
+                    return InterceptWay.ReturnValueAsync;
+                }
+
+                return InterceptWay.ReturnValue;
+            }
+
+            do
+            {
+                if (type.IsGenericType)
+                {
+                    if (type.GetGenericTypeDefinition() == typeof(Task<>))
+                    {
+                        return InterceptWay.ReturnValueAsync;
+                    }
+                }
+
+                if (type == typeof(Task))
+                {
+                    return InterceptWay.Async;
+                }
+
+                type = type.BaseType;
+
+            } while (type != null);
+
+            return InterceptWay.ReturnValue;
+        }
+
+        private static Type GetInterceptAttributeType(InterceptWay interceptWay)
+        {
+            switch (interceptWay)
+            {
+                case InterceptWay.Void:
+                    return interceptAttributeType;
+                case InterceptWay.ReturnValue:
+                    return returnValueInterceptAttributeType;
+                case InterceptWay.Async:
+                    return interceptAsyncAttributeType;
+                case InterceptWay.ReturnValueAsync:
+                    return returnValueInterceptAsyncAttributeType;
+                default:
+                    throw new NotImplementedException();
+            }
+        }
 
         protected static bool Intercept(MethodInfo methodInfo)
         {
@@ -97,49 +169,12 @@ namespace Inkslab.Intercept.Patterns
                 return false;
             }
 
-            return IsAsync(methodInfo) ? methodInfo.IsDefined(interceptAsyncAttributeType, true) : methodInfo.IsDefined(interceptAttributeType, true);
+            Type interceptAttributeType = GetInterceptAttributeType(GetInterceptWay(methodInfo.ReturnType));
+
+            return methodInfo.IsDefined(interceptAttributeType, true);
         }
 
         private static bool IsVirtual(MethodInfo methodInfo) => methodInfo.IsVirtual || methodInfo.DeclaringType.IsAbstract || methodInfo.DeclaringType.IsInterface;
-
-        protected static bool Intercept(PropertyInfo propertyInfo)
-        {
-            if (propertyInfo is null)
-            {
-                throw new ArgumentNullException(nameof(propertyInfo));
-            }
-
-            if (propertyInfo.DeclaringType.IsInterface)
-            {
-                return true;
-            }
-
-            if (propertyInfo.IsDefined(noninterceptAttributeType, true))
-            {
-                return false;
-            }
-
-            if (IsAsync(propertyInfo.PropertyType) ? propertyInfo.IsDefined(interceptAsyncAttributeType, true) : propertyInfo.IsDefined(interceptAttributeType, true))
-            {
-                if (propertyInfo.CanRead)
-                {
-                    if (IsVirtual(propertyInfo.GetMethod ?? propertyInfo.GetGetMethod(true)))
-                    {
-                        return true;
-                    }
-                }
-
-                if (propertyInfo.CanWrite)
-                {
-                    if (IsVirtual(propertyInfo.SetMethod ?? propertyInfo.GetSetMethod(true)))
-                    {
-                        return true;
-                    }
-                }
-            }
-
-            return false;
-        }
 
         public static bool Intercept(ServiceDescriptor descriptor) => Intercept(descriptor.ImplementationType ?? descriptor.ImplementationInstance?.GetType() ?? descriptor.ServiceType);
 
@@ -165,55 +200,6 @@ namespace Inkslab.Intercept.Patterns
             if (serviceType.IsDefined(noninterceptAttributeType, true))
             {
                 return false;
-            }
-
-            if (serviceType.IsInterface && serviceType.IsDefined(interceptAttributeType, true))
-            {
-                foreach (var methodInfo in serviceType.GetMethods(BindingFlags.Instance | BindingFlags.Public | BindingFlags.DeclaredOnly))
-                {
-                    if (IsAsync(methodInfo))
-                    {
-                        continue;
-                    }
-
-                    if (methodInfo.IsDefined(noninterceptAttributeType, true))
-                    {
-                        continue;
-                    }
-
-                    return true;
-                }
-
-                foreach (var propertyInfo in serviceType.GetProperties(BindingFlags.Instance | BindingFlags.Public | BindingFlags.DeclaredOnly))
-                {
-                    if (IsAsync(propertyInfo.PropertyType))
-                    {
-                        continue;
-                    }
-
-                    if (propertyInfo.IsDefined(noninterceptAttributeType, true))
-                    {
-                        continue;
-                    }
-
-                    return true;
-                }
-            }
-
-            if (serviceType.IsInterface && serviceType.IsDefined(interceptAsyncAttributeType, true))
-            {
-                foreach (var methodInfo in serviceType.GetMethods(BindingFlags.Instance | BindingFlags.Public | BindingFlags.DeclaredOnly))
-                {
-                    if (IsAsync(methodInfo))
-                    {
-                        if (methodInfo.IsDefined(noninterceptAttributeType, true))
-                        {
-                            continue;
-                        }
-
-                        return true;
-                    }
-                }
             }
 
             foreach (var methodInfo in serviceType.GetMethods(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.SetProperty | BindingFlags.GetProperty))
@@ -261,11 +247,7 @@ namespace Inkslab.Intercept.Patterns
 
             var types = System.Array.ConvertAll(methodInfo.GetParameters(), x => x.ParameterType);
 
-            var isAsync = IsAsync(methodInfo);
-
-            var attributeType = isAsync
-                ? interceptAsyncAttributeType
-                : interceptAttributeType;
+            var attributeType = GetInterceptAttributeType(GetInterceptWay(methodInfo.ReturnType));
 
             var hashSet = new HashSet<Type>();
 
@@ -447,17 +429,34 @@ label_declaring:
             return classEmitter.CreateType();
         }
 
-        private static List<Expression> MethodOverrideInterceptAttributes(MethodEmitter overrideEmitter, IEnumerable<CustomAttributeData> attributeDatas, bool isAsync)
+        private static List<Expression> MethodOverrideInterceptAttributes(MethodEmitter overrideEmitter, IEnumerable<CustomAttributeData> attributeDatas, InterceptWay interceptWay)
         {
             var interceptAttributes = new List<Expression>();
 
-            Type attributeType = isAsync
-                ? interceptAsyncAttributeType
-                : interceptAttributeType; ;
+            Dictionary<InterceptWay, Type> interceptAttributeTypes = null;
+
+            switch (interceptWay)
+            {
+                case InterceptWay.Void:
+                    interceptAttributeTypes = new Dictionary<InterceptWay, Type>(1) { { InterceptWay.Void, interceptAttributeType } };
+                    break;
+                case InterceptWay.ReturnValue:
+                    interceptAttributeTypes = new Dictionary<InterceptWay, Type>(1) { { InterceptWay.ReturnValue, returnValueInterceptAttributeType } };
+                    break;
+                case InterceptWay.Async:
+                    interceptAttributeTypes = new Dictionary<InterceptWay, Type>(2) { { InterceptWay.Async, interceptAsyncAttributeType }, { InterceptWay.ReturnValueAsync, returnValueInterceptAsyncAttributeType } };
+                    break;
+                case InterceptWay.ReturnValueAsync:
+                    interceptAttributeTypes = new Dictionary<InterceptWay, Type>(1) { { InterceptWay.ReturnValueAsync, returnValueInterceptAsyncAttributeType } };
+                    break;
+                default:
+                    interceptAttributeTypes = new Dictionary<InterceptWay, Type>(0);
+                    break;
+            }
 
             foreach (var attributeData in attributeDatas)
             {
-                if (attributeType.IsAssignableFrom(attributeData.AttributeType))
+                if (interceptAttributeType.IsAssignableFrom(attributeData.AttributeType))
                 {
                     var attrArguments = new Expression[attributeData.ConstructorArguments.Count];
 
@@ -503,11 +502,15 @@ label_declaring:
 
             bool isAsync = IsAsync(methodInfo);
 
-            var interceptAttributes = MethodOverrideInterceptAttributes(overrideEmitter, attributeDatas, isAsync);
+            InterceptWay interceptWay = GetInterceptWay(methodInfo.ReturnType);
+
+            Type interceptAttribute = GetInterceptAttributeType(interceptWay);
+
+            var interceptAttributes = MethodOverrideInterceptAttributes(overrideEmitter, attributeDatas, interceptWay);
 
             if (interceptAttributes.Count == 0)
             {
-                if (methodInfo.ReturnType == typeof(void))
+                if (interceptWay == InterceptWay.Void)
                 {
                     overrideEmitter.Append(Call(instanceAst, methodInfo, parameterEmitters));
                 }

@@ -49,14 +49,14 @@ namespace Inkslab.Intercept
     public class MiddlewareInterceptAsync<T> : InterceptAsync<T>
     {
         private int interceptCount = -1;
-        private readonly InterceptAsyncAttribute[] interceptAttributes;
+        private readonly ReturnValueInterceptAsyncAttribute[] interceptAttributes;
 
         /// <summary>
         /// 构造函数。
         /// </summary>
         /// <param name="invocation">调用。</param>
         /// <param name="interceptAttributes">拦截标记。</param>
-        public MiddlewareInterceptAsync(IInvocation invocation, InterceptAsyncAttribute[] interceptAttributes) : base(invocation)
+        public MiddlewareInterceptAsync(IInvocation invocation, ReturnValueInterceptAsyncAttribute[] interceptAttributes) : base(invocation)
         {
             this.interceptAttributes = interceptAttributes;
         }
