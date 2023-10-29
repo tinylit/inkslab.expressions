@@ -23,7 +23,41 @@ namespace DeltaExpression.AOP.Tests
         {
             return intercept.Run(context);
         }
+    }
 
+    /// <summary>
+    /// ÃÌº”°£
+    /// </summary>
+    public class TestInterceptAttribute : InterceptAttribute
+    {
+        /// <summary>
+        /// ≤‚ ‘°£
+        /// </summary>
+        public TestInterceptAttribute() { }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        public int A { set; get; }
+
+        /// <inheritdoc/>
+        public override void Run(InterceptContext context, Intercept intercept)
+        {
+            intercept.Run(context);
+        }
+
+        /// <inheritdoc/>
+        public override T Run<T>(InterceptContext context, Intercept<T> intercept)
+        {
+            return default(T);
+        }
+    }
+
+    /// <summary>
+    /// ÃÌº”°£
+    /// </summary>
+    public class ServiceTypeInterceptAsyncAttribute : InterceptAsyncAttribute
+    {
         /// <inheritdoc/>
         public override Task RunAsync(InterceptContext context, InterceptAsync intercept)
         {
@@ -43,6 +77,16 @@ namespace DeltaExpression.AOP.Tests
     public interface IServiceType
     {
         /// <summary>
+        /// ≤‚ ‘°£
+        /// </summary>
+        int A { [TestIntercept(A = 1)] get; }
+
+        /// <summary>
+        /// ≤‚ ‘°£
+        /// </summary>
+        int B { get; set; }
+
+        /// <summary>
         /// º«¬º°£
         /// </summary>
         [ServiceTypeIntercept]
@@ -56,6 +100,7 @@ namespace DeltaExpression.AOP.Tests
         /// <summary>
         /// “Ï≤Ωº«¬º°£
         /// </summary>
+        [ServiceTypeInterceptAsync]
         Task RecordsAsync();
 
         /// <summary>
@@ -69,6 +114,21 @@ namespace DeltaExpression.AOP.Tests
     /// </summary>
     public class ServiceType : IServiceType
     {
+        /// <summary>
+        /// ≤‚ ‘°£
+        /// </summary>
+        public int A => throw new NotImplementedException();
+
+        /// <summary>
+        /// ≤‚ ‘°£
+        /// </summary>
+        public int B { get; set; }
+
+        /// <summary>
+        /// ≤‚ ‘°£
+        /// </summary>
+        public int C { get; set; }
+
         /// <summary>
         /// º«¬º°£
         /// </summary>
@@ -86,13 +146,12 @@ namespace DeltaExpression.AOP.Tests
         /// <summary>
         /// “Ï≤Ωº«¬º°£
         /// </summary>
-        [ServiceTypeIntercept]
         public virtual Task RecordsAsync() => Task.CompletedTask;
 
         /// <summary>
         /// “Ï≤Ωº”∑®°£
         /// </summary>
-        [ServiceTypeIntercept]
+        [ServiceTypeInterceptAsync]
         public virtual ValueTask<int> AddAsync(int i, int j) => new ValueTask<int>(Task.FromResult(i + j));
     }
 
@@ -126,7 +185,7 @@ namespace DeltaExpression.AOP.Tests
         /// </summary>
         /// <typeparam name="T">∑∫–Õ°£</typeparam>
         /// <returns> µ¿˝°£</returns>
-        [ServiceTypeIntercept]
+        [ServiceTypeInterceptAsync]
         public virtual Task<T> GetAsync<T>() where T : new() => Task.FromResult(new T());
     }
 
@@ -186,7 +245,7 @@ namespace DeltaExpression.AOP.Tests
         /// ≤‚ ‘°£
         /// </summary>
         /// <returns> µ¿˝°£</returns>
-        [ServiceTypeIntercept]
+        [ServiceTypeInterceptAsync]
         public virtual Task<TResult> GetAsync<TResult>() where TResult : IEnumerable<T>, new() => Task.FromResult(new TResult());
     }
 
@@ -207,7 +266,7 @@ namespace DeltaExpression.AOP.Tests
         /// ≤‚ ‘°£
         /// </summary>
         /// <returns> µ¿˝°£</returns>
-        [ServiceTypeIntercept]
+        [ServiceTypeInterceptAsync]
         public virtual Task<T> GetAsync() => Task.FromResult(new T());
     }
 
@@ -230,6 +289,10 @@ namespace DeltaExpression.AOP.Tests
             var provider = services.BuildServiceProvider();
 
             var serviceType = provider.GetRequiredService<IServiceType>();
+
+            int a = serviceType.A;
+
+            Assert.Equal(0, a);
 
             serviceType.Records();
 

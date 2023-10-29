@@ -5,6 +5,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
+using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 
 namespace Inkslab.Intercept.Patterns
@@ -14,8 +15,13 @@ namespace Inkslab.Intercept.Patterns
     abstract class ProxyByServiceType : IProxyByPattern
     {
         private static readonly Type interceptAttributeType = typeof(InterceptAttribute);
+        private static readonly Type interceptAsyncAttributeType = typeof(InterceptAsyncAttribute);
+
         private static readonly Type noninterceptAttributeType = typeof(NoninterceptAttribute);
+
         private static readonly Type interceptAttributeArrayType = typeof(InterceptAttribute[]);
+        private static readonly Type interceptAsyncAttributeArrayType = typeof(InterceptAsyncAttribute[]);
+
         private static readonly Type interceptContextType = typeof(InterceptContext);
         private static readonly Type implementInvocationType = typeof(ImplementInvocation);
         private static readonly Type invocationType = typeof(IInvocation);
@@ -43,7 +49,9 @@ namespace Inkslab.Intercept.Patterns
         static ProxyByServiceType()
         {
             var interceptContextTypeArg = new Type[] { interceptContextType };
+
             var interceptAttributeArrayArg = new Type[] { invocationType, interceptAttributeArrayType };
+            var interceptAsyncAttributeArrayArg = new Type[] { invocationType, interceptAsyncAttributeArrayType };
 
             var middlewareInterceptType = typeof(MiddlewareIntercept);
             var middlewareInterceptAsyncType = typeof(MiddlewareInterceptAsync);
@@ -52,7 +60,7 @@ namespace Inkslab.Intercept.Patterns
             middlewareInterceptRunFn = middlewareInterceptType.GetMethod("Run", interceptContextTypeArg);
 
 
-            middlewareInterceptAsyncCtor = middlewareInterceptAsyncType.GetConstructor(interceptAttributeArrayArg);
+            middlewareInterceptAsyncCtor = middlewareInterceptAsyncType.GetConstructor(interceptAsyncAttributeArrayArg);
             middlewareInterceptAsyncRunFn = middlewareInterceptAsyncType.GetMethod("RunAsync", interceptContextTypeArg);
 
             middlewareInterceptGenericType = typeof(MiddlewareIntercept<>);
@@ -61,7 +69,7 @@ namespace Inkslab.Intercept.Patterns
             middlewareInterceptGenericCtor = middlewareInterceptGenericType.GetConstructor(interceptAttributeArrayArg);
             middlewareInterceptGenericRunFn = middlewareInterceptGenericType.GetMethod("Run", interceptContextTypeArg);
 
-            middlewareInterceptAsyncGenericCtor = middlewareInterceptGenericAsyncType.GetConstructor(interceptAttributeArrayArg);
+            middlewareInterceptAsyncGenericCtor = middlewareInterceptGenericAsyncType.GetConstructor(interceptAsyncAttributeArrayArg);
             middlewareInterceptAsyncGenericRunFn = middlewareInterceptGenericAsyncType.GetMethod("RunAsync", interceptContextTypeArg);
         }
 
@@ -74,7 +82,7 @@ namespace Inkslab.Intercept.Patterns
                 throw new ArgumentNullException(nameof(methodInfo));
             }
 
-            if (methodInfo.DeclaringType.IsInterface)
+            if (methodInfo.DeclaringType.IsAbstract || methodInfo.DeclaringType.IsInterface)
             {
                 return true;
             }
@@ -89,12 +97,62 @@ namespace Inkslab.Intercept.Patterns
                 return false;
             }
 
-            return methodInfo.IsDefined(interceptAttributeType, true);
+            return IsAsync(methodInfo) ? methodInfo.IsDefined(interceptAsyncAttributeType, true) : methodInfo.IsDefined(interceptAttributeType, true);
         }
 
-        public static bool Intercept(ServiceDescriptor descriptor)
+        private static bool IsVirtual(MethodInfo methodInfo) => methodInfo.IsVirtual || methodInfo.DeclaringType.IsAbstract || methodInfo.DeclaringType.IsInterface;
+
+        protected static bool Intercept(PropertyInfo propertyInfo)
         {
-            return Intercept(descriptor.ServiceType) || Intercept(descriptor.ImplementationType);
+            if (propertyInfo is null)
+            {
+                throw new ArgumentNullException(nameof(propertyInfo));
+            }
+
+            if (propertyInfo.DeclaringType.IsInterface)
+            {
+                return true;
+            }
+
+            if (propertyInfo.IsDefined(noninterceptAttributeType, true))
+            {
+                return false;
+            }
+
+            if (IsAsync(propertyInfo.PropertyType) ? propertyInfo.IsDefined(interceptAsyncAttributeType, true) : propertyInfo.IsDefined(interceptAttributeType, true))
+            {
+                if (propertyInfo.CanRead)
+                {
+                    if (IsVirtual(propertyInfo.GetMethod ?? propertyInfo.GetGetMethod(true)))
+                    {
+                        return true;
+                    }
+                }
+
+                if (propertyInfo.CanWrite)
+                {
+                    if (IsVirtual(propertyInfo.SetMethod ?? propertyInfo.GetSetMethod(true)))
+                    {
+                        return true;
+                    }
+                }
+            }
+
+            return false;
+        }
+
+        public static bool Intercept(ServiceDescriptor descriptor) => Intercept(descriptor.ImplementationType ?? descriptor.ImplementationInstance?.GetType() ?? descriptor.ServiceType);
+
+        public static bool IsAsync(MethodInfo methodInfo) => IsAsync(methodInfo.ReturnType);
+
+        public static bool IsAsync(Type type)
+        {
+            if (type.IsValueType)
+            {
+                return type.IsGenericType ? type.GetGenericTypeDefinition() == typeof(ValueTask<>) : type == typeof(ValueTask);
+            }
+
+            return typeof(Task).IsAssignableFrom(type);
         }
 
         private static bool Intercept(Type serviceType)
@@ -104,14 +162,63 @@ namespace Inkslab.Intercept.Patterns
                 return false;
             }
 
-            if (serviceType.IsDefined(interceptAttributeType, true))
+            if (serviceType.IsDefined(noninterceptAttributeType, true))
             {
-                return true;
+                return false;
             }
 
-            foreach (var methodInfo in serviceType.GetMethods())
+            if (serviceType.IsInterface && serviceType.IsDefined(interceptAttributeType, true))
             {
-                if (methodInfo.IsDefined(interceptAttributeType, true))
+                foreach (var methodInfo in serviceType.GetMethods(BindingFlags.Instance | BindingFlags.Public | BindingFlags.DeclaredOnly))
+                {
+                    if (IsAsync(methodInfo))
+                    {
+                        continue;
+                    }
+
+                    if (methodInfo.IsDefined(noninterceptAttributeType, true))
+                    {
+                        continue;
+                    }
+
+                    return true;
+                }
+
+                foreach (var propertyInfo in serviceType.GetProperties(BindingFlags.Instance | BindingFlags.Public | BindingFlags.DeclaredOnly))
+                {
+                    if (IsAsync(propertyInfo.PropertyType))
+                    {
+                        continue;
+                    }
+
+                    if (propertyInfo.IsDefined(noninterceptAttributeType, true))
+                    {
+                        continue;
+                    }
+
+                    return true;
+                }
+            }
+
+            if (serviceType.IsInterface && serviceType.IsDefined(interceptAsyncAttributeType, true))
+            {
+                foreach (var methodInfo in serviceType.GetMethods(BindingFlags.Instance | BindingFlags.Public | BindingFlags.DeclaredOnly))
+                {
+                    if (IsAsync(methodInfo))
+                    {
+                        if (methodInfo.IsDefined(noninterceptAttributeType, true))
+                        {
+                            continue;
+                        }
+
+                        return true;
+                    }
+                }
+            }
+
+            foreach (var methodInfo in serviceType.GetMethods(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.SetProperty | BindingFlags.GetProperty))
+            {
+                if (Intercept(methodInfo))
                 {
                     return true;
                 }
@@ -120,7 +227,7 @@ namespace Inkslab.Intercept.Patterns
             return false;
         }
 
-        public static IEnumerable<CustomAttributeData> GetCustomAttributeDatas(MethodInfo methodInfo, Type serviceType, Type implementationType)
+        public static List<CustomAttributeData> GetCustomAttributeDatas(MethodInfo methodInfo, Type implementationType, bool skipDeclaringTypeAttribute = false)
         {
             if (methodInfo is null)
             {
@@ -132,14 +239,18 @@ namespace Inkslab.Intercept.Patterns
                 throw new ArgumentNullException(nameof(implementationType));
             }
 
-            return GetCustomAttributeDatasByMulti(methodInfo, serviceType, implementationType);
-        }
+            BindingFlags bindingFlags = BindingFlags.GetProperty | BindingFlags.SetProperty;
 
-        private static MethodInfo GetMethod(MethodInfo referenceInfo, Type implementationType)
-        {
-            BindingFlags bindingFlags = BindingFlags.Instance | BindingFlags.DeclaredOnly;
+            if (methodInfo.IsStatic)
+            {
+                bindingFlags |= BindingFlags.Static;
+            }
+            else
+            {
+                bindingFlags |= BindingFlags.Instance;
+            }
 
-            if (referenceInfo.IsPublic)
+            if (methodInfo.IsPublic)
             {
                 bindingFlags |= BindingFlags.Public;
             }
@@ -148,169 +259,104 @@ namespace Inkslab.Intercept.Patterns
                 bindingFlags |= BindingFlags.NonPublic;
             }
 
-            var parameterInfos = referenceInfo.GetParameters();
+            var types = System.Array.ConvertAll(methodInfo.GetParameters(), x => x.ParameterType);
 
-            foreach (var methodInfo in implementationType.GetMethods(bindingFlags))
+            var isAsync = IsAsync(methodInfo);
+
+            var attributeType = isAsync
+                ? interceptAsyncAttributeType
+                : interceptAttributeType;
+
+            var hashSet = new HashSet<Type>();
+
+            var attributeDatas = new List<CustomAttributeData>(methodInfo.GetCustomAttributesData());
+
+            if (methodInfo.IsPublic)
             {
-                if (methodInfo.Name != referenceInfo.Name)
-                {
-                    continue;
-                }
-
-                if (methodInfo.IsGenericMethod ^ referenceInfo.IsGenericMethod)
-                {
-                    continue;
-                }
-
-                var parameters = methodInfo.GetParameters();
-
-                if (parameters.Length != parameterInfos.Length)
-                {
-                    continue;
-                }
-
-                for (int i = 0; i < parameters.Length; i++)
-                {
-                    if (parameters[i].ParameterType == parameterInfos[i].ParameterType)
-                    {
-                        continue;
-                    }
-
-                    goto label_continue;
-                }
-
-                return methodInfo;
-label_continue:
-                continue;
+                Done(methodInfo.ReflectedType, true);
             }
 
-            throw new MissingMethodException(implementationType.Name, referenceInfo.Name);
-        }
+            var methodInfos = new List<MethodInfo>();
 
-        private static IEnumerable<CustomAttributeData> GetCustomAttributeDatasByMulti(MethodInfo referenceInfo, Type serviceType, Type implementationType)
-        {
-            BindingFlags bindingFlags = BindingFlags.Instance | BindingFlags.DeclaredOnly;
+            var referenceInfo = implementationType.GetMethod(methodInfo.Name, bindingFlags, null, types, null) ?? throw new MissingMethodException(implementationType.Name, methodInfo.Name);
 
-            if (referenceInfo.IsPublic)
+            while (referenceInfo != methodInfo)
             {
-                bindingFlags |= BindingFlags.Public;
-            }
-            else
-            {
-                bindingFlags |= BindingFlags.NonPublic;
-            }
+                methodInfos.Insert(0, referenceInfo);
 
-            var interfaceTypes = new HashSet<Type>();
+                var baseDefinition = referenceInfo.GetBaseDefinition();
 
-            var parameterInfos = referenceInfo.GetParameters();
-
-            do
-            {
-                if (implementationType.IsDefined(noninterceptAttributeType, false))
+                if (baseDefinition == referenceInfo)
                 {
-                    yield break;
+                    break;
                 }
 
-                foreach (var customAttributeData in GetCustomAttributeDatasByMulti(referenceInfo, serviceType, implementationType, bindingFlags, parameterInfos))
+                referenceInfo = baseDefinition;
+            }
+
+            methodInfos.ForEach(methodInfo =>
+            {
+                foreach (var attributeData in methodInfo.GetCustomAttributesData())
                 {
-                    yield return customAttributeData;
-                }
-
-                foreach (var interfaceType in implementationType.GetInterfaces())
-                {
-                    if (!interfaceTypes.Add(interfaceType))
+                    if (attributeType.IsAssignableFrom(attributeData.AttributeType))
                     {
-                        continue;
-                    }
-
-                    if (interfaceType.IsDefined(noninterceptAttributeType, false))
-                    {
-                        System.Array.ForEach(interfaceType.GetInterfaces(), x => interfaceTypes.Add(x));
-
-                        continue;
-                    }
-
-                    foreach (var customAttributeData in GetCustomAttributeDatasByMulti(referenceInfo, serviceType, interfaceType, bindingFlags, parameterInfos))
-                    {
-                        yield return customAttributeData;
+                        attributeDatas.Add(attributeData);
                     }
                 }
 
-                implementationType = implementationType.BaseType;
-
-                if (implementationType is null || implementationType == serviceType)
+                if (methodInfo.IsPublic)
                 {
-                    yield break;
+                    Done(methodInfo.ReflectedType, true);
                 }
+            });
 
-            } while (implementationType != typeof(object));
-        }
-
-        private static IEnumerable<CustomAttributeData> GetCustomAttributeDatasByMulti(MethodInfo referenceInfo, Type serviceType, Type implementationType, BindingFlags bindingFlags, ParameterInfo[] parameterInfos)
-        {
-            foreach (var methodInfo in implementationType.GetMethods(bindingFlags))
+            void Done(Type type, bool skipMethodAttribute)
             {
-                if (methodInfo.Name != referenceInfo.Name)
+                if (hashSet.Add(type))
                 {
-                    continue;
-                }
-
-                if (methodInfo.IsGenericMethod ^ referenceInfo.IsGenericMethod)
-                {
-                    continue;
-                }
-
-                var parameters = methodInfo.GetParameters();
-
-                if (parameters.Length != parameterInfos.Length)
-                {
-                    continue;
-                }
-
-                for (int i = 0; i < parameters.Length; i++)
-                {
-                    if (parameters[i].ParameterType == parameterInfos[i].ParameterType)
+                    if (skipMethodAttribute)
                     {
-                        continue;
+                        goto label_core;
                     }
 
-                    goto label_continue;
-                }
+                    var method = type.GetMethod(methodInfo.Name, bindingFlags, null, types, null);
 
-                foreach (var customAttributeData in GetCustomAttributeDatas(methodInfo, serviceType))
-                {
-                    yield return customAttributeData;
+                    if (method is null)
+                    {
+                        goto label_declaring;
+                    }
+
+                    foreach (var attributeData in method.GetCustomAttributesData())
+                    {
+                        if (attributeType.IsAssignableFrom(attributeData.AttributeType))
+                        {
+                            attributeDatas.Add(attributeData);
+                        }
+                    }
+
+label_core:
+                    if (skipDeclaringTypeAttribute)
+                    {
+                        goto label_declaring;
+                    }
+
+                    foreach (var attributeData in type.GetCustomAttributesData())
+                    {
+                        if (attributeType.IsAssignableFrom(attributeData.AttributeType))
+                        {
+                            attributeDatas.Add(attributeData);
+                        }
+                    }
+label_declaring:
+
+                    foreach (var interfaceType in type.GetInterfaces())
+                    {
+                        Done(interfaceType, false);
+                    }
                 }
-label_continue:
-                continue;
             }
 
-        }
-
-        private static IEnumerable<CustomAttributeData> GetCustomAttributeDatas(MethodInfo methodInfo, Type serviceType)
-        {
-            if (methodInfo.IsDefined(noninterceptAttributeType, false))
-            {
-                yield break;
-            }
-
-            bool serviceFlag = methodInfo.DeclaringType == serviceType;
-
-            foreach (var customAttributeData in methodInfo.GetCustomAttributesData())
-            {
-                if (serviceFlag || interceptAttributeType.IsAssignableFrom(customAttributeData.AttributeType))
-                {
-                    yield return customAttributeData;
-                }
-            }
-
-            foreach (var customAttributeData in methodInfo.DeclaringType.GetCustomAttributesData())
-            {
-                if (serviceFlag || interceptAttributeType.IsAssignableFrom(customAttributeData.AttributeType))
-                {
-                    yield return customAttributeData;
-                }
-            }
+            return attributeDatas;
         }
 
         private static Type[] GetIndexParameterTypes(PropertyInfo propertyInfo)
@@ -342,17 +388,20 @@ label_continue:
 
                 PropertyEmitter propertyEmitter = null;
 
+
                 if (propertyInfo.CanRead)
                 {
                     var getter = propertyInfo.GetMethod ?? propertyInfo.GetGetMethod(true);
 
                     propertyMethods.Add(getter);
 
-                    if (serviceType.IsAbstract || Intercept(getter))
+                    var attributeDatas = GetCustomAttributeDatas(getter, implementationType, true);
+
+                    if (serviceType.IsAbstract || attributeDatas.Count > 0)
                     {
                         propertyEmitter ??= classEmitter.DefineProperty(propertyInfo.Name, propertyInfo.Attributes, propertyInfo.PropertyType, GetIndexParameterTypes(propertyInfo));
 
-                        propertyEmitter.SetGetMethod(DefineMethodOverride(classEmitter, servicesAst, instanceAst, getter, GetCustomAttributeDatas(getter, serviceType, implementationType)));
+                        propertyEmitter.SetGetMethod(DefineMethodOverride(classEmitter, servicesAst, instanceAst, getter, attributeDatas));
                     }
                 }
 
@@ -362,11 +411,13 @@ label_continue:
 
                     propertyMethods.Add(setter);
 
-                    if (serviceType.IsAbstract || Intercept(setter))
+                    var attributeDatas = GetCustomAttributeDatas(setter, implementationType, true);
+
+                    if (serviceType.IsAbstract || attributeDatas.Count > 0)
                     {
                         propertyEmitter ??= classEmitter.DefineProperty(propertyInfo.Name, propertyInfo.Attributes, propertyInfo.PropertyType, GetIndexParameterTypes(propertyInfo));
 
-                        propertyEmitter.SetSetMethod(DefineMethodOverride(classEmitter, servicesAst, instanceAst, setter, GetCustomAttributeDatas(setter, serviceType, implementationType)));
+                        propertyEmitter.SetSetMethod(DefineMethodOverride(classEmitter, servicesAst, instanceAst, setter, attributeDatas));
                     }
                 }
             }
@@ -383,9 +434,11 @@ label_continue:
                     continue;
                 }
 
-                if (serviceType.IsAbstract || Intercept(methodInfo))
+                var attributeDatas = GetCustomAttributeDatas(methodInfo, implementationType);
+
+                if (serviceType.IsAbstract || attributeDatas.Count > 0)
                 {
-                    DefineMethodOverride(classEmitter, servicesAst, instanceAst, methodInfo, GetCustomAttributeDatas(methodInfo, serviceType, implementationType));
+                    DefineMethodOverride(classEmitter, servicesAst, instanceAst, methodInfo, attributeDatas);
                 }
             }
 
@@ -394,13 +447,17 @@ label_continue:
             return classEmitter.CreateType();
         }
 
-        private static List<Expression> MethodOverrideInterceptAttributes(MethodEmitter overrideEmitter, IEnumerable<CustomAttributeData> attributeDatas)
+        private static List<Expression> MethodOverrideInterceptAttributes(MethodEmitter overrideEmitter, IEnumerable<CustomAttributeData> attributeDatas, bool isAsync)
         {
             var interceptAttributes = new List<Expression>();
 
+            Type attributeType = isAsync
+                ? interceptAsyncAttributeType
+                : interceptAttributeType; ;
+
             foreach (var attributeData in attributeDatas)
             {
-                if (interceptAttributeType.IsAssignableFrom(attributeData.AttributeType))
+                if (attributeType.IsAssignableFrom(attributeData.AttributeType))
                 {
                     var attrArguments = new Expression[attributeData.ConstructorArguments.Count];
 
@@ -411,7 +468,23 @@ label_continue:
                         attrArguments[i] = Constant(typedArgument.Value, typedArgument.ArgumentType);
                     }
 
-                    interceptAttributes.Add(New(attributeData.Constructor, attrArguments));
+                    var instance = New(attributeData.Constructor, attrArguments);
+
+                    if (attributeData.NamedArguments.Count > 0)
+                    {
+                        var bindings = new List<MemberAssignment>(attributeData.NamedArguments.Count);
+
+                        foreach (var arg in attributeData.NamedArguments)
+                        {
+                            bindings.Add(Bind(arg.MemberInfo, Constant(arg.TypedValue.Value, arg.TypedValue.ArgumentType)));
+                        }
+
+                        interceptAttributes.Add(MemberInit(instance, bindings));
+                    }
+                    else
+                    {
+                        interceptAttributes.Add(instance);
+                    }
                 }
                 else
                 {
@@ -428,12 +501,28 @@ label_continue:
 
             var parameterEmitters = overrideEmitter.GetParameters();
 
-            var interceptAttributes = MethodOverrideInterceptAttributes(overrideEmitter, attributeDatas);
+            bool isAsync = IsAsync(methodInfo);
+
+            var interceptAttributes = MethodOverrideInterceptAttributes(overrideEmitter, attributeDatas, isAsync);
+
+            if (interceptAttributes.Count == 0)
+            {
+                if (methodInfo.ReturnType == typeof(void))
+                {
+                    overrideEmitter.Append(Call(instanceAst, methodInfo, parameterEmitters));
+                }
+                else
+                {
+                    overrideEmitter.Append(Return(Call(instanceAst, methodInfo, parameterEmitters)));
+                }
+
+                return overrideEmitter;
+            }
 
             //? 方法拦截属性。
-            var interceptAttrEmitter = classEmitter.DefineField($"____intercept_attr_{methodInfo.Name}_{methodInfo.MetadataToken}", interceptAttributeArrayType, FieldAttributes.Private | FieldAttributes.Static | FieldAttributes.InitOnly);
+            var interceptAttrEmitter = classEmitter.DefineField($"____intercept_attr_{methodInfo.Name}_{methodInfo.MetadataToken}", isAsync ? interceptAsyncAttributeArrayType : interceptAttributeArrayType, FieldAttributes.Private | FieldAttributes.Static | FieldAttributes.InitOnly);
 
-            classEmitter.TypeInitializer.Append(Assign(interceptAttrEmitter, Array(interceptAttributeType, interceptAttributes.ToArray())));
+            classEmitter.TypeInitializer.Append(Assign(interceptAttrEmitter, Array(isAsync ? interceptAsyncAttributeType : interceptAttributeType, interceptAttributes.ToArray())));
 
             //? 方法主体。
             Expression[] arguments;
@@ -496,9 +585,7 @@ label_continue:
 
             var returnType = methodInfo.ReturnType;
 
-            if (returnType.IsValueType
-                ? (returnType.IsGenericType ? returnType.GetGenericTypeDefinition() == typeof(ValueTask<>) : returnType == typeof(ValueTask))
-                : (returnType.IsGenericType ? returnType.GetGenericTypeDefinition() == typeof(Task<>) : returnType == typeof(Task)))
+            if (isAsync)
             {
                 Expression bodyAst;
 

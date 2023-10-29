@@ -1,7 +1,10 @@
 ﻿using Inkslab.Emitters;
 using Inkslab.Expressions;
 using System;
+using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.Diagnostics;
+using System.Linq;
 using System.Reflection;
 using System.Reflection.Emit;
 
@@ -142,9 +145,17 @@ namespace Inkslab
                 throw new AstException("无返回值类型赋值不能用于赋值运算!");
             }
 
-            if (EmitUtils.IsAssignableFromSignatureTypes(returnType, returnType))
+            if (!ConvertChecked(returnType, valueType))
             {
-                return;
+                throw new AstException($"“{valueType}”无法对类型“{returnType}”赋值!");
+            }
+        }
+
+        internal static bool ConvertChecked(Type returnType, Type valueType)
+        {
+            if (EmitUtils.IsAssignableFromSignatureTypes(returnType, valueType))
+            {
+                return true;
             }
 
             if (valueType.IsByRef || returnType.IsByRef)
@@ -161,7 +172,7 @@ namespace Inkslab
 
                 if (EmitUtils.IsAssignableFromSignatureTypes(returnType, valueType))
                 {
-                    return;
+                    return true;
                 }
             }
 
@@ -179,19 +190,19 @@ namespace Inkslab
 
                 if (EmitUtils.IsAssignableFromSignatureTypes(returnType, valueType))
                 {
-                    return;
+                    return true;
                 }
             }
 
             if (returnType.IsNullable())
             {
-                if (Enum.GetUnderlyingType(returnType) == valueType)
+                if (Nullable.GetUnderlyingType(returnType) == valueType)
                 {
-                    return;
+                    return true;
                 }
             }
 
-            throw new AstException($"“{right.RuntimeType}”无法对类型“{left.RuntimeType}”赋值!");
+            return false;
         }
 
         /// <summary>
@@ -200,6 +211,12 @@ namespace Inkslab
         /// <param name="ilg">指令。</param>
         /// <param name="value">值。</param>
         protected virtual void Assign(ILGenerator ilg, Expression value) => throw new NotSupportedException();
+
+        /// <summary>
+        /// 结果检测。
+        /// </summary>
+        /// <param name="returnType">返回类型。</param>
+        protected internal virtual bool DetectionResult(Type returnType) => returnType == RuntimeType;
 
         #region 表达式模块
 
@@ -286,14 +303,14 @@ namespace Inkslab
         /// </summary>
         /// <param name="instanceType">实例类型。</param>
         /// <returns>创建实例表达式。</returns>
-        public static Expression New(Type instanceType) => new NewInstanceExpression(instanceType);
+        public static NewExpression New(Type instanceType) => new NewExpression(instanceType);
 
         /// <summary>
         /// 创建实例。
         /// </summary>
         /// <param name="constructor">构造函数。</param>
         /// <returns>创建实例表达式。</returns>
-        public static Expression New(ConstructorInfo constructor) => new NewInstanceExpression(constructor);
+        public static NewExpression New(ConstructorInfo constructor) => new NewExpression(constructor);
 
         /// <summary>
         /// 创建实例。
@@ -301,7 +318,7 @@ namespace Inkslab
         /// <param name="instanceType">实例类型。</param>
         /// <param name="parameters">参数。</param>
         /// <returns>创建实例表达式。</returns>
-        public static Expression New(Type instanceType, params Expression[] parameters) => new NewInstanceExpression(instanceType, parameters);
+        public static NewExpression New(Type instanceType, params Expression[] parameters) => new NewExpression(instanceType, parameters);
 
         /// <summary>
         /// 创建实例。
@@ -309,7 +326,7 @@ namespace Inkslab
         /// <param name="constructor">构造函数。</param>
         /// <param name="parameters">参数。</param>
         /// <returns>创建实例表达式。</returns>
-        public static Expression New(ConstructorInfo constructor, params Expression[] parameters) => new NewInstanceExpression(constructor, parameters);
+        public static NewExpression New(ConstructorInfo constructor, params Expression[] parameters) => new NewExpression(constructor, parameters);
 
         /// <summary>
         /// 创建实例。
@@ -325,6 +342,96 @@ namespace Inkslab
         /// <param name="parameters">参数。</param>
         /// <returns>创建实例表达式。</returns>
         public static Expression New(ConstructorEmitter constructorEmitter, params Expression[] parameters) => new NewInstanceEmitter(constructorEmitter, parameters);
+
+        /// <summary>
+        /// 绑定成员。
+        /// </summary>
+        /// <param name="member">成员。</param>
+        /// <param name="expression">表达式。</param>
+        public static MemberAssignment Bind(MemberInfo member, Expression expression)
+        {
+            if (member is null)
+            {
+                throw new ArgumentNullException(nameof(member));
+            }
+
+            if (expression is null)
+            {
+                throw new ArgumentNullException(nameof(expression));
+            }
+
+            ValidateSettableFieldOrPropertyMember(member, out Type memberType);
+
+            if (!memberType.IsAssignableFrom(expression.RuntimeType))
+            {
+                throw new NotSupportedException($"表达式无法对类型为“{memberType.Name}”的成员赋值！");
+            }
+
+            return new MemberAssignment(member, expression);
+        }
+
+        private static void ValidateSettableFieldOrPropertyMember(MemberInfo member, out Type memberType)
+        {
+            switch (member)
+            {
+                case PropertyInfo propertyInfo:
+
+                    if (!propertyInfo.CanWrite)
+                    {
+                        throw new NotSupportedException($"“{propertyInfo.DeclaringType.Name}.{propertyInfo.Name}”属性不可写！");
+                    }
+
+                    memberType = propertyInfo.PropertyType;
+
+                    break;
+                case FieldInfo fieldInfo:
+
+                    memberType = fieldInfo.FieldType;
+
+                    break;
+                default:
+                    throw new NotSupportedException();
+            }
+        }
+
+        /// <summary>
+        /// 初始化成员。
+        /// </summary>
+        /// <param name="newExpression">创建实列表达式。</param>
+        /// <param name="bindings">初始化成员。</param>
+        public static MemberInitExpression MemberInit(NewExpression newExpression, params MemberAssignment[] bindings) => MemberInit(newExpression, (IEnumerable<MemberAssignment>)bindings);
+
+        /// <summary>
+        /// 初始化成员。
+        /// </summary>
+        /// <param name="newExpression">创建实列表达式。</param>
+        /// <param name="bindings">初始化成员。</param>
+        public static MemberInitExpression MemberInit(NewExpression newExpression, IEnumerable<MemberAssignment> bindings)
+        {
+            if (newExpression is null)
+            {
+                throw new ArgumentNullException(nameof(newExpression));
+            }
+
+            var assignments = new List<MemberAssignment>(bindings ?? Enumerable.Empty<MemberAssignment>());
+
+            ValidateMemberInitArgs(newExpression.RuntimeType, assignments);
+
+            return new MemberInitExpression(newExpression, assignments);
+        }
+
+        private static void ValidateMemberInitArgs(Type type, List<MemberAssignment> bindings)
+        {
+            for (int i = 0, n = bindings.Count; i < n; i++)
+            {
+                MemberAssignment b = bindings[i] ?? throw new ArgumentNullException();
+
+                if (!b.Member.DeclaringType.IsAssignableFrom(type))
+                {
+                    throw new MissingMemberException(type.Name, b.Member.Name);
+                }
+            }
+        }
 
         /// <summary>
         /// 创建 object[]。
@@ -685,14 +792,14 @@ namespace Inkslab
         public static UnaryExpression Negate(Expression body) => new UnaryExpression(body, UnaryExpressionType.Negate);
 
         /// <summary>
-        /// 流程（无返回值）。
+        /// 流程。
         /// </summary>
         /// <param name="switchValue">判断依据。</param>
         /// <returns> 流程控制表达式。</returns>
         public static SwitchExpression Switch(Expression switchValue) => new SwitchExpression(switchValue);
 
         /// <summary>
-        /// 流程(无返回值)。
+        /// 流程。
         /// </summary>
         /// <param name="switchValue">判断依据。</param>
         /// <param name="defaultAst">默认流程。</param>

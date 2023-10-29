@@ -29,10 +29,7 @@ namespace Inkslab.Expressions
         /// <param name="ilg">指令。</param>
         public override void Load(ILGenerator ilg)
         {
-            if (local is null)
-            {
-                local = ilg.DeclareLocal(RuntimeType);
-            }
+            local ??= ilg.DeclareLocal(RuntimeType);
 
             ilg.Emit(OpCodes.Ldloc, local);
         }
@@ -44,10 +41,7 @@ namespace Inkslab.Expressions
         /// <param name="value">值。</param>
         protected override void Assign(ILGenerator ilg, Expression value)
         {
-            if (local is null)
-            {
-                local = ilg.DeclareLocal(RuntimeType);
-            }
+            local ??= ilg.DeclareLocal(RuntimeType);
 
             value.Load(ilg);
 
