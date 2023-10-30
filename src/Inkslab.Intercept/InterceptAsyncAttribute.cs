@@ -7,7 +7,7 @@ namespace Inkslab.Intercept
     /// 异步拦截器。
     /// </summary>
     [AttributeUsage(AttributeTargets.Method, AllowMultiple = true, Inherited = true)]
-    public abstract class InterceptAsyncAttribute : Attribute
+    public abstract class InterceptAsyncAttribute : ReturnValueInterceptAsyncAttribute
     {
         /// <summary>
         /// 运行方法（异步无返回值）。

@@ -12,23 +12,22 @@ namespace DeltaExpression.AOP.Tests
     /// </summary>
     public class ServiceTypeInterceptAttribute : InterceptAttribute
     {
+        /// <summary>
+        /// 
+        /// </summary>
+        public int A { set; get; }
+
         /// <inheritdoc/>
         public override void Run(InterceptContext context, Intercept intercept)
         {
             intercept.Run(context);
-        }
-
-        /// <inheritdoc/>
-        public override T Run<T>(InterceptContext context, Intercept<T> intercept)
-        {
-            return intercept.Run(context);
         }
     }
 
     /// <summary>
     /// 添加。
     /// </summary>
-    public class TestInterceptAttribute : InterceptAttribute
+    public class TestInterceptAttribute : ReturnValueInterceptAttribute
     {
         /// <summary>
         /// 测试。
@@ -41,15 +40,32 @@ namespace DeltaExpression.AOP.Tests
         public int A { set; get; }
 
         /// <inheritdoc/>
-        public override void Run(InterceptContext context, Intercept intercept)
+        public override T Run<T>(InterceptContext context, Intercept<T> intercept)
         {
-            intercept.Run(context);
+            return default(T);
         }
+    }
+
+    /// <summary>
+    /// 添加。
+    /// </summary>
+    public class ReturnValueServiceInterceptAttribute : ReturnValueInterceptAttribute
+    {
+        /// <summary>
+        /// 测试。
+        /// </summary>
+        public ReturnValueServiceInterceptAttribute() { }
 
         /// <inheritdoc/>
         public override T Run<T>(InterceptContext context, Intercept<T> intercept)
         {
-            return default(T);
+            return base.Run(context, intercept);
+        }
+
+        /// <inheritdoc/>
+        public override Task<T> RunAsync<T>(InterceptContext context, InterceptAsync<T> intercept)
+        {
+            return base.RunAsync(context, intercept);
         }
     }
 
@@ -95,6 +111,7 @@ namespace DeltaExpression.AOP.Tests
         /// <summary>
         /// 加法。
         /// </summary>
+        [ServiceTypeIntercept(A = 5)]
         int Add(int i, ref int j);
 
         /// <summary>
@@ -132,7 +149,6 @@ namespace DeltaExpression.AOP.Tests
         /// <summary>
         /// 记录。
         /// </summary>
-        [ServiceTypeIntercept]
         public virtual void Records()
         {
         }
@@ -140,7 +156,6 @@ namespace DeltaExpression.AOP.Tests
         /// <summary>
         /// 加法。
         /// </summary>
-        [ServiceTypeIntercept]
         public virtual int Add(int i, ref int j) => i + j;
 
         /// <summary>
@@ -151,7 +166,6 @@ namespace DeltaExpression.AOP.Tests
         /// <summary>
         /// 异步加法。
         /// </summary>
-        [ServiceTypeInterceptAsync]
         public virtual ValueTask<int> AddAsync(int i, int j) => new ValueTask<int>(Task.FromResult(i + j));
     }
 
@@ -177,7 +191,7 @@ namespace DeltaExpression.AOP.Tests
         /// </summary>
         /// <typeparam name="T">泛型。</typeparam>
         /// <returns>实例。</returns>
-        [ServiceTypeIntercept]
+        [ReturnValueServiceIntercept]
         public virtual T Get<T>() where T : new() => new T();
 
         /// <summary>
@@ -238,7 +252,7 @@ namespace DeltaExpression.AOP.Tests
         /// 测试。
         /// </summary>
         /// <returns>实例。</returns>
-        [ServiceTypeIntercept]
+        [ReturnValueServiceIntercept]
         public virtual TResult Get<TResult>() where TResult : IEnumerable<T>, new() => new TResult();
 
         /// <summary>
@@ -259,7 +273,7 @@ namespace DeltaExpression.AOP.Tests
         /// 测试。
         /// </summary>
         /// <returns>实例。</returns>
-        [ServiceTypeIntercept]
+        [ReturnValueServiceIntercept]
         public virtual T Get() => new T();
 
         /// <summary>

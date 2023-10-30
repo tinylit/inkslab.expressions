@@ -108,11 +108,11 @@ label_core:
                         codes.Add(NopExpression.Instance);
                     }
                 }
-                else if (code.IsVoid)
+                else if (code.IsVoid || RuntimeType == code.RuntimeType)
                 {
 
                 }
-                else if (!RuntimeType.IsAssignableFrom(code.RuntimeType))
+                else if (RuntimeType.IsGenericType || RuntimeType.IsGenericParameter || code.RuntimeType.IsGenericType || code.RuntimeType.IsGenericParameter || !RuntimeType.IsAssignableFrom(code.RuntimeType)) // 解决泛型类调用“IsAssignableFrom”方法异常。
                 {
                     codes.Add(NopExpression.Instance);
                 }

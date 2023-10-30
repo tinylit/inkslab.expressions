@@ -137,6 +137,7 @@ namespace Inkslab.Emitters
         /// <summary>
         /// 成员。
         /// </summary>
+        [DebuggerHidden]
         internal virtual MethodInfo Value
         {
             get

@@ -6,7 +6,7 @@ namespace Inkslab.Intercept
     /// 有返回值拦截器。
     /// </summary>
     [AttributeUsage(AttributeTargets.Method, AllowMultiple = true, Inherited = true)]
-    public abstract class ReturnValueInterceptAttribute : Attribute
+    public abstract class ReturnValueInterceptAttribute : ReturnValueInterceptAsyncAttribute
     {
         /// <summary>
         /// 运行方法（非异步且有返回值）。
