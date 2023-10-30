@@ -267,7 +267,28 @@ namespace DeltaExpression.AOP.Tests
     /// 泛型。
     /// </summary>
     /// <typeparam name="T"></typeparam>
-    public class ServiceGenericType<T> where T : class, new()
+    public interface IServiceGenericType<T> where T : class, new()
+    {
+        /// <summary>
+        /// 测试。
+        /// </summary>
+        /// <returns>实例。</returns>
+        [ReturnValueServiceIntercept]
+        T Get();
+
+        /// <summary>
+        /// 测试。
+        /// </summary>
+        /// <returns>实例。</returns>
+        [ServiceTypeInterceptAsync]
+        Task<T> GetAsync();
+    }
+
+    /// <summary>
+    /// 泛型。
+    /// </summary>
+    /// <typeparam name="T"></typeparam>
+    public class ServiceGenericType<T> : IServiceGenericType<T> where T : class, new()
     {
         /// <summary>
         /// 测试。
@@ -283,6 +304,7 @@ namespace DeltaExpression.AOP.Tests
         [ServiceTypeInterceptAsync]
         public virtual Task<T> GetAsync() => Task.FromResult(new T());
     }
+
 
     /// <summary>
     /// 测试。
@@ -413,6 +435,31 @@ namespace DeltaExpression.AOP.Tests
         /// </summary>
         /// <returns></returns>
         [Fact]
+        public async Task ProxyInterfaceServiceGenericType()
+        {
+            var services = new ServiceCollection();
+
+            services.AddTransient(typeof(IServiceGenericType<>), typeof(ServiceGenericType<>))
+                .UseIntercept();
+
+            var provider = services.BuildServiceProvider();
+
+            var instance = provider.GetRequiredService<IServiceGenericType<HashSet<int>>>();
+
+            HashSet<int> ints = instance.Get();
+
+            Assert.False(ints is null);
+
+            var serviceType = await instance.GetAsync();
+
+            Assert.False(serviceType is null);
+        }
+
+        /// <summary>
+        /// 泛型服务。
+        /// </summary>
+        /// <returns></returns>
+        [Fact]
         public async Task ProxyServiceGenericType()
         {
             var services = new ServiceCollection();
@@ -432,6 +479,7 @@ namespace DeltaExpression.AOP.Tests
 
             Assert.False(serviceType is null);
         }
+
         /// <summary>
         /// 泛型且泛型方法服务。
         /// </summary>

@@ -170,16 +170,6 @@ namespace Inkslab.Intercept.Patterns
                 throw new ArgumentNullException(nameof(methodInfo));
             }
 
-            if (methodInfo.DeclaringType.IsAbstract || methodInfo.DeclaringType.IsInterface)
-            {
-                return true;
-            }
-
-            if (!methodInfo.IsVirtual)
-            {
-                return false;
-            }
-
             if (methodInfo.IsDefined(noninterceptAttributeType, true))
             {
                 return false;
