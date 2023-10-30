@@ -1142,10 +1142,7 @@ namespace Inkslab
             }
             else
             {
-                if (valueType is null)
-                {
-                    valueType = (value is Type || value is AbstractTypeEmitter) ? typeof(Type) : (value is MethodInfo || value is MethodEmitter) ? typeof(MethodInfo) : value.GetType();
-                }
+                valueType ??= (value is Type || value is AbstractTypeEmitter) ? typeof(Type) : (value is MethodInfo || value is MethodEmitter) ? typeof(MethodInfo) : value.GetType();
 
                 switch (value)
                 {

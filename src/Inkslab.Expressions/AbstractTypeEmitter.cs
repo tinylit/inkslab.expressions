@@ -8,7 +8,6 @@ using System.Reflection;
 using System.Reflection.Emit;
 using System.Runtime.InteropServices;
 using System.Security;
-using System.Text.RegularExpressions;
 
 namespace Inkslab
 {
@@ -186,9 +185,11 @@ namespace Inkslab
                 {
                     if (interfaces.Any(x => x.IsGenericTypeDefinition))
                     {
+                        AnalyzeGenericParameters(ref interfaces);
+
                         this.interfaces = interfaces;
 
-                        AnalyzeGenericParameters(interfaces);
+                        typeBuilder = ModuleEmitter.DefineType(moduleEmitter, name, attributes, typeof(object));
                     }
                     else
                     {
@@ -203,9 +204,10 @@ namespace Inkslab
             else if (baseType.IsGenericTypeDefinition)
             {
                 this.baseType = baseType;
-                this.interfaces = interfaces;
 
-                AnalyzeGenericParameters(baseType, interfaces);
+                AnalyzeGenericParameters(baseType, ref interfaces);
+
+                this.interfaces = interfaces;
 
                 typeBuilder = ModuleEmitter.DefineType(moduleEmitter, name, attributes);
             }
@@ -213,9 +215,9 @@ namespace Inkslab
             {
                 if (interfaces.Any(x => x.IsGenericTypeDefinition))
                 {
-                    this.interfaces = interfaces;
+                    AnalyzeGenericParameters(baseType, ref interfaces);
 
-                    AnalyzeGenericParameters(interfaces);
+                    this.interfaces = interfaces;
 
                     typeBuilder = ModuleEmitter.DefineType(moduleEmitter, name, attributes, baseType);
                 }
@@ -290,11 +292,11 @@ namespace Inkslab
                 {
                     if (interfaces.Any(x => x.IsGenericTypeDefinition))
                     {
+                        AnalyzeGenericParameters(ref interfaces);
+
                         this.interfaces = interfaces;
 
-                        AnalyzeGenericParameters(interfaces);
-
-                        typeBuilder = DefineType(typeEmitter, name, attributes);
+                        typeBuilder = DefineType(typeEmitter, name, attributes, typeof(object));
                     }
                     else
                     {
@@ -309,9 +311,10 @@ namespace Inkslab
             else if (baseType.IsGenericTypeDefinition)
             {
                 this.baseType = baseType;
-                this.interfaces = interfaces;
 
-                AnalyzeGenericParameters(baseType, interfaces);
+                AnalyzeGenericParameters(baseType, ref interfaces);
+
+                this.interfaces = interfaces;
 
                 typeBuilder = DefineType(typeEmitter, name, attributes);
             }
@@ -319,9 +322,9 @@ namespace Inkslab
             {
                 if (interfaces.Any(x => x.IsGenericTypeDefinition))
                 {
-                    this.interfaces = interfaces;
+                    AnalyzeGenericParameters(baseType, ref interfaces);
 
-                    AnalyzeGenericParameters(interfaces);
+                    this.interfaces = interfaces;
 
                     typeBuilder = DefineType(typeEmitter, name, attributes, baseType);
                 }
@@ -435,65 +438,9 @@ namespace Inkslab
 
             if (baseType is null || !baseType.IsGenericTypeDefinition)
             {
-                if (baseType != null)
-                {
-                    typeBuilder.SetParent(baseType);
-                }
-
                 if (interfaces?.Length > 0)
                 {
-                    bool invalidFlag = true;
-                    bool isGenericTypeDefinition = false;
-
-                    var results = new List<Type>(interfaces.Length);
-
                     foreach (var interfaceType in interfaces)
-                    {
-                        if (interfaceType.IsGenericTypeDefinition)
-                        {
-                            isGenericTypeDefinition = true;
-
-                            var interfaceTypes = interfaceType.GetInterfaces();
-
-                            if (Array.TrueForAll(interfaces, x => !x.IsGenericTypeDefinition || Array.IndexOf(interfaceTypes, x) > -1))
-                            {
-                                invalidFlag = false;
-
-                                Array.ForEach(interfaceTypes, x => results.Remove(x));
-
-                                results.Add(interfaceType);
-                                results.AddRange(interfaceType.GetInterfaces());
-
-                                break;
-                            }
-                        }
-                        else
-                        {
-                            results.Add(interfaceType);
-                        }
-                    }
-
-                    if (invalidFlag && isGenericTypeDefinition)
-                    {
-                        throw new AstException("无法分析多个没有继承关系的泛型定义接口，请自己实现泛型关系！");
-                    }
-
-                    if (baseType != null)
-                    {
-                        foreach (var interfaceType in baseType.GetInterfaces())
-                        {
-                            if (results.Contains(interfaceType))
-                            {
-                                continue;
-                            }
-
-                            results.Add(interfaceType);
-                        }
-                    }
-
-                    results.Sort(TypeComparer.Instance);
-
-                    foreach (var interfaceType in results)
                     {
                         typeBuilder.AddInterfaceImplementation(MakeGenericType(interfaceType, typeParameterBuilders));
                     }
@@ -512,48 +459,18 @@ namespace Inkslab
             }
             else
             {
-
-                var interfaceTypes = baseType.GetInterfaces();
-
-                var results = new List<Type>(interfaceTypes.Length);
-
-                results.AddRange(interfaceTypes);
-
-                if (Array.Exists(interfaces, x => x.IsGenericTypeDefinition))
-                {
-                    if (Array.TrueForAll(interfaces, x => !x.IsGenericTypeDefinition || results.Contains(x)))
-                    {
-                        goto label_makeGeneric;
-                    }
-
-                    throw new AstException("存在没有被基础类实现的泛型声明接口！");
-
-                }
-
-label_makeGeneric:
                 var serviceType = MakeGenericType(baseType, typeParameterBuilders);
-
-                foreach (var interfaceType in interfaces)
-                {
-                    if (results.Contains(interfaceType))
-                    {
-                        continue;
-                    }
-
-                    results.Add(interfaceType);
-                }
-
-                results.RemoveAll(x => Array.IndexOf(interfaceTypes, x) > -1);
-
-                results.AddRange(serviceType.GetInterfaces());
-
-                results.Sort(TypeComparer.Instance);
 
                 typeBuilder.SetParent(serviceType);
 
-                foreach (var interfaceType in results)
+                foreach (var interfaceType in baseType.GetInterfaces())
                 {
                     typeBuilder.AddInterfaceImplementation(MakeGenericType(interfaceType, typeParameterBuilders));
+                }
+
+                foreach (var interfaceType in interfaces)
+                {
+                    typeBuilder.AddInterfaceImplementation(interfaceType);
                 }
             }
 
@@ -562,65 +479,77 @@ label_makeGeneric:
 
         private static Type MakeGenericType(Type serviceType, GenericTypeParameterBuilder[] typeParameterBuilders)
         {
-            int offset = 0;
-
-            var genericArguments = serviceType.GetGenericArguments();
-
-            for (int i = 0; i < genericArguments.Length; i++)
+            if (serviceType.IsGenericTypeDefinition)
             {
-                if (genericArguments[i].IsGenericParameter)
+                int offset = 0;
+
+                var genericArguments = serviceType.GetGenericArguments();
+
+                for (int i = 0; i < genericArguments.Length; i++)
                 {
-                    genericArguments[i] = typeParameterBuilders[i - offset];
-                }
-                else
-                {
-                    offset--;
-                }
-            }
-
-            if (!serviceType.IsGenericTypeDefinition)
-            {
-                serviceType = serviceType.GetGenericTypeDefinition();
-            }
-
-            return serviceType.MakeGenericType(genericArguments);
-        }
-
-        private void AnalyzeGenericParameters(Type[] interfaces)
-        {
-            bool invalidFlag = true;
-            bool isGenericTypeDefinition = false;
-
-            foreach (var interfaceType in interfaces)
-            {
-                if (interfaceType.IsGenericTypeDefinition)
-                {
-                    isGenericTypeDefinition = true;
-
-                    var interfaceTypes = interfaceType.GetInterfaces();
-
-                    if (Array.TrueForAll(interfaces, x => !x.IsGenericTypeDefinition || Array.IndexOf(interfaceTypes, x) > -1))
+                    if (genericArguments[i].IsGenericParameter)
                     {
-                        invalidFlag = false;
-
-                        genericArguments.AddRange(interfaceType.GetGenericArguments());
-
-                        break;
+                        genericArguments[i] = typeParameterBuilders[i + offset];
+                    }
+                    else
+                    {
+                        offset++;
                     }
                 }
+
+                return serviceType.MakeGenericType(genericArguments);
             }
 
-            if (invalidFlag && isGenericTypeDefinition)
+            return serviceType;
+        }
+
+        private void AnalyzeGenericParameters(ref Type[] interfaces)
+        {
+            if (interfaces is null || interfaces.Length == 0)
             {
-                throw new AstException("无法分析多个没有继承关系的泛型定义接口，请自己实现泛型关系！");
+
+            }
+            else if (interfaces.Length == 1)
+            {
+                Type interfaceType = interfaces[0];
+
+                if (interfaceType.IsGenericTypeDefinition)
+                {
+                    genericArguments.AddRange(interfaceType.GetGenericArguments());
+                }
+            }
+            else
+            {
+                List<Type> independentTypes = new List<Type>(interfaces.Length);
+
+                Type[] simpleTypes = Array.FindAll(interfaces, type => !type.IsGenericTypeDefinition);
+                Type[] genericTypes = Array.FindAll(interfaces, type => type.IsGenericTypeDefinition);
+
+                independentTypes.AddRange(genericTypes);
+
+                foreach (var interfaceType in genericTypes)
+                {
+                    Array.ForEach(interfaceType.GetInterfaces(), type => independentTypes.Remove(type));
+                }
+
+                if (independentTypes.Count > 1)
+                {
+                    throw new AstException("无法分析多个没有继承关系的泛型定义接口，请自己实现泛型关系！");
+                }
+
+                genericArguments.AddRange(independentTypes.SelectMany(x => x.GetGenericArguments()));
+
+                independentTypes.AddRange(simpleTypes);
+
+                interfaces = independentTypes.ToArray();
             }
         }
 
-        private void AnalyzeGenericParameters(Type baseType, Type[] interfaces)
+        private void AnalyzeGenericParameters(Type baseType, ref Type[] interfaces)
         {
             if (baseType is null || !baseType.IsGenericTypeDefinition)
             {
-                AnalyzeGenericParameters(interfaces);
+                AnalyzeGenericParameters(ref interfaces);
             }
             else if (interfaces is null || interfaces.Length == 0)
             {
@@ -633,16 +562,30 @@ label_makeGeneric:
             {
                 if (Array.Exists(interfaces, x => x.IsGenericTypeDefinition))
                 {
-                    var interfaceTypes = baseType.GetInterfaces();
+                    Type[] simpleTypes = Array.FindAll(interfaces, type => !type.IsGenericTypeDefinition);
+                    Type[] genericTypes = Array.FindAll(interfaces, type => type.IsGenericTypeDefinition);
 
-                    if (Array.TrueForAll(interfaces, x => !x.IsGenericTypeDefinition || Array.IndexOf(interfaceTypes, x) > -1))
+                    List<Type> independentTypes = new List<Type>(genericTypes.Length);
+
+                    independentTypes.AddRange(genericTypes);
+
+                    Type[] baseInterfaceTypes = baseType.GetInterfaces();
+
+                    Array.ForEach(baseInterfaceTypes, type => independentTypes.Remove(type));
+
+                    if (independentTypes.Count > 1)
                     {
-                        genericArguments.AddRange(baseType.GetGenericArguments());
+                        throw new AstException("无法分析多个没有继承关系的泛型定义接口，请自己实现泛型关系！");
                     }
-                    else
-                    {
-                        throw new AstException("存在没有被基础类实现的泛型声明接口！");
-                    }
+
+                    genericArguments.AddRange(baseType.GetGenericArguments());
+
+                    independentTypes.AddRange(simpleTypes);
+
+                    // 移除基础类型有的简单类型。
+                    Array.ForEach(baseInterfaceTypes, type => independentTypes.Remove(type));
+
+                    interfaces = independentTypes.ToArray();
                 }
                 else
                 {
@@ -694,8 +637,15 @@ label_makeGeneric:
         }
 
         /// <summary>
+        /// 接口。
+        /// </summary>
+        /// <returns></returns>
+        public Type[] GetInterfaces() => interfaces ?? Type.EmptyTypes;
+
+        /// <summary>
         /// 当前类型。
         /// </summary>
+        [DebuggerHidden]
         internal Type Value => typeBuilder;
 
         private void CheckGenericParameters()
@@ -1078,7 +1028,7 @@ label_makeGeneric:
                         returnType = MakeGenericParameter(returnType, declaringTypeParameters);
                     }
 
-                    methodInfoDeclaration = new DynamicMethod(methodInfoOriginal, declaringType, runtimeType, declaringTypeParameters, hasDeclaringTypes);
+                    methodInfoDeclaration = new DynamicMethod(methodInfoOriginal, declaringType.MakeGenericType(declaringTypeParameters), runtimeType, declaringTypeParameters, hasDeclaringTypes);
                 }
             }
             else if (methodInfoOriginal.IsGenericMethod)

@@ -170,16 +170,6 @@ namespace Inkslab.Intercept.Patterns
                 throw new ArgumentNullException(nameof(methodInfo));
             }
 
-            if (methodInfo.DeclaringType.IsAbstract || methodInfo.DeclaringType.IsInterface)
-            {
-                return true;
-            }
-
-            if (!methodInfo.IsVirtual)
-            {
-                return false;
-            }
-
             if (methodInfo.IsDefined(noninterceptAttributeType, true))
             {
                 return false;
@@ -505,9 +495,11 @@ namespace Inkslab.Intercept.Patterns
 
             overrideEmitter.Append(Assign(variableAst, Array(parameterEmitters)));
 
-            if (overrideEmitter.IsGenericMethod)
+            if (methodInfo.IsGenericMethod)
             {
-                methodAst = Constant(methodInfo);
+                methodAst = Variable(typeof(MethodInfo));
+
+                overrideEmitter.Append(Assign(methodAst, Constant(methodInfo)));
 
                 arguments = new Expression[] { servicesAst, methodAst, variableAst };
             }
