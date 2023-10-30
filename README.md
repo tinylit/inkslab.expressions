@@ -26,9 +26,9 @@ NuGet 包
 
 ### 如何使用？
 
-* 实现“InterceptAttribute”拦截器属性。
-
-* 使用拦截器“UseIntercept”。
+* 实现“InterceptAttribute”、“InterceptAsyncAttribute”、“ReturnValueInterceptAttribute”或“ReturnValueInterceptAsyncAttribute”拦截器属性。
+* 在依赖注入的接口或类中方法，标记相对于的属性。
+* 使用拦截器“UseIntercept”，会自动检测当前服务集合中 **“ServiceDescriptor”** . *“ServiceType”* 服务类，并自动完成类型代理。
 ```C#
 public class Startup {
 
