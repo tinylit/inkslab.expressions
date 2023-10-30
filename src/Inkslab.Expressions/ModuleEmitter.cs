@@ -16,12 +16,12 @@ namespace Inkslab
         /// <summary>
         ///  默认文件名称。
         /// </summary>
-        public static readonly string DEFAULT_FILE_NAME = "Delta.Expressions.dll";
+        public static readonly string DEFAULT_FILE_NAME = "Inkslab.Override.dll";
 
         /// <summary>
         ///  程序集名称。
         /// </summary>
-        public static readonly string DEFAULT_ASSEMBLY_NAME = "Delta.Expressions";
+        public static readonly string DEFAULT_ASSEMBLY_NAME = "Inkslab.Override";
 
         private ModuleBuilder builder;
         private readonly INamingScope namingScope;

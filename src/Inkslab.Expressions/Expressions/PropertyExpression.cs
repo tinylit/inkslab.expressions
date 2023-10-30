@@ -140,7 +140,6 @@ namespace Inkslab.Expressions
         /// <inheritdoc/>
         protected override void Assign(ILGenerator ilg, Expression value)
         {
-
             if (!isStatic)
             {
                 instanceAst.Load(ilg);

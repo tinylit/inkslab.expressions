@@ -245,6 +245,7 @@ namespace Inkslab.Expressions
                 finallyAst?.MarkLabel(label);
             }
         }
+        
         /// <inheritdoc/>
         protected internal override void StoredLocal(VariableExpression variable)
         {
@@ -261,6 +262,19 @@ namespace Inkslab.Expressions
             base.StoredLocal(variable);
 
             finallyAst?.StoredLocal(variable);
+        }
+        /// <inheritdoc/>
+        protected internal override bool DetectionResult(Type returnType)
+        {
+            foreach (var @catch in catchAsts)
+            {
+                if (!@catch.DetectionResult(returnType))
+                {
+                    return false;
+                }
+            }
+
+            return true;
         }
 
         /// <summary>

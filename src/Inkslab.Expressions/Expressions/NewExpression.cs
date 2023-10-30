@@ -1,5 +1,4 @@
-﻿using Inkslab.Emitters;
-using System;
+﻿using System;
 using System.Diagnostics;
 using System.Linq;
 using System.Reflection;
@@ -11,7 +10,7 @@ namespace Inkslab.Expressions
     /// 创建新实例。
     /// </summary>
     [DebuggerDisplay("new {RuntimeType.Name}(...args)")]
-    public class NewInstanceExpression : Expression
+    public class NewExpression : Expression
     {
         private readonly ConstructorInfo constructorInfo;
         private readonly Expression[] parameters;
@@ -20,7 +19,7 @@ namespace Inkslab.Expressions
         /// 构造函数。
         /// </summary>
         /// <param name="constructorInfo">构造函数。</param>
-        internal NewInstanceExpression(ConstructorInfo constructorInfo) : this(constructorInfo, new Expression[0])
+        internal NewExpression(ConstructorInfo constructorInfo) : this(constructorInfo, new Expression[0])
         {
         }
 
@@ -29,7 +28,7 @@ namespace Inkslab.Expressions
         /// </summary>
         /// <param name="constructorInfo">构造函数。</param>
         /// <param name="parameters">参数。</param>
-        internal NewInstanceExpression(ConstructorInfo constructorInfo, params Expression[] parameters) : base(constructorInfo.DeclaringType)
+        internal NewExpression(ConstructorInfo constructorInfo, params Expression[] parameters) : base(constructorInfo.DeclaringType)
         {
             ArgumentsCheck(constructorInfo, parameters);
 
@@ -60,14 +59,14 @@ namespace Inkslab.Expressions
         /// 构造函数。
         /// </summary>
         /// <param name="instanceType">实例类型。</param>
-        public NewInstanceExpression(Type instanceType) : this(instanceType.GetConstructor(Type.EmptyTypes)) { }
+        public NewExpression(Type instanceType) : this(instanceType.GetConstructor(Type.EmptyTypes)) { }
 
         /// <summary>
         /// 构造函数。
         /// </summary>
         /// <param name="instanceType">实例类型。</param>
         /// <param name="parameters">参数。</param>
-        public NewInstanceExpression(Type instanceType, params Expression[] parameters) : this(parameters?.Length > 0 ? instanceType.GetConstructor(parameters.Select(x => x.RuntimeType).ToArray()) : instanceType.GetConstructor(Type.EmptyTypes), parameters) { }
+        public NewExpression(Type instanceType, params Expression[] parameters) : this(parameters?.Length > 0 ? instanceType.GetConstructor(parameters.Select(x => x.RuntimeType).ToArray()) : instanceType.GetConstructor(Type.EmptyTypes), parameters) { }
 
         /// <summary>
         /// 生成。

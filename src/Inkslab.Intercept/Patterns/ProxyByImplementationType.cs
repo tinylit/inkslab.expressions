@@ -95,7 +95,7 @@ namespace Inkslab.Intercept.Patterns
                 constructorEmitter.Append(Assign(servicesAst, servicesEmitter));
             }
 
-            return OverrideType(classEmitter, instanceAst, servicesAst, serviceType, implementationType);
+            return OverrideType(classEmitter, instanceAst, servicesAst, serviceType);
         }
 
         private Type ResolveIsClass()
@@ -125,7 +125,7 @@ namespace Inkslab.Intercept.Patterns
                 constructorEmitter.Append(Assign(servicesAst, servicesEmitter));
             }
 
-            return OverrideType(classEmitter, servicesAst, serviceType, implementationType);
+            return OverrideType(classEmitter, servicesAst, serviceType);
         }
     }
 }

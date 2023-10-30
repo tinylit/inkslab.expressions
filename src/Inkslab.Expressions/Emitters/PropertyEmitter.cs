@@ -269,7 +269,6 @@ namespace Inkslab.Emitters
             ilg.Emit(OpCodes.Callvirt, _Getter.Value);
         }
 
-
         /// <summary>
         /// 赋值。
         /// </summary>

@@ -296,12 +296,25 @@ namespace Inkslab.Expressions
 
             switchValue.StoredLocal(variable);
 
-            foreach (var item in switchCases)
+            foreach (var switchCase in switchCases)
             {
-                item.StoredLocal(variable);
+                switchCase.StoredLocal(variable);
             }
 
             defaultAst?.StoredLocal(variable);
+        }
+        /// <inheritdoc/>
+        protected internal override bool DetectionResult(Type returnType)
+        {
+            foreach (var switchCase in switchCases)
+            {
+                if (!switchCase.DetectionResult(returnType))
+                {
+                    return false;
+                }
+            }
+
+            return defaultAst is null || defaultAst.DetectionResult(returnType);
         }
 
         /// <summary>

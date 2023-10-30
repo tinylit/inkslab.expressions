@@ -9,9 +9,9 @@ namespace Inkslab.Intercept
     public static class ServicesExtensions
     {
 #if NET461_OR_GREATER && DEBUG
-        private static readonly ModuleEmitter moduleEmitter = new ModuleEmitter(true, "Delta.Override.AOP");
+        private static readonly ModuleEmitter moduleEmitter = new ModuleEmitter(true, "Inkslab.Override.Intercept");
 #else
-        private static readonly ModuleEmitter moduleEmitter = new ModuleEmitter("Delta.Override.AOP");
+        private static readonly ModuleEmitter moduleEmitter = new ModuleEmitter("Inkslab.Override.Intercept");
 #endif
 
         /// <summary>

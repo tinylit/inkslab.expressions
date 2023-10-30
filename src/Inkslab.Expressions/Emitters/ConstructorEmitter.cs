@@ -4,19 +4,19 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using System.Reflection.Emit;
-using System.Runtime.InteropServices;
 
 namespace Inkslab.Emitters
 {
     /// <summary>
     /// 构造函数。
     /// </summary>
-    public class ConstructorEmitter : BlockExpression
+    public class ConstructorEmitter : Expression
     {
         private static readonly ParameterEmitter[] EmptyParameters = new ParameterEmitter[0];
 
         private int parameterIndex = 0;
         private readonly TypeBuilder typeBuilder;
+        private readonly BlockExpression blockAst = new BlockExpression();
         private readonly List<ParameterEmitter> parameters = new List<ParameterEmitter>();
 
         private class ConstructorExpression : Expression
@@ -285,6 +285,18 @@ namespace Inkslab.Emitters
         public virtual void InvokeBaseConstructor(ConstructorInfo constructor, params Expression[] parameters) => Append(new ConstructorExpression(constructor, parameters ?? System.Array.Empty<Expression>()));
 
         /// <summary>
+        /// 是否为空。
+        /// </summary>
+        public bool IsEmpty => blockAst.IsEmpty;
+
+        /// <summary>
+        /// 添加代码。
+        /// </summary>
+        /// <param name="code">代码。</param>
+        /// <returns>当前代码块。</returns>
+        public BlockExpression Append(Expression code) => blockAst.Append(code);
+
+        /// <summary>
         /// 发行。
         /// </summary>
         public void Emit(ConstructorBuilder constructorBuilder)
@@ -330,7 +342,7 @@ namespace Inkslab.Emitters
 
             MarkLabel(label);
 
-            base.Load(ilg);
+            blockAst.Load(ilg);
 
             label.MarkLabel(ilg);
         }

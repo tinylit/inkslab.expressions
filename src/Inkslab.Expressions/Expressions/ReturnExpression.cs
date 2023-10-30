@@ -42,19 +42,10 @@ namespace Inkslab.Expressions
             {
                 throw new AstException("由于代码块是无返回值，返回表达式必须也是无返回值类型！");
             }
-            else if (variable.RuntimeType == RuntimeType)
+            else
             {
                 Assign(variable, body)
                     .Load(ilg);
-            }
-            else if (EmitUtils.IsAssignableFromSignatureTypes(body.RuntimeType, variable.RuntimeType))
-            {
-                Assign(variable, Convert(body, variable.RuntimeType))
-                    .Load(ilg);
-            }
-            else
-            {
-                throw new AstException($"无法将类型“{body.RuntimeType}”隐式转换为“{variable.RuntimeType}”!");
             }
 
             label.Goto(ilg);
@@ -84,5 +75,8 @@ namespace Inkslab.Expressions
 
             this.variable = variable ?? throw new ArgumentNullException(nameof(variable));
         }
+
+        /// <inheritdoc/>
+        protected internal override bool DetectionResult(Type returnType) => ConvertChecked(returnType, RuntimeType);
     }
 }

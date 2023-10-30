@@ -17,7 +17,7 @@ namespace Inkslab.Expressions
         /// 构造函数。
         /// </summary>
         /// <param name="exceptionType">异常类型。</param>
-        internal ThrowExpression(Type exceptionType) : this(new NewInstanceExpression(exceptionType))
+        internal ThrowExpression(Type exceptionType) : this(new NewExpression(exceptionType))
         {
         }
 
@@ -26,7 +26,7 @@ namespace Inkslab.Expressions
         /// </summary>
         /// <param name="exceptionType">异常类型。</param>
         /// <param name="errorMsg">异常消息。</param>
-        internal ThrowExpression(Type exceptionType, string errorMsg) : this(new NewInstanceExpression(exceptionType, new ConstantExpression(errorMsg)))
+        internal ThrowExpression(Type exceptionType, string errorMsg) : this(new NewExpression(exceptionType, new ConstantExpression(errorMsg)))
         {
         }
 
