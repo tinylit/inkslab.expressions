@@ -58,7 +58,7 @@ namespace Inkslab.Intercept
             }
 
 #if NET461_OR_GREATER && DEBUG
-            moduleEmitter.SaveAssembly();
+            //moduleEmitter.SaveAssembly();
 #endif
 
             return services;

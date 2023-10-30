@@ -495,9 +495,11 @@ namespace Inkslab.Intercept.Patterns
 
             overrideEmitter.Append(Assign(variableAst, Array(parameterEmitters)));
 
-            if (overrideEmitter.IsGenericMethod)
+            if (methodInfo.IsGenericMethod)
             {
-                methodAst = Constant(methodInfo);
+                methodAst = Variable(typeof(MethodInfo));
+
+                overrideEmitter.Append(Assign(methodAst, Constant(methodInfo)));
 
                 arguments = new Expression[] { servicesAst, methodAst, variableAst };
             }

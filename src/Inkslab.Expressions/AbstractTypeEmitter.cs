@@ -188,9 +188,13 @@ namespace Inkslab
                         AnalyzeGenericParameters(ref interfaces);
 
                         this.interfaces = interfaces;
-                    }
 
-                    typeBuilder = ModuleEmitter.DefineType(moduleEmitter, name, attributes, typeof(object), interfaces);
+                        typeBuilder = ModuleEmitter.DefineType(moduleEmitter, name, attributes, typeof(object));
+                    }
+                    else
+                    {
+                        typeBuilder = ModuleEmitter.DefineType(moduleEmitter, name, attributes, typeof(object), interfaces);
+                    }
                 }
                 else
                 {
@@ -291,10 +295,13 @@ namespace Inkslab
                         AnalyzeGenericParameters(ref interfaces);
 
                         this.interfaces = interfaces;
+
+                        typeBuilder = DefineType(typeEmitter, name, attributes, typeof(object));
                     }
-
-                    typeBuilder = DefineType(typeEmitter, name, attributes, typeof(object), interfaces);
-
+                    else
+                    {
+                        typeBuilder = DefineType(typeEmitter, name, attributes, typeof(object), interfaces);
+                    }
                 }
                 else
                 {
@@ -431,8 +438,6 @@ namespace Inkslab
 
             if (baseType is null || !baseType.IsGenericTypeDefinition)
             {
-                typeBuilder.SetParent(baseType ?? typeof(object));
-
                 if (interfaces?.Length > 0)
                 {
                     foreach (var interfaceType in interfaces)
@@ -465,7 +470,7 @@ namespace Inkslab
 
                 foreach (var interfaceType in interfaces)
                 {
-                    typeBuilder.AddInterfaceImplementation(MakeGenericType(interfaceType, typeParameterBuilders));
+                    typeBuilder.AddInterfaceImplementation(interfaceType);
                 }
             }
 
@@ -484,11 +489,11 @@ namespace Inkslab
                 {
                     if (genericArguments[i].IsGenericParameter)
                     {
-                        genericArguments[i] = typeParameterBuilders[i - offset];
+                        genericArguments[i] = typeParameterBuilders[i + offset];
                     }
                     else
                     {
-                        offset--;
+                        offset++;
                     }
                 }
 
@@ -1023,7 +1028,7 @@ namespace Inkslab
                         returnType = MakeGenericParameter(returnType, declaringTypeParameters);
                     }
 
-                    methodInfoDeclaration = new DynamicMethod(methodInfoOriginal, declaringType, runtimeType, declaringTypeParameters, hasDeclaringTypes);
+                    methodInfoDeclaration = new DynamicMethod(methodInfoOriginal, declaringType.MakeGenericType(declaringTypeParameters), runtimeType, declaringTypeParameters, hasDeclaringTypes);
                 }
             }
             else if (methodInfoOriginal.IsGenericMethod)
