@@ -111,7 +111,7 @@ namespace DeltaExpression.AOP.Tests
         /// <summary>
         /// 加法。
         /// </summary>
-        [ServiceTypeIntercept(A = 5)]
+        [ServiceTypeIntercept(A = 5)] //! 因为方法是有返回值，标记为无返回值，拦截器不会生效。
         int Add(int i, ref int j);
 
         /// <summary>
@@ -334,7 +334,7 @@ namespace DeltaExpression.AOP.Tests
 
             int i = 5, j = 100;
 
-            var ij = serviceType.Add(i, ref j);
+            var ij = serviceType.Add(i, ref j); //! 拦截器不会生效。
 
             Assert.Equal(ij, i + j);
 

@@ -12,7 +12,11 @@ namespace Inkslab.Expressions
     {
         private readonly Type instanceType;
 
-        internal ThisExpression(Type instanceType) : base(instanceType)
+        internal ThisExpression(AbstractTypeEmitter typeEmitter) : this(typeEmitter.Value)
+        {
+        }
+
+        private ThisExpression(Type instanceType) : base(instanceType)
         {
             if (instanceType.IsAbstract)
             {

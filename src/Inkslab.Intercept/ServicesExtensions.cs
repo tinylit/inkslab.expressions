@@ -1,5 +1,4 @@
-﻿using Inkslab.Intercept.Patterns;
-using Microsoft.Extensions.DependencyInjection;
+﻿using Microsoft.Extensions.DependencyInjection;
 
 namespace Inkslab.Intercept
 {
@@ -22,45 +21,16 @@ namespace Inkslab.Intercept
         /// <returns></returns>
         public static IServiceCollection UseIntercept(this IServiceCollection services)
         {
+            var solution = new ProxySolution(moduleEmitter);
+
             for (int i = 0; i < services.Count; i++)
             {
-                ServiceDescriptor descriptor = services[i];
-
-                if (!ProxyByServiceType.Intercept(descriptor))
-                {
-                    continue;
-                }
-
-                IProxyByPattern byPattern;
-
-                if (descriptor.ImplementationType is null)
-                {
-                    if (descriptor.ImplementationInstance is null)
-                    {
-                        if (descriptor.ImplementationFactory is null)
-                        {
-                            continue;
-                        }
-
-                        byPattern = new ProxyByFactory(moduleEmitter, descriptor.ServiceType, descriptor.ImplementationFactory, descriptor.Lifetime);
-                    }
-                    else
-                    {
-                        byPattern = new ProxyByInstance(moduleEmitter, descriptor.ServiceType, descriptor.ImplementationInstance);
-                    }
-                }
-                else
-                {
-                    byPattern = new ProxyByImplementationType(moduleEmitter, descriptor.ServiceType, descriptor.ImplementationType, descriptor.Lifetime);
-                }
-
-                services[i] = byPattern.Ref();
+                services[i] = solution.Proxy(services[i]);
             }
 
 #if NET461_OR_GREATER && DEBUG
             moduleEmitter.SaveAssembly();
 #endif
-
             return services;
         }
     }

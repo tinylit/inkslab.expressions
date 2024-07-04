@@ -27,6 +27,12 @@ NuGet 包
 ### 如何使用？
 
 * 实现“InterceptAttribute”、“InterceptAsyncAttribute”、“ReturnValueInterceptAttribute”或“ReturnValueInterceptAsyncAttribute”拦截器属性。
+	- `ReturnValueInterceptAsyncAttribute` 支持返回值类型为`Task<T>`和`ValueTask<T>`的方法。
+	- `ReturnValueInterceptAttribute` 支持返回值类型为 `T`、`Task<T>`和`ValueTask<T>`的方法。
+	- `InterceptAsyncAttribute` 支持返回值类型为`Task`、`ValueTask`、`Task<T>`和`ValueTask<T>`的方法。
+	- `InterceptAttribute` 支持返回值类型为 `void` 的方法。
+	> 注：文档中的 `T` 是排除 `Task`、`ValueTask`、`Task<>`和`ValueTask<>`类型或声明类型之外的类型。
+
 * 在依赖注入的接口或类中方法，标记相对于的属性。
 * 使用拦截器“UseIntercept”，会自动检测当前服务集合中 **“ServiceDescriptor”** . *“ServiceType”* 服务类，并自动完成类型代理。
 ```C#

@@ -44,11 +44,8 @@ namespace Inkslab.Emitters
                     throw new AstException("指定参数和构造函数参数个数不匹配!");
                 }
 
-                if (!parameterInfos.Zip(arguments, (x, y) =>
-                {
-                    return EmitUtils.IsAssignableFromSignatureTypes(x.ParameterType, y.RuntimeType);
-
-                }).All(x => x))
+                if (!parameterInfos.Zip(arguments, (x, y) => new { x.ParameterType, y.RuntimeType })
+                    .All(x => EmitUtils.IsAssignableFromSignatureTypes(x.ParameterType, x.RuntimeType)))
                 {
                     throw new AstException("指定参数和构造函数参数类型不匹配!");
                 }
@@ -186,6 +183,7 @@ namespace Inkslab.Emitters
             }
         }
 
+        private bool _initializedConstructor = false;
         private ParameterEmitter[] _parameters = EmptyParameters;
 
         /// <summary>
@@ -261,14 +259,14 @@ namespace Inkslab.Emitters
         {
             var flags = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
 
-            var type = typeBuilder.BaseType;
+            var type = typeBuilder.BaseType ?? typeof(object);
 
             if (type.IsGenericParameter)
             {
                 type = type.GetGenericTypeDefinition();
             }
 
-            InvokeBaseConstructor(type.GetConstructor(flags, null, Type.EmptyTypes, null));
+            InvokeBaseConstructor(type.GetConstructor(flags, null, Type.EmptyTypes, null) ?? throw new NotSupportedException($"“{type.Name}”不具备无参构造函数！"));
         }
 
         /// <summary>
@@ -282,7 +280,12 @@ namespace Inkslab.Emitters
         /// </summary>
         /// <param name="constructor">构造函数。</param>
         /// <param name="parameters">参数。</param>
-        public virtual void InvokeBaseConstructor(ConstructorInfo constructor, params Expression[] parameters) => Append(new ConstructorExpression(constructor, parameters ?? System.Array.Empty<Expression>()));
+        public virtual void InvokeBaseConstructor(ConstructorInfo constructor, params Expression[] parameters)
+        {
+            Append(new ConstructorExpression(constructor, parameters ?? System.Array.Empty<Expression>()));
+
+            _initializedConstructor = true;
+        }
 
         /// <summary>
         /// 是否为空。
@@ -315,7 +318,7 @@ namespace Inkslab.Emitters
                 return;
             }
 
-            if (IsEmpty)
+            if (!_initializedConstructor)
             {
                 InvokeBaseConstructor();
             }
