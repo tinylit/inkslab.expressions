@@ -48,7 +48,7 @@ namespace System
     /// <summary>
     /// 类型扩展。
     /// </summary>
-    public static class TypeExtensions
+    internal static class TypeExtensions
     {
         static readonly Type nullableTType = typeof(Nullable<>);
 
