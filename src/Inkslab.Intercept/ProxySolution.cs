@@ -236,11 +236,6 @@ label_ready:
                 return ProxyServiceIsParameterlessConstructor(serviceType, implementationType, baseConstructor);
             }
 
-            if (implementationType.IsSealed)
-            {
-                throw new NotSupportedException($"服务“{serviceType.Name}”不含无参构造函数，并且服务实现“{implementationType.Name}”是密封类！");
-            }
-
             var methodInfos = System.Array.FindAll(serviceType.GetMethods(InstanceFlags), x => x.IsVirtual && x.DeclaringType != typeof(object));
             var implementatioMethodInfos = System.Array.FindAll(implementationType.GetMethods(InstanceFlags), x => x.IsVirtual && x.DeclaringType != typeof(object));
 
@@ -252,6 +247,11 @@ label_ready:
             if (!proxyMethods.Exists(x => x.IsRequired()))
             {
                 return serviceType;
+            }
+
+            if (implementationType.IsSealed)
+            {
+                throw new NotSupportedException($"服务“{serviceType.Name}”不含无参构造函数，并且服务实现“{implementationType.Name}”是密封类！");
             }
 
             string name = string.Concat(serviceType.Name, "Override");
