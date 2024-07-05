@@ -146,6 +146,11 @@ namespace Inkslab.Intercept
 
             proxyCachings.Add(tuple, proxyItem = new ProxyItem(implementationType, implementationType == tuple.Item2));
 
+            if (proxyItem.Primitive)
+            {
+                return descriptor;
+            }
+
 label_ready:
 
             if (descriptor.ImplementationType is null)
