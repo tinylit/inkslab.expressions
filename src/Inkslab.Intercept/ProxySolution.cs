@@ -246,7 +246,7 @@ label_ready:
 
             if (!proxyMethods.Exists(x => x.IsRequired()))
             {
-                return serviceType;
+                return implementationType;
             }
 
             if (implementationType.IsSealed)
