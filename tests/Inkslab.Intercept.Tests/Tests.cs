@@ -182,6 +182,26 @@ namespace DeltaExpression.AOP.Tests
     }
 
     /// <summary>
+    /// 含参数的实现。
+    /// </summary>
+    public class ImplementationWithArgumentType
+    {
+        private readonly ServiceType serviceType;
+
+        /// <inheritdoc/>
+        public ImplementationWithArgumentType(ServiceType serviceType)
+        {
+            this.serviceType = serviceType;
+        }
+
+        /// <summary>
+        /// 记录。
+        /// </summary>
+        [ServiceTypeIntercept]
+        public virtual void Records() => serviceType.Records();
+    }
+
+    /// <summary>
     /// 泛型方法测试。
     /// </summary>
     public class ServiceGenericMethodType
@@ -503,6 +523,25 @@ namespace DeltaExpression.AOP.Tests
             var serviceType = await instance.GetAsync<HashSet<int>>();
 
             Assert.False(serviceType is null);
+        }
+
+        /// <summary>
+        /// 有参类型代理。
+        /// </summary>
+        [Fact]
+        public void ImplementationWithArgumentTypeTest()
+        {
+            var services = new ServiceCollection();
+
+            services.AddSingleton<ServiceType>(new ImplementationType())
+                .AddScoped<ImplementationWithArgumentType>()
+                .UseIntercept();
+
+            var provider = services.BuildServiceProvider();
+
+            var serviceType = provider.GetRequiredService<ImplementationWithArgumentType>();
+
+            serviceType.Records();
         }
     }
 }

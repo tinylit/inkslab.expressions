@@ -63,7 +63,7 @@
 	<Choose>
 		<When Condition="$(MSBuildProjectName)=='Inkslab.Intercept'">
 			<PropertyGroup>
-				<Version>1.2.5</Version>
+				<Version>1.2.6</Version>
 				<RootNamespace>Inkslab.Intercept</RootNamespace>
 				<AssemblyName>Inkslab.Intercept</AssemblyName>
 				<Description>AOP framework based on method return types.</Description>

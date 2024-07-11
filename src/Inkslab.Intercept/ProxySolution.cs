@@ -286,7 +286,7 @@ label_ready:
 
                 constructorEmitter.Append(Assign(servicesAst, servicesEmitter));
 
-                constructorEmitter.InvokeBaseConstructor(constructorInfo);
+                constructorEmitter.InvokeBaseConstructor(constructorInfo, parameterEmiters);
             }
 
             return ProxyAlways(classEmitter, servicesAst, This(classEmitter), propertyInfos, proxyMethods);
