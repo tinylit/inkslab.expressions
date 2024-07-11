@@ -1,7 +1,7 @@
 <Project>
 	<PropertyGroup>
 		<!-- 版本 -->
-		<Version>1.2.4</Version>
+		<Version>1.2.6</Version>
 		<!-- C#语法版本-->
 		<LangVersion>9.0</LangVersion>
 
@@ -16,9 +16,9 @@
 		<Company>TINYLIT</Company>
 		<Copyright>2022 TINYLIT.</Copyright>
 		<RepositoryType>git</RepositoryType>
-		<Copyright>..\..\LICENSE</Copyright>
 		<PackageIcon>inkslab-mini.jpg</PackageIcon>
 		<PackageReadmeFile>README.md</PackageReadmeFile>
+		<PackageLicenseFile>LICENSE</PackageLicenseFile>
 		<RepositoryUrl>https://github.com/tinylit/inkslab.expressions</RepositoryUrl>
 		<PackageProjectUrl>https://github.com/tinylit/inkslab.expressions</PackageProjectUrl>
 
@@ -35,6 +35,13 @@
         Condition="'$(TargetFramework)'=='net461' OR '$(TargetFramework)'=='net462' OR '$(TargetFramework)'=='net47' OR '$(TargetFramework)'=='net471' OR '$(TargetFramework)'=='net472' OR '$(TargetFramework)'=='net48'">
 		<DefineConstants>$(DefineConstants);NET_Traditional</DefineConstants>
 	</PropertyGroup>
+
+	<ItemGroup>
+		<None Include="..\..\LICENSE">
+			<Pack>True</Pack>
+			<PackagePath>\</PackagePath>
+		</None>
+	</ItemGroup>
 
 	<ItemGroup>
 		<None Include="..\..\README.md">
@@ -63,7 +70,6 @@
 	<Choose>
 		<When Condition="$(MSBuildProjectName)=='Inkslab.Intercept'">
 			<PropertyGroup>
-				<Version>1.2.6</Version>
 				<RootNamespace>Inkslab.Intercept</RootNamespace>
 				<AssemblyName>Inkslab.Intercept</AssemblyName>
 				<Description>AOP framework based on method return types.</Description>
