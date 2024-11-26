@@ -5,7 +5,7 @@ using System.Collections.Generic;
 using System.Threading.Tasks;
 using Xunit;
 
-namespace DeltaExpression.AOP.Tests
+namespace Inkslab.Intercept.Tests
 {
     /// <summary>
     /// Ìí¼Ó¡£
@@ -42,7 +42,7 @@ namespace DeltaExpression.AOP.Tests
         /// <inheritdoc/>
         public override T Run<T>(InterceptContext context, Intercept<T> intercept)
         {
-            return default(T);
+            return default;
         }
     }
 
@@ -443,7 +443,7 @@ namespace DeltaExpression.AOP.Tests
 
             int i = instance.Get<int>();
 
-            Assert.True(i == 0);
+            Assert.Equal(0, i);
 
             var serviceType = await instance.GetAsync<ServiceType>();
 
