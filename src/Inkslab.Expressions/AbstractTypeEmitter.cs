@@ -75,7 +75,7 @@ namespace Inkslab
             private readonly MethodInfo methodInfoDeclaration;
             private readonly bool isVirtualMethod;
 
-            public MethodOverrideEmitter(MethodBuilder methodBuilder, MethodInfo methodInfoDeclaration, Type returnType) : base(methodBuilder.Name, methodBuilder.Attributes, returnType)
+            public MethodOverrideEmitter(AbstractTypeEmitter declaringType, MethodBuilder methodBuilder, MethodInfo methodInfoDeclaration, Type returnType) : base(declaringType, methodBuilder.Name, methodBuilder.Attributes, returnType)
             {
                 this.methodBuilder = methodBuilder;
                 this.methodInfoDeclaration = methodInfoDeclaration;
@@ -835,7 +835,7 @@ namespace Inkslab
         /// <returns></returns>
         public MethodEmitter DefineMethod(string name, MethodAttributes attrs, Type returnType)
         {
-            var member = new MethodEmitter(name, attrs, returnType);
+            var member = new MethodEmitter(this, name, attrs, returnType);
 
             methods.Add(member);
 
@@ -1107,7 +1107,7 @@ namespace Inkslab
                 methodInfoDeclaration = new DynamicMethod(methodInfoOriginal, methodInfoOriginal.MakeGenericMethod(newGenericParameters), methodInfoOriginal.DeclaringType, runtimeType, Type.EmptyTypes, false);
             }
 
-            var overrideEmitter = new MethodOverrideEmitter(methodBuilder, methodInfoOriginal, returnType);
+            var overrideEmitter = new MethodOverrideEmitter(this, methodBuilder, methodInfoOriginal, returnType);
 
             for (int i = 0; i < parameterInfos.Length; i++)
             {
@@ -1530,6 +1530,123 @@ namespace Inkslab
             }
 
             return type;
+        }
+
+        /// <summary>
+        /// 为Emit过程映射返回类型 - 处理泛型类型映射
+        /// </summary>
+        /// <param name="returnType">返回类型</param>
+        /// <returns>映射后的类型</returns>
+        internal Type MapReturnTypeForEmit(Type returnType)
+        {
+            if (returnType == null)
+                return null;
+
+            // 如果TypeBuilder本身不是泛型类型，则不需要映射
+            if (!typeBuilder.IsGenericType && !typeBuilder.IsGenericTypeDefinition)
+                return returnType;
+
+            try
+            {
+                // 获取泛型参数映射
+                var genericArguments = typeBuilder.IsGenericType ? typeBuilder.GetGenericArguments() :
+                                      typeBuilder.IsGenericTypeDefinition ? typeBuilder.GetGenericArguments() : null;
+
+                if (genericArguments == null || genericArguments.Length == 0)
+                    return returnType;
+
+                return MapParameterTypeInternal(returnType, genericArguments);
+            }
+            catch
+            {
+                // 在映射失败时返回原类型
+                return returnType;
+            }
+        }
+
+        /// <summary>
+        /// 内部参数类型映射方法 - 支持完整的泛型类型映射（与ProxyMethod的MapParameterType逻辑一致）
+        /// </summary>
+        /// <param name="parameterType">参数类型</param>
+        /// <param name="newGenericArgs">新泛型参数</param>
+        /// <returns>映射后的类型</returns>
+        private static Type MapParameterTypeInternal(Type parameterType, Type[] newGenericArgs)
+        {
+            if (parameterType == null)
+                return null;
+
+            // 如果是泛型参数，直接映射
+            if (parameterType.IsGenericParameter)
+            {
+                var position = parameterType.GenericParameterPosition;
+                return position < newGenericArgs.Length ? newGenericArgs[position] : parameterType;
+            }
+
+            // 如果是泛型类型，递归映射泛型参数
+            if (parameterType.IsGenericType)
+            {
+                var genericTypeDef = parameterType.GetGenericTypeDefinition();
+                var genericArgs = parameterType.GetGenericArguments();
+                var mappedArgs = new Type[genericArgs.Length];
+                bool hasChanged = false;
+
+                for (int i = 0; i < genericArgs.Length; i++)
+                {
+                    mappedArgs[i] = MapParameterTypeInternal(genericArgs[i], newGenericArgs);
+                    if (mappedArgs[i] != genericArgs[i])
+                        hasChanged = true;
+                }
+
+                if (hasChanged)
+                {
+                    try
+                    {
+                        return genericTypeDef.MakeGenericType(mappedArgs);
+                    }
+                    catch
+                    {
+                        return parameterType;
+                    }
+                }
+            }
+
+            // 如果是数组类型
+            if (parameterType.IsArray)
+            {
+                var elementType = parameterType.GetElementType();
+                var mappedElementType = MapParameterTypeInternal(elementType, newGenericArgs);
+                if (mappedElementType != elementType)
+                {
+                    try
+                    {
+                        return mappedElementType.MakeArrayType(parameterType.GetArrayRank());
+                    }
+                    catch
+                    {
+                        return parameterType;
+                    }
+                }
+            }
+
+            // 如果是引用类型（ref/out）
+            if (parameterType.IsByRef)
+            {
+                var elementType = parameterType.GetElementType();
+                var mappedElementType = MapParameterTypeInternal(elementType, newGenericArgs);
+                if (mappedElementType != elementType)
+                {
+                    try
+                    {
+                        return mappedElementType.MakeByRefType();
+                    }
+                    catch
+                    {
+                        return parameterType;
+                    }
+                }
+            }
+
+            return parameterType;
         }
 
         private static Type MakeGenericParameter(Type type, Type[] genericArguments, Type[] declaringTypeParameters, GenericTypeParameterBuilder[] newGenericParameters)

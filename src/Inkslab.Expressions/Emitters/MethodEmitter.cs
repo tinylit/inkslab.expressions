@@ -25,7 +25,7 @@ namespace Inkslab.Emitters
             private readonly Type[] typeArguments;
             private readonly MethodEmitter methodEmitter;
 
-            public InitMethodEmitter(MethodEmitter methodEmitter, Type[] typeArguments) : base(methodEmitter.Name, methodEmitter.Attributes, methodEmitter.RuntimeType)
+            public InitMethodEmitter(MethodEmitter methodEmitter, Type[] typeArguments) : base(methodEmitter.DeclaringType, methodEmitter.Name, methodEmitter.Attributes, methodEmitter.RuntimeType)
             {
                 this.methodEmitter = methodEmitter;
                 this.typeArguments = typeArguments;
@@ -58,11 +58,13 @@ namespace Inkslab.Emitters
         /// <summary>
         /// 构造函数。
         /// </summary>
+        /// <param name="declaringType">声明类型。</param>
         /// <param name="name">方法的名称。</param>
         /// <param name="attributes">方法的属性。</param>
         /// <param name="returnType">方法的返回类型。</param>
-        public MethodEmitter(string name, MethodAttributes attributes, Type returnType) : base(returnType)
+        public MethodEmitter(AbstractTypeEmitter declaringType, string name, MethodAttributes attributes, Type returnType) : base(declaringType?.MapReturnTypeForEmit(returnType))
         {
+            DeclaringType = declaringType;
             Name = name;
             Attributes = attributes;
         }
@@ -159,6 +161,11 @@ namespace Inkslab.Emitters
         }
 
         /// <summary>
+        /// 声明类型。
+        /// </summary>
+        public AbstractTypeEmitter DeclaringType { get; }
+
+        /// <summary>
         /// 方法的名称。
         /// </summary>
         public string Name { get; }
@@ -217,7 +224,7 @@ namespace Inkslab.Emitters
         /// <returns></returns>
         public virtual ParameterEmitter DefineParameter(Type parameterType, ParameterAttributes attributes, string name)
         {
-            var parameter = new ParameterEmitter(parameterType, (Attributes & MethodAttributes.Static) == MethodAttributes.Static ? parameterIndex++ : ++parameterIndex, attributes, name);
+            var parameter = new ParameterEmitter(DeclaringType.MapReturnTypeForEmit(parameterType), (Attributes & MethodAttributes.Static) == MethodAttributes.Static ? parameterIndex++ : ++parameterIndex, attributes, name);
 
             parameters.Add(parameter);
 
@@ -310,163 +317,12 @@ namespace Inkslab.Emitters
             foreach (var parameterEmitter in parameters)
             {
                 // 自动处理泛型参数类型映射
-                parameterTypes[index++] = MapParameterTypeForEmit(parameterEmitter.RuntimeType, builder);
+                parameterTypes[index++] = parameterEmitter.RuntimeType;
             }
 
-            Emit(builder.DefineMethod(Name, Attributes, CallingConventions.Standard, MapReturnTypeForEmit(RuntimeType, builder), parameterTypes));
+            Emit(builder.DefineMethod(Name, Attributes, CallingConventions.Standard, RuntimeType, parameterTypes));
         }
-
-        /// <summary>
-        /// 为Emit过程映射参数类型 - 处理泛型类型映射
-        /// </summary>
-        /// <param name="parameterType">参数类型</param>
-        /// <param name="builder">类型构建器</param>
-        /// <returns>映射后的类型</returns>
-        protected virtual Type MapParameterTypeForEmit(Type parameterType, TypeBuilder builder)
-        {
-            if (parameterType == null)
-                return null;
-
-            // 如果TypeBuilder本身不是泛型类型，则不需要映射
-            if (!builder.IsGenericType && !builder.IsGenericTypeDefinition)
-                return parameterType;
-
-            try
-            {
-                // 获取泛型参数映射
-                var genericArguments = builder.IsGenericType ? builder.GetGenericArguments() : 
-                                      builder.IsGenericTypeDefinition ? builder.GetGenericArguments() : null;
-                
-                if (genericArguments == null || genericArguments.Length == 0)
-                    return parameterType;
-
-                return MapParameterTypeInternal(parameterType, genericArguments);
-            }
-            catch
-            {
-                // 在映射失败时返回原类型
-                return parameterType;
-            }
-        }
-
-        /// <summary>
-        /// 为Emit过程映射返回类型 - 处理泛型类型映射
-        /// </summary>
-        /// <param name="returnType">返回类型</param>
-        /// <param name="builder">类型构建器</param>
-        /// <returns>映射后的类型</returns>
-        protected virtual Type MapReturnTypeForEmit(Type returnType, TypeBuilder builder)
-        {
-            if (returnType == null)
-                return null;
-
-            // 如果TypeBuilder本身不是泛型类型，则不需要映射
-            if (!builder.IsGenericType && !builder.IsGenericTypeDefinition)
-                return returnType;
-
-            try
-            {
-                // 获取泛型参数映射
-                var genericArguments = builder.IsGenericType ? builder.GetGenericArguments() : 
-                                      builder.IsGenericTypeDefinition ? builder.GetGenericArguments() : null;
-                
-                if (genericArguments == null || genericArguments.Length == 0)
-                    return returnType;
-
-                return MapParameterTypeInternal(returnType, genericArguments);
-            }
-            catch
-            {
-                // 在映射失败时返回原类型
-                return returnType;
-            }
-        }
-
-        /// <summary>
-        /// 内部参数类型映射方法 - 支持完整的泛型类型映射（与ProxyMethod的MapParameterType逻辑一致）
-        /// </summary>
-        /// <param name="parameterType">参数类型</param>
-        /// <param name="newGenericArgs">新泛型参数</param>
-        /// <returns>映射后的类型</returns>
-        private static Type MapParameterTypeInternal(Type parameterType, Type[] newGenericArgs)
-        {
-            if (parameterType == null)
-                return null;
-
-            // 如果是泛型参数，直接映射
-            if (parameterType.IsGenericParameter)
-            {
-                var position = parameterType.GenericParameterPosition;
-                return position < newGenericArgs.Length ? newGenericArgs[position] : parameterType;
-            }
-
-            // 如果是泛型类型，递归映射泛型参数
-            if (parameterType.IsGenericType)
-            {
-                var genericTypeDef = parameterType.GetGenericTypeDefinition();
-                var genericArgs = parameterType.GetGenericArguments();
-                var mappedArgs = new Type[genericArgs.Length];
-                bool hasChanged = false;
-
-                for (int i = 0; i < genericArgs.Length; i++)
-                {
-                    mappedArgs[i] = MapParameterTypeInternal(genericArgs[i], newGenericArgs);
-                    if (mappedArgs[i] != genericArgs[i])
-                        hasChanged = true;
-                }
-
-                if (hasChanged)
-                {
-                    try
-                    {
-                        return genericTypeDef.MakeGenericType(mappedArgs);
-                    }
-                    catch
-                    {
-                        return parameterType;
-                    }
-                }
-            }
-
-            // 如果是数组类型
-            if (parameterType.IsArray)
-            {
-                var elementType = parameterType.GetElementType();
-                var mappedElementType = MapParameterTypeInternal(elementType, newGenericArgs);
-                if (mappedElementType != elementType)
-                {
-                    try
-                    {
-                        return mappedElementType.MakeArrayType(parameterType.GetArrayRank());
-                    }
-                    catch
-                    {
-                        return parameterType;
-                    }
-                }
-            }
-
-            // 如果是引用类型（ref/out）
-            if (parameterType.IsByRef)
-            {
-                var elementType = parameterType.GetElementType();
-                var mappedElementType = MapParameterTypeInternal(elementType, newGenericArgs);
-                if (mappedElementType != elementType)
-                {
-                    try
-                    {
-                        return mappedElementType.MakeByRefType();
-                    }
-                    catch
-                    {
-                        return parameterType;
-                    }
-                }
-            }
-
-            return parameterType;
-        }
-
+        
         /// <summary>
         /// 发行。
         /// </summary>
