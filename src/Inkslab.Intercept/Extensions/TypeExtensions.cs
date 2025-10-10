@@ -1,4 +1,5 @@
-﻿using System.Linq;
+﻿using System.Collections.Generic;
+using System.Linq;
 using System.Reflection;
 
 #pragma warning disable IDE0130 // 命名空间与文件夹结构不匹配
@@ -9,7 +10,7 @@ namespace System
     /// 类型相似。
     /// </summary>
     [Flags]
-    public enum TypeLikeKind
+    internal enum TypeLikeKind
     {
         /// <summary>
         /// 类型模板。
@@ -52,14 +53,67 @@ namespace System
     /// </summary>
     internal static class TypeExtensions
     {
-        static readonly Type nullableTType = typeof(Nullable<>);
+        static readonly Type _charType = typeof(char);
+        static readonly Type _stringType = typeof(string);
+        static readonly Type _decimalType = typeof(decimal);
+        static readonly Type _byteArrayType = typeof(byte[]);
+        static readonly Type _nullableTType = typeof(Nullable<>);
+        static readonly Type _keyValuePairTKeyTValueType = typeof(KeyValuePair<,>);
+
+        private static readonly HashSet<Type> _simpleTypes = new HashSet<Type>()
+        {
+            /* 基元类型。
+             * bool
+             * sbyte
+             * byte
+             * char
+             * float
+             * double
+             * short
+             * ushort
+             * int
+             * uint
+             * long
+             * ulong
+             * IntPtr
+             * UIntPtr
+             */
+
+            _decimalType,
+            typeof(Guid),
+            typeof(TimeSpan),
+            typeof(DateTime),
+            typeof(DateTimeOffset)
+        };
+
+
+        /// <summary>
+        /// 当前类型是否是迷你类型（枚举、基元类型（不含<see cref="char"/>）：<see cref="Enum"/>/<see cref="bool"/>/<see cref="sbyte"/>/<see cref="byte"/>/<see cref="float"/>/<see cref="double"/>/<see cref="decimal"/>/<see cref="short"/>/<see cref="ushort"/>/<see cref="short"/>/<see cref="int"/>/<see cref="uint"/>/<see cref="long"/>/<see cref="ulong"/>/<see cref="IntPtr"/>/<see cref="UIntPtr"/>）。
+        /// </summary>
+        /// <param name="type">类型。</param>
+        /// <returns>是返回 <see langword="true"/> ，不是返回 <see langword="false"/>。</returns>
+        public static bool IsMini(this Type type) => type.IsEnum || type.IsValueType && (type.IsPrimitive ? type != _charType : type == _decimalType);
+
+        /// <summary>
+        /// 当前类型是否是简单类型（基础类型：基元类型/<see cref="Enum"/>/<see cref="decimal"/>/<see cref="string"/>/<see cref="Guid"/>/<see cref="TimeSpan"/>/<see cref="DateTime"/>/<see cref="DateTimeOffset"/>/<see cref="byte"/>[]）。
+        /// </summary>
+        /// <param name="type">类型。</param>
+        /// <returns>是返回 <see langword="true"/> ，不是返回 <see langword="false"/> 。</returns>
+        public static bool IsSimple(this Type type) => type.IsValueType ? (type.IsEnum || type.IsPrimitive || _simpleTypes.Contains(type)) : type.IsArray ? type == _byteArrayType : type == _stringType;
 
         /// <summary>
         /// 判断类型是否为Nullable类型。
         /// </summary>
         /// <param name="type"> 要处理的类型。</param>
         /// <returns> 是返回 <see langword="true"/> ，不是返回 <see langword="false"/> 。</returns>
-        public static bool IsNullable(this Type type) => type.IsValueType && type.IsGenericType && type.GetGenericTypeDefinition() == nullableTType;
+        public static bool IsNullable(this Type type) => type.IsValueType && type.IsGenericType && type.GetGenericTypeDefinition() == _nullableTType;
+
+        /// <summary>
+        /// 判断类型是否为KeyValuePair类型。
+        /// </summary>
+        /// <param name="type"> 要处理的类型。 </param>
+        /// <returns> 是返回 <see langword="true"/> ，不是返回 <see langword="false"/> 。</returns>
+        public static bool IsKeyValuePair(this Type type) => type.IsValueType && type.IsGenericType && type.GetGenericTypeDefinition() == _keyValuePairTKeyTValueType;
 
         /// <summary>
         /// 类型 <paramref name="implementationType"/> 是 <paramref name="typeConstraint"/> 的子类或实现类，或本身或任意父类或任意实现接口为泛型且与 <paramref name="typeConstraint"/> 相同（泛型数相等、顺序相同且约束相似）。
@@ -98,106 +152,190 @@ namespace System
         /// <returns> <paramref name="implementationType"/> 是否相似于 <paramref name="typeConstraint"/>。</returns>
         public static bool IsLike(this Type implementationType, Type typeConstraint, TypeLikeKind likeKind)
         {
-            if (typeConstraint == implementationType)
+            // 快速路径：类型相等
+            if (ReferenceEquals(typeConstraint, implementationType))
             {
                 return true;
             }
 
-            if (implementationType is null)
+            // 空值检查
+            if (typeConstraint is null || implementationType is null)
             {
                 return false;
             }
 
-            if (implementationType.IsInterface && (typeConstraint.IsClass || typeConstraint.IsValueType))
+            // 类型兼容性检查
+            if (!AreTypesCompatible(implementationType, typeConstraint))
             {
                 return false;
             }
 
+            // 按优先级处理不同类型的约束
             if (typeConstraint.IsGenericParameter)
             {
-                if (likeKind == TypeLikeKind.Template || (likeKind & TypeLikeKind.IsGenericTypeParameter) == TypeLikeKind.IsGenericTypeParameter)
-                {
-                    if (implementationType.IsGenericParameter)
-                    {
-                        return IsLikeGenericParameter(typeConstraint, implementationType);
-                    }
-
-                    return likeKind <= TypeLikeKind.Template && IsLikeGenericParameterAssign(typeConstraint, implementationType);
-                }
+                return HandleGenericParameter(implementationType, typeConstraint, likeKind);
             }
-            else if (typeConstraint.IsGenericTypeDefinition)
+            
+            if (typeConstraint.IsGenericTypeDefinition)
             {
-                if (likeKind == TypeLikeKind.Template || (likeKind & TypeLikeKind.IsGenericTypeDefinition) == TypeLikeKind.IsGenericTypeDefinition)
-                {
-                    if (implementationType.IsGenericTypeDefinition)
-                    {
-                        if (IsLikeTypeDefinition(typeConstraint, implementationType))
-                        {
-                            goto label_generic_type_definition;
-                        }
-
-                        return false;
-                    }
-                }
+                return HandleGenericTypeDefinition(implementationType, typeConstraint, likeKind);
             }
-            else if (typeConstraint.IsGenericType)
+            
+            if (typeConstraint.IsGenericType)
             {
-                if (likeKind == TypeLikeKind.Template || (likeKind & TypeLikeKind.IsGenericType) == TypeLikeKind.IsGenericType)
-                {
-                    if (implementationType.IsGenericType)
-                    {
-                        if (IsLikeTypeDefinition(typeConstraint.GetGenericTypeDefinition(), implementationType))
-                        {
-                            goto label_generic_type_definition;
-                        }
-
-                        return false;
-                    }
-                }
+                return HandleGenericType(implementationType, typeConstraint, likeKind);
             }
 
+            // 处理非泛型类型
+            return HandleNonGenericType(implementationType, typeConstraint, likeKind);
+        }
+
+        /// <summary>
+        /// 检查类型兼容性
+        /// </summary>
+        private static bool AreTypesCompatible(Type implementationType, Type typeConstraint)
+        {
+            // 接口不能赋值给类或值类型
+            return !(implementationType.IsInterface && (typeConstraint.IsClass || typeConstraint.IsValueType));
+        }
+
+        /// <summary>
+        /// 处理泛型参数约束
+        /// </summary>
+        private static bool HandleGenericParameter(Type implementationType, Type typeConstraint, TypeLikeKind likeKind)
+        {
+            if (!IsLikeKindMatched(likeKind, TypeLikeKind.IsGenericTypeParameter))
+            {
+                return false;
+            }
+
+            if (implementationType.IsGenericParameter)
+            {
+                return IsLikeGenericParameter(typeConstraint, implementationType);
+            }
+
+            return likeKind <= TypeLikeKind.Template && IsLikeGenericParameterAssign(typeConstraint, implementationType);
+        }
+
+        /// <summary>
+        /// 处理泛型类型定义
+        /// </summary>
+        private static bool HandleGenericTypeDefinition(Type implementationType, Type typeConstraint, TypeLikeKind likeKind)
+        {
+            if (!IsLikeKindMatched(likeKind, TypeLikeKind.IsGenericTypeDefinition))
+            {
+                return false;
+            }
+
+            if (implementationType.IsGenericTypeDefinition)
+            {
+                return IsLikeTypeDefinition(typeConstraint, implementationType);
+            }
+
+            // 对于 Template 模式，允许具体类型匹配泛型类型定义
+            return likeKind == TypeLikeKind.Template && IsLikeTypeDefinition(typeConstraint, implementationType);
+        }
+
+        /// <summary>
+        /// 处理泛型类型
+        /// </summary>
+        private static bool HandleGenericType(Type implementationType, Type typeConstraint, TypeLikeKind likeKind)
+        {
+            if (!IsLikeKindMatched(likeKind, TypeLikeKind.IsGenericType))
+            {
+                return false;
+            }
+
+            if (!implementationType.IsGenericType)
+            {
+                // 对于非严格的 IsGenericType 模式，在 Template 模式下继续处理
+                return likeKind == TypeLikeKind.Template && HandleNonGenericTypeForTemplate(implementationType, typeConstraint);
+            }
+
+            var constraintDefinition = typeConstraint.GetGenericTypeDefinition();
+            
+            if (!IsLikeTypeDefinition(constraintDefinition, implementationType))
+            {
+                return false;
+            }
+
+            return IsLikeGenericArguments(typeConstraint.GetGenericArguments(), implementationType.GetGenericArguments());
+        }
+
+        /// <summary>
+        /// 在模板模式下处理非泛型类型与泛型类型的比较
+        /// </summary>
+        private static bool HandleNonGenericTypeForTemplate(Type implementationType, Type typeConstraint)
+        {
+            // 处理 Nullable<T> 特殊情况
+            if (typeConstraint.IsValueType)
+            {
+                return HandleValueType(implementationType, typeConstraint);
+            }
+
+            // 处理接口情况
+            if (typeConstraint.IsInterface)
+            {
+                return IsLikeInterfaces(typeConstraint, implementationType.GetInterfaces());
+            }
+
+            // 处理类继承情况
+            return IsLikeClass(typeConstraint, implementationType);
+        }
+
+        /// <summary>
+        /// 处理非泛型类型
+        /// </summary>
+        private static bool HandleNonGenericType(Type implementationType, Type typeConstraint, TypeLikeKind likeKind)
+        {
             if (likeKind > TypeLikeKind.Template)
             {
                 return false;
             }
 
+            // object类型特殊处理
             if (typeConstraint == typeof(object))
             {
                 return true;
             }
 
-            bool isGenericTypeDefinition = typeConstraint.IsGenericTypeDefinition && implementationType.IsGenericTypeDefinition;
+            // 值类型处理
+            if (typeConstraint.IsValueType)
+            {
+                return HandleValueType(implementationType, typeConstraint);
+            }
 
+            // 接口类型处理
             if (typeConstraint.IsInterface)
             {
-                if (IsLikeInterfaces(typeConstraint, implementationType.GetInterfaces()))
-                {
-                    if (isGenericTypeDefinition)
-                    {
-                        goto label_generic_type_definition;
-                    }
-
-                    return true;
-                }
-
-                return false;
+                return IsLikeInterfaces(typeConstraint, implementationType.GetInterfaces());
             }
 
-            if (IsLikeClass(typeConstraint, implementationType))
+            // 类类型处理
+            return IsLikeClass(typeConstraint, implementationType);
+        }
+
+        /// <summary>
+        /// 处理值类型比较
+        /// </summary>
+        private static bool HandleValueType(Type implementationType, Type typeConstraint)
+        {
+            if (typeConstraint.IsGenericTypeDefinition)
             {
-                if (isGenericTypeDefinition)
-                {
-                    goto label_generic_type_definition;
-                }
-
-                return true;
+                return IsLikeTypeDefinition(typeConstraint, implementationType);
             }
 
-            return false;
+            // Nullable<T> 特例处理
+            return typeConstraint.IsGenericType && 
+                   Nullable.GetUnderlyingType(typeConstraint) == implementationType;
+        }
 
-label_generic_type_definition:
-
-            return IsLikeGenericArguments(typeConstraint.GetGenericArguments(), implementationType.GetGenericArguments());
+        /// <summary>
+        /// 检查相似类型是否匹配
+        /// </summary>
+        private static bool IsLikeKindMatched(TypeLikeKind likeKind, TypeLikeKind targetKind)
+        {
+            return likeKind == TypeLikeKind.Template || (likeKind & targetKind) == targetKind;
         }
 
         private static bool IsLikeClass(Type typeConstraint, Type implementationType)
@@ -212,7 +350,10 @@ label_generic_type_definition:
                 {
                     if (implementationType.IsGenericType && implementationType.GetGenericTypeDefinition() == typeDefinition)
                     {
-                        return true;
+                        if (typeConstraint.IsGenericTypeDefinition || IsLikeGenericArguments(typeConstraint.GetGenericArguments(), implementationType.GetGenericArguments()))
+                        {
+                            return true;
+                        }
                     }
 
                     implementationType = implementationType.BaseType;
@@ -241,13 +382,18 @@ label_generic_type_definition:
                 return implementationTypes.Contains(interfaceType);
             }
 
-            var typeDefinition = interfaceType.GetGenericTypeDefinition();
+            var typeDefinition = interfaceType.IsGenericTypeDefinition
+                ? interfaceType
+                : interfaceType.GetGenericTypeDefinition();
 
             foreach (var type in implementationTypes)
             {
                 if (type.IsGenericType && type.GetGenericTypeDefinition() == typeDefinition)
                 {
-                    return true;
+                    if (interfaceType.IsGenericTypeDefinition || IsLikeGenericArguments(interfaceType.GetGenericArguments(), type.GetGenericArguments()))
+                    {
+                        return true;
+                    }
                 }
             }
 

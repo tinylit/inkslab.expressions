@@ -73,11 +73,13 @@ namespace Inkslab
         {
             private readonly MethodBuilder methodBuilder;
             private readonly MethodInfo methodInfoDeclaration;
+            private readonly bool isVirtualMethod;
 
             public MethodOverrideEmitter(MethodBuilder methodBuilder, MethodInfo methodInfoDeclaration, Type returnType) : base(methodBuilder.Name, methodBuilder.Attributes, returnType)
             {
                 this.methodBuilder = methodBuilder;
                 this.methodInfoDeclaration = methodInfoDeclaration;
+                this.isVirtualMethod = methodInfoDeclaration.IsVirtual && !methodInfoDeclaration.IsFinal;
             }
 
             public override bool IsGenericMethod => methodInfoDeclaration.IsGenericMethod;
@@ -115,10 +117,12 @@ namespace Inkslab
 
                 Emit(methodBuilder);
 
-                if (methodInfoDeclaration.DeclaringType.IsInterface)
+                // 只有虚方法或接口方法才能使用 DefineMethodOverride
+                if (isVirtualMethod || methodInfoDeclaration.DeclaringType.IsInterface)
                 {
                     builder.DefineMethodOverride(methodBuilder, methodInfoDeclaration);
                 }
+                // 对于非虚方法，不需要调用 DefineMethodOverride，因为我们使用的是方法隐藏
             }
         }
 
@@ -845,29 +849,50 @@ namespace Inkslab
 
         private static MethodAttributes ObtainAttributes(MethodInfo methodInfo)
         {
-            var attributes = MethodAttributes.Virtual;
+            MethodAttributes attributes;
 
-            if (methodInfo.IsFinal || methodInfo.DeclaringType.IsInterface)
+            // 检查原方法是否为虚方法
+            if (methodInfo.IsVirtual && !methodInfo.IsFinal)
             {
-                attributes |= MethodAttributes.NewSlot;
+                // 虚方法：使用传统的重写方式
+                attributes = MethodAttributes.Virtual;
+
+                if (methodInfo.IsFinal || methodInfo.DeclaringType.IsInterface)
+                {
+                    attributes |= MethodAttributes.NewSlot;
+                }
+            }
+            else
+            {
+                // 非虚方法：使用方法隐藏（new modifier）
+                attributes = MethodAttributes.HideBySig | MethodAttributes.NewSlot;
+
+                // 如果原方法是静态的，保持静态
+                if (methodInfo.IsStatic)
+                {
+                    attributes |= MethodAttributes.Static;
+                }
+                else
+                {
+                    // 对于非虚实例方法，我们创建一个新的虚方法来"隐藏"它
+                    attributes |= MethodAttributes.Virtual;
+                }
             }
 
+            // 复制访问修饰符
             if (methodInfo.IsPublic)
             {
                 attributes |= MethodAttributes.Public;
             }
-
-            if (methodInfo.IsHideBySig)
+            else if (methodInfo.IsPrivate)
             {
-                attributes |= MethodAttributes.HideBySig;
+                attributes |= MethodAttributes.Private;
             }
-
-            if (IsInternal(methodInfo))
+            else if (methodInfo.IsFamily)
             {
-                attributes |= MethodAttributes.Assembly;
+                attributes |= MethodAttributes.Family;
             }
-
-            if (methodInfo.IsFamilyAndAssembly)
+            else if (methodInfo.IsFamilyAndAssembly)
             {
                 attributes |= MethodAttributes.FamANDAssem;
             }
@@ -875,11 +900,12 @@ namespace Inkslab
             {
                 attributes |= MethodAttributes.FamORAssem;
             }
-            else if (methodInfo.IsFamily)
+            else if (IsInternal(methodInfo))
             {
-                attributes |= MethodAttributes.Family;
+                attributes |= MethodAttributes.Assembly;
             }
 
+            // 复制其他特殊属性
             if (methodInfo.IsSpecialName)
             {
                 attributes |= MethodAttributes.SpecialName;

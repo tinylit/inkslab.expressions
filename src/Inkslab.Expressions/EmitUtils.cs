@@ -3,8 +3,10 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Globalization;
+using System.Linq;
 using System.Reflection;
 using System.Reflection.Emit;
+using System.Text;
 
 namespace Inkslab
 {
@@ -1080,6 +1082,279 @@ namespace Inkslab
 
             return elementType.IsPrimitive || elementType == typeof(string) || elementType == typeof(Type) || elementType.IsSubclassOf(typeof(Type));
         }
+
+        /// <summary>
+        /// 尝试使用特定类型的高效IL指令构造常量。
+        /// </summary>
+        /// <param name="ilg">IL生成器。</param>
+        /// <param name="value">值。</param>
+        /// <param name="valueType">值类型。</param>
+        /// <returns>是否成功生成。</returns>
+        private static bool TryEmitTypeSpecificConstruct(ILGenerator ilg, object value, Type valueType)
+        {
+            // DateTime特殊处理
+            if (valueType == typeof(DateTime) && value is DateTime dateTime)
+            {
+                EmitLong(ilg, dateTime.Ticks);
+                ilg.Emit(OpCodes.Newobj, typeof(DateTime).GetConstructor(new[] { typeof(long) }));
+                return true;
+            }
+
+            // DateTimeOffset特殊处理
+            if (valueType == typeof(DateTimeOffset) && value is DateTimeOffset dateTimeOffset)
+            {
+                EmitLong(ilg, dateTimeOffset.Ticks);
+                EmitConstantOfType(ilg, dateTimeOffset.Offset, typeof(TimeSpan));
+                ilg.Emit(OpCodes.Newobj, typeof(DateTimeOffset).GetConstructor(new[] { typeof(long), typeof(TimeSpan) }));
+                return true;
+            }
+
+            // TimeSpan特殊处理
+            if (valueType == typeof(TimeSpan) && value is TimeSpan timeSpan)
+            {
+                EmitLong(ilg, timeSpan.Ticks);
+                ilg.Emit(OpCodes.Newobj, typeof(TimeSpan).GetConstructor(new[] { typeof(long) }));
+                return true;
+            }
+
+            // Version特殊处理
+            if (valueType == typeof(Version) && value is Version version)
+            {
+                if (version.Build == -1)
+                {
+                    EmitInt(ilg, version.Major);
+                    EmitInt(ilg, version.Minor);
+                    ilg.Emit(OpCodes.Newobj, typeof(Version).GetConstructor(new[] { typeof(int), typeof(int) }));
+                }
+                else if (version.Revision == -1)
+                {
+                    EmitInt(ilg, version.Major);
+                    EmitInt(ilg, version.Minor);
+                    EmitInt(ilg, version.Build);
+                    ilg.Emit(OpCodes.Newobj, typeof(Version).GetConstructor(new[] { typeof(int), typeof(int), typeof(int) }));
+                }
+                else
+                {
+                    EmitInt(ilg, version.Major);
+                    EmitInt(ilg, version.Minor);
+                    EmitInt(ilg, version.Build);
+                    EmitInt(ilg, version.Revision);
+                    ilg.Emit(OpCodes.Newobj, typeof(Version).GetConstructor(new[] { typeof(int), typeof(int), typeof(int), typeof(int) }));
+                }
+                return true;
+            }
+
+            // Uri特殊处理
+            if (valueType == typeof(Uri) && value is Uri uri)
+            {
+                EmitString(ilg, uri.ToString());
+                ilg.Emit(OpCodes.Newobj, typeof(Uri).GetConstructor(new[] { typeof(string) }));
+                return true;
+            }
+
+            // IntPtr和UIntPtr特殊处理
+            if (valueType == typeof(IntPtr) && value is IntPtr intPtr)
+            {
+                if (IntPtr.Size == 4)
+                {
+                    EmitInt(ilg, intPtr.ToInt32());
+                    ilg.Emit(OpCodes.Newobj, typeof(IntPtr).GetConstructor(new[] { typeof(int) }));
+                }
+                else
+                {
+                    EmitLong(ilg, intPtr.ToInt64());
+                    ilg.Emit(OpCodes.Newobj, typeof(IntPtr).GetConstructor(new[] { typeof(long) }));
+                }
+                return true;
+            }
+
+            if (valueType == typeof(UIntPtr) && value is UIntPtr uintPtr)
+            {
+                if (UIntPtr.Size == 4)
+                {
+                    EmitUInt(ilg, uintPtr.ToUInt32());
+                    ilg.Emit(OpCodes.Newobj, typeof(UIntPtr).GetConstructor(new[] { typeof(uint) }));
+                }
+                else
+                {
+                    EmitULong(ilg, uintPtr.ToUInt64());
+                    ilg.Emit(OpCodes.Newobj, typeof(UIntPtr).GetConstructor(new[] { typeof(ulong) }));
+                }
+                return true;
+            }
+
+            return false;
+        }
+
+        /// <summary>
+        /// 尝试使用构造函数为值类型生成IL。
+        /// </summary>
+        /// <param name="ilg">IL生成器。</param>
+        /// <param name="value">值。</param>
+        /// <param name="valueType">值类型。</param>
+        /// <returns>是否成功生成。</returns>
+        private static bool TryEmitValueTypeConstructor(ILGenerator ilg, object value, Type valueType)
+        {
+            // 对于自定义结构体，尝试找到合适的构造函数
+            var constructors = valueType.GetConstructors(BindingFlags.Public | BindingFlags.Instance);
+            
+            // 优先寻找参数最少的构造函数
+            var sortedConstructors = constructors.OrderBy(c => c.GetParameters().Length).ToArray();
+            
+            foreach (var constructor in sortedConstructors)
+            {
+                var parameters = constructor.GetParameters();
+                
+                // 尝试单参数构造函数
+                if (parameters.Length == 1)
+                {
+                    var paramType = parameters[0].ParameterType;
+                    
+                    // 如果参数类型与值类型兼容
+                    if (paramType.IsAssignableFrom(value.GetType()) || 
+                        (paramType.IsPrimitive && value.GetType().IsPrimitive))
+                    {
+                        try
+                        {
+                            var convertedValue = Convert.ChangeType(value, paramType, CultureInfo.InvariantCulture);
+                            EmitConstantOfType(ilg, convertedValue, paramType);
+                            ilg.Emit(OpCodes.Newobj, constructor);
+                            return true;
+                        }
+                        catch
+                        {
+                            // 转换失败，继续尝试下一个构造函数
+                        }
+                    }
+                }
+            }
+
+            // KeyValuePair<TKey,TValue> 特殊处理
+            if (valueType.IsGenericType && valueType.GetGenericTypeDefinition() == typeof(KeyValuePair<,>))
+            {
+                var keyValuePair = value;
+                var keyProperty = valueType.GetProperty("Key");
+                var valueProperty = valueType.GetProperty("Value");
+                
+                if (keyProperty != null && valueProperty != null)
+                {
+                    var keyValue = keyProperty.GetValue(keyValuePair);
+                    var valueValue = valueProperty.GetValue(keyValuePair);
+                    
+                    EmitConstantOfType(ilg, keyValue, keyProperty.PropertyType);
+                    EmitConstantOfType(ilg, valueValue, valueProperty.PropertyType);
+                    
+                    var constructor = valueType.GetConstructor(new[] { keyProperty.PropertyType, valueProperty.PropertyType });
+                    if (constructor != null)
+                    {
+                        ilg.Emit(OpCodes.Newobj, constructor);
+                        return true;
+                    }
+                }
+            }
+
+            return false;
+        }
+
+        /// <summary>
+        /// 尝试使用构造函数为引用类型生成IL。
+        /// </summary>
+        /// <param name="ilg">IL生成器。</param>
+        /// <param name="value">值。</param>
+        /// <param name="valueType">引用类型。</param>
+        /// <returns>是否成功生成。</returns>
+        private static bool TryEmitReferenceTypeConstructor(ILGenerator ilg, object value, Type valueType)
+        {
+            // StringBuilder特殊处理
+            if (valueType == typeof(StringBuilder) && value is StringBuilder sb)
+            {
+                EmitString(ilg, sb.ToString());
+                if (sb.Capacity != 16) // 默认容量是16
+                {
+                    EmitInt(ilg, sb.Capacity);
+                    ilg.Emit(OpCodes.Newobj, typeof(StringBuilder).GetConstructor(new[] { typeof(string), typeof(int) }));
+                }
+                else
+                {
+                    ilg.Emit(OpCodes.Newobj, typeof(StringBuilder).GetConstructor(new[] { typeof(string) }));
+                }
+                return true;
+            }
+
+            // BigInteger特殊处理
+            if (valueType.FullName == "System.Numerics.BigInteger" && value != null)
+            {
+                try
+                {
+                    // 尝试转换为字节数组
+                    var toByteArrayMethod = valueType.GetMethod("ToByteArray", BindingFlags.Public | BindingFlags.Instance);
+                    if (toByteArrayMethod != null)
+                    {
+                        var bytes = (byte[])toByteArrayMethod.Invoke(value, null);
+                        EmitConstantOfType(ilg, bytes, typeof(byte[]));
+                        var constructor = valueType.GetConstructor(new[] { typeof(byte[]) });
+                        if (constructor != null)
+                        {
+                            ilg.Emit(OpCodes.Newobj, constructor);
+                            return true;
+                        }
+                    }
+                }
+                catch
+                {
+                    // 如果失败，回退到默认处理
+                }
+            }
+
+            // 对于一般的引用类型，尝试找到字符串构造函数
+            if (valueType != typeof(string))
+            {
+                var stringConstructor = valueType.GetConstructor(new[] { typeof(string) });
+                if (stringConstructor != null)
+                {
+                    try
+                    {
+                        EmitString(ilg, value.ToString());
+                        ilg.Emit(OpCodes.Newobj, stringConstructor);
+                        return true;
+                    }
+                    catch
+                    {
+                        // 如果失败，继续其他尝试
+                    }
+                }
+            }
+
+            // 集合类型特殊处理
+            if (typeof(System.Collections.IEnumerable).IsAssignableFrom(valueType) && 
+                valueType != typeof(string) && value is System.Collections.IEnumerable enumerable)
+            {
+                // 尝试无参构造函数 + Add方法
+                var defaultConstructor = valueType.GetConstructor(Type.EmptyTypes);
+                var addMethod = valueType.GetMethod("Add");
+                
+                if (defaultConstructor != null && addMethod != null)
+                {
+                    ilg.Emit(OpCodes.Newobj, defaultConstructor);
+                    
+                    foreach (var item in enumerable)
+                    {
+                        ilg.Emit(OpCodes.Dup);
+                        EmitConstantOfType(ilg, item, addMethod.GetParameters()[0].ParameterType);
+                        ilg.Emit(OpCodes.Call, addMethod);
+                        
+                        // 如果Add方法有返回值，需要弹出栈
+                        if (addMethod.ReturnType != typeof(void))
+                        {
+                            ilg.Emit(OpCodes.Pop);
+                        }
+                    }
+                    return true;
+                }
+            }
+
+            return false;
+        }
         #endregion
 
         /// <summary>
@@ -1327,6 +1602,25 @@ namespace Inkslab
                             value = Convert.ChangeType(value, valueType);
                         }
 
+                        // 尝试使用更高效的IL指令直接生成常见类型
+                        if (TryEmitTypeSpecificConstruct(ilg, value, valueType))
+                        {
+                            break;
+                        }
+
+                        // 对于常见的值类型，尝试使用构造函数
+                        if (valueType.IsValueType && TryEmitValueTypeConstructor(ilg, value, valueType))
+                        {
+                            break;
+                        }
+
+                        // 对于常见的引用类型，尝试使用构造函数
+                        if (!valueType.IsValueType && TryEmitReferenceTypeConstructor(ilg, value, valueType))
+                        {
+                            break;
+                        }
+
+                        // 回退到常量缓存机制
                         if (!ConstantCache.TryGetValue(value, out int key))
                         {
                             lock (ConstantCache)
