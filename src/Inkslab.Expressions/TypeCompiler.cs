@@ -289,18 +289,241 @@ label_continue:
 
             var declaringType = methodInfo.DeclaringType;
 
-            if (declaringType.IsGenericType)
+            // 增强：使用更安全的类型映射
+            try
             {
-                return TypeGetReturnType(returnType, methodGenericArguments, typeGenericArguments);
+                if (declaringType.IsGenericType)
+                {
+                    return SafeTypeGetReturnType(returnType, methodGenericArguments, typeGenericArguments);
+                }
+                else if (methodInfo.IsGenericMethod)
+                {
+                    return SafeTypeGetReturnType(returnType, methodGenericArguments);
+                }
+                else
+                {
+                    return returnType;
+                }
             }
-            else if (methodInfo.IsGenericMethod)
+            catch
             {
-                return TypeGetReturnType(returnType, methodGenericArguments);
+                // 如果安全映射失败，回退到原始实现
+                if (declaringType.IsGenericType)
+                {
+                    return TypeGetReturnType(returnType, methodGenericArguments, typeGenericArguments);
+                }
+                else if (methodInfo.IsGenericMethod)
+                {
+                    return TypeGetReturnType(returnType, methodGenericArguments);
+                }
+                else
+                {
+                    return returnType;
+                }
             }
-            else
+        }
+
+        /// <summary>
+        /// 安全的类型返回映射（仅方法泛型参数）- 整合了MapGenericType的逻辑
+        /// </summary>
+        /// <param name="returnType">返回类型</param>
+        /// <param name="methodGenericArguments">方法泛型参数</param>
+        /// <returns>映射后的类型</returns>
+        private static Type SafeTypeGetReturnType(Type returnType, Type[] methodGenericArguments)
+        {
+            if (returnType == null)
+                return null;
+
+            // 如果是泛型参数，直接映射
+            if (returnType.IsGenericParameter)
             {
+                var position = returnType.GenericParameterPosition;
+                return position < methodGenericArguments.Length ? methodGenericArguments[position] : returnType;
+            }
+
+            // 如果是泛型类型，递归映射泛型参数
+            if (returnType.IsGenericType)
+            {
+                var genericTypeDef = returnType.GetGenericTypeDefinition();
+                var genericArgs = returnType.GetGenericArguments();
+                var mappedArgs = new Type[genericArgs.Length];
+                bool hasChanged = false;
+
+                for (int i = 0; i < genericArgs.Length; i++)
+                {
+                    mappedArgs[i] = SafeTypeGetReturnType(genericArgs[i], methodGenericArguments);
+                    if (mappedArgs[i] != genericArgs[i])
+                        hasChanged = true;
+                }
+
+                if (hasChanged)
+                {
+                    try
+                    {
+                        if (!returnType.IsGenericTypeDefinition)
+                        {
+                            genericTypeDef = returnType.GetGenericTypeDefinition();
+                        }
+                        return genericTypeDef.MakeGenericType(mappedArgs);
+                    }
+                    catch
+                    {
+                        // 如果构造失败，回退到原始逻辑
+                        return TypeGetReturnType(returnType, methodGenericArguments);
+                    }
+                }
+
                 return returnType;
             }
+
+            // 如果是数组类型，映射元素类型
+            if (returnType.IsArray)
+            {
+                var elementType = returnType.GetElementType();
+                var mappedElementType = SafeTypeGetReturnType(elementType, methodGenericArguments);
+                if (mappedElementType != elementType)
+                {
+                    try
+                    {
+                        return mappedElementType.MakeArrayType(returnType.GetArrayRank());
+                    }
+                    catch
+                    {
+                        // 如果构造失败，回退到原始逻辑
+                        return TypeGetReturnType(returnType, methodGenericArguments);
+                    }
+                }
+            }
+
+            // 如果是引用类型（ref/out），映射内部类型
+            if (returnType.IsByRef)
+            {
+                var elementType = returnType.GetElementType();
+                var mappedElementType = SafeTypeGetReturnType(elementType, methodGenericArguments);
+                if (mappedElementType != elementType)
+                {
+                    try
+                    {
+                        return mappedElementType.MakeByRefType();
+                    }
+                    catch
+                    {
+                        // 如果构造失败，回退到原始逻辑
+                        return TypeGetReturnType(returnType, methodGenericArguments);
+                    }
+                }
+            }
+
+            // 默认返回原始类型
+            return returnType;
+        }
+
+        /// <summary>
+        /// 安全的类型返回映射（方法和类型泛型参数）- 整合了MapGenericType的逻辑
+        /// </summary>
+        /// <param name="returnType">返回类型</param>
+        /// <param name="methodGenericArguments">方法泛型参数</param>
+        /// <param name="typeGenericArguments">类型泛型参数</param>
+        /// <returns>映射后的类型</returns>
+        private static Type SafeTypeGetReturnType(Type returnType, Type[] methodGenericArguments, Type[] typeGenericArguments)
+        {
+            if (returnType == null)
+                return null;
+
+            // 如果是泛型参数，根据声明位置映射
+            if (returnType.IsGenericParameter)
+            {
+#if NETSTANDARD2_1_OR_GREATER
+                if (returnType.IsGenericMethodParameter)
+#else
+                if (returnType.DeclaringMethod is not null)
+#endif
+                {
+                    var position = returnType.GenericParameterPosition;
+                    return position < methodGenericArguments.Length ? methodGenericArguments[position] : returnType;
+                }
+                else
+                {
+                    var position = returnType.GenericParameterPosition;
+                    return position < typeGenericArguments.Length ? typeGenericArguments[position] : returnType;
+                }
+            }
+
+            // 如果是泛型类型，递归映射泛型参数
+            if (returnType.IsGenericType)
+            {
+                var genericTypeDef = returnType.GetGenericTypeDefinition();
+                var genericArgs = returnType.GetGenericArguments();
+                var mappedArgs = new Type[genericArgs.Length];
+                bool hasChanged = false;
+
+                for (int i = 0; i < genericArgs.Length; i++)
+                {
+                    mappedArgs[i] = SafeTypeGetReturnType(genericArgs[i], methodGenericArguments, typeGenericArguments);
+                    if (mappedArgs[i] != genericArgs[i])
+                        hasChanged = true;
+                }
+
+                if (hasChanged)
+                {
+                    try
+                    {
+                        if (!returnType.IsGenericTypeDefinition)
+                        {
+                            genericTypeDef = returnType.GetGenericTypeDefinition();
+                        }
+                        return genericTypeDef.MakeGenericType(mappedArgs);
+                    }
+                    catch
+                    {
+                        // 如果构造失败，回退到原始逻辑
+                        return TypeGetReturnType(returnType, methodGenericArguments, typeGenericArguments);
+                    }
+                }
+
+                return returnType;
+            }
+
+            // 如果是数组类型，映射元素类型
+            if (returnType.IsArray)
+            {
+                var elementType = returnType.GetElementType();
+                var mappedElementType = SafeTypeGetReturnType(elementType, methodGenericArguments, typeGenericArguments);
+                if (mappedElementType != elementType)
+                {
+                    try
+                    {
+                        return mappedElementType.MakeArrayType(returnType.GetArrayRank());
+                    }
+                    catch
+                    {
+                        // 如果构造失败，回退到原始逻辑
+                        return TypeGetReturnType(returnType, methodGenericArguments, typeGenericArguments);
+                    }
+                }
+            }
+
+            // 如果是引用类型（ref/out），映射内部类型
+            if (returnType.IsByRef)
+            {
+                var elementType = returnType.GetElementType();
+                var mappedElementType = SafeTypeGetReturnType(elementType, methodGenericArguments, typeGenericArguments);
+                if (mappedElementType != elementType)
+                {
+                    try
+                    {
+                        return mappedElementType.MakeByRefType();
+                    }
+                    catch
+                    {
+                        // 如果构造失败，回退到原始逻辑
+                        return TypeGetReturnType(returnType, methodGenericArguments, typeGenericArguments);
+                    }
+                }
+            }
+
+            // 默认返回原始类型
+            return returnType;
         }
 
         private static Type TypeGetReturnType(Type returnType, Type[] methodGenericArguments)

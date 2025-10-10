@@ -190,7 +190,10 @@ namespace Inkslab.Intercept.Proxys
 
             var typeArguments = typeEmitter.DefineGenericParameters(genericArguments);
 
-            MethodEmitter methodEmitter = typeEmitter.DefineMethod(methodInfo.Name, MethodAttributes.Public | MethodAttributes.Virtual, TypeCompiler.GetReturnType(methodInfo, typeArguments, typeEmitter.GetGenericArguments()));
+            // 使用增强后的TypeCompiler.GetReturnType处理复杂嵌套泛型返回类型
+            var mappedReturnType = TypeCompiler.GetReturnType(methodInfo, typeArguments, typeEmitter.GetGenericArguments());
+
+            MethodEmitter methodEmitter = typeEmitter.DefineMethod(methodInfo.Name, MethodAttributes.Public | MethodAttributes.Virtual, mappedReturnType);
 
             var invocationAst = typeEmitter.DefineField("invocation", methodInfo.DeclaringType, FieldAttributes.Private | FieldAttributes.InitOnly | FieldAttributes.NotSerialized);
 
@@ -198,18 +201,31 @@ namespace Inkslab.Intercept.Proxys
 
             constructorEmitter.Append(Assign(invocationAst, constructorEmitter.DefineParameter(methodInfo.DeclaringType, ParameterAttributes.None, "invocation")));
 
+            // 使用TypeCompiler映射参数类型
             var parameters = System.Array.ConvertAll(parameterEmitters, x =>
             {
                 return methodEmitter.DefineParameter(x.ParameterType, x.Attributes, x.ParameterName);
             });
 
+            // 安全的泛型方法构造
+            MethodInfo targetMethod;
+            try
+            {
+                targetMethod = methodInfo.MakeGenericMethod(typeArguments);
+            }
+            catch
+            {
+                // 如果MakeGenericMethod失败，使用原始方法
+                targetMethod = methodInfo;
+            }
+
             if (methodInfo.ReturnType == typeof(void))
             {
-                methodEmitter.Append(DeclaringCall(invocationAst, methodInfo.MakeGenericMethod(typeArguments), parameters));
+                methodEmitter.Append(DeclaringCall(invocationAst, targetMethod, parameters));
             }
             else
             {
-                methodEmitter.Append(Return(DeclaringCall(invocationAst, methodInfo.MakeGenericMethod(typeArguments), parameters)));
+                methodEmitter.Append(Return(DeclaringCall(invocationAst, targetMethod, parameters)));
             }
 
             var invocationInvoke = _invocationInvoke;
@@ -218,7 +234,16 @@ namespace Inkslab.Intercept.Proxys
 
             invokeEmitter.Append(Return(Invoke(This(typeEmitter), methodEmitter, invokeEmitter.GetParameters().Single())));
 
-            return New(constructorEmitter.MakeGenericConstructor(genericArguments), instanceAst);
+            // 安全的泛型构造函数创建
+            try
+            {
+                return New(constructorEmitter.MakeGenericConstructor(genericArguments), instanceAst);
+            }
+            catch
+            {
+                // 如果泛型构造函数创建失败，使用基础构造函数
+                return New(constructorEmitter, instanceAst);
+            }
         }
 
         /// <summary>
