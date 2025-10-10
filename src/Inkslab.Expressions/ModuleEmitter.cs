@@ -319,7 +319,10 @@ namespace Inkslab
         {
             if (builder is null)
             {
-                throw new InvalidOperationException("未生成弱命名程序集。");
+                lock (moduleLocker)
+                {
+                    builder ??= CreateModule();
+                }
             }
 
             if (!savePhysicalAssembly)

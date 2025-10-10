@@ -208,16 +208,7 @@ namespace Inkslab.Intercept.Proxys
             });
 
             // 安全的泛型方法构造
-            MethodInfo targetMethod;
-            try
-            {
-                targetMethod = methodInfo.MakeGenericMethod(typeArguments);
-            }
-            catch
-            {
-                // 如果MakeGenericMethod失败，使用原始方法
-                targetMethod = methodInfo;
-            }
+            MethodInfo targetMethod = methodInfo.MakeGenericMethod(typeArguments);
 
             if (methodInfo.ReturnType == typeof(void))
             {

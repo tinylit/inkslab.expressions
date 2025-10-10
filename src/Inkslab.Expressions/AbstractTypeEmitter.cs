@@ -27,7 +27,7 @@ namespace Inkslab
         private readonly List<ConstructorEmitter> constructors = new List<ConstructorEmitter>();
         private readonly Dictionary<string, FieldEmitter> fields = new Dictionary<string, FieldEmitter>(StringComparer.OrdinalIgnoreCase);
         private readonly Dictionary<string, PropertyEmitter> properties = new Dictionary<string, PropertyEmitter>(StringComparer.OrdinalIgnoreCase);
-
+        
         private readonly object lockObj = new object();
 
         /// <summary>
