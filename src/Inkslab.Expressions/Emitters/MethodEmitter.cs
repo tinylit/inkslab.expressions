@@ -25,7 +25,7 @@ namespace Inkslab.Emitters
             private readonly Type[] typeArguments;
             private readonly MethodEmitter methodEmitter;
 
-            public InitMethodEmitter(MethodEmitter methodEmitter, Type[] typeArguments) : base(methodEmitter.Name, methodEmitter.Attributes, methodEmitter.RuntimeType)
+            public InitMethodEmitter(MethodEmitter methodEmitter, Type[] typeArguments) : base(methodEmitter.DeclaringType, methodEmitter.Name, methodEmitter.Attributes, methodEmitter.RuntimeType)
             {
                 this.methodEmitter = methodEmitter;
                 this.typeArguments = typeArguments;
@@ -58,11 +58,13 @@ namespace Inkslab.Emitters
         /// <summary>
         /// 构造函数。
         /// </summary>
+        /// <param name="declaringType">声明类型。</param>
         /// <param name="name">方法的名称。</param>
         /// <param name="attributes">方法的属性。</param>
         /// <param name="returnType">方法的返回类型。</param>
-        public MethodEmitter(string name, MethodAttributes attributes, Type returnType) : base(returnType)
+        public MethodEmitter(AbstractTypeEmitter declaringType, string name, MethodAttributes attributes, Type returnType) : base(declaringType?.MapReturnTypeForEmit(returnType))
         {
+            DeclaringType = declaringType;
             Name = name;
             Attributes = attributes;
         }
@@ -159,6 +161,11 @@ namespace Inkslab.Emitters
         }
 
         /// <summary>
+        /// 声明类型。
+        /// </summary>
+        public AbstractTypeEmitter DeclaringType { get; }
+
+        /// <summary>
         /// 方法的名称。
         /// </summary>
         public string Name { get; }
@@ -217,7 +224,7 @@ namespace Inkslab.Emitters
         /// <returns></returns>
         public virtual ParameterEmitter DefineParameter(Type parameterType, ParameterAttributes attributes, string name)
         {
-            var parameter = new ParameterEmitter(parameterType, (Attributes & MethodAttributes.Static) == MethodAttributes.Static ? parameterIndex++ : ++parameterIndex, attributes, name);
+            var parameter = new ParameterEmitter(DeclaringType.MapReturnTypeForEmit(parameterType), (Attributes & MethodAttributes.Static) == MethodAttributes.Static ? parameterIndex++ : ++parameterIndex, attributes, name);
 
             parameters.Add(parameter);
 
@@ -238,6 +245,12 @@ namespace Inkslab.Emitters
 
             return this;
         }
+
+        /// <summary>
+        /// 自定义标记。
+        /// </summary>
+        /// <typeparam name="TAttribute">标记类型。</typeparam>
+        public void SetCustomAttribute<TAttribute>() where TAttribute : Attribute, new() => SetCustomAttribute(EmitUtils.CreateCustomAttribute<TAttribute>());
 
         /// <summary>
         /// 设置属性标记。
@@ -309,6 +322,7 @@ namespace Inkslab.Emitters
 
             foreach (var parameterEmitter in parameters)
             {
+                // 自动处理泛型参数类型映射
                 parameterTypes[index++] = parameterEmitter.RuntimeType;
             }
 
@@ -338,6 +352,11 @@ namespace Inkslab.Emitters
                 StoredLocal(variable);
 
                 base.Load(ilg);
+
+                if (!IsClosed)
+                {
+                    variable.Storage(ilg);
+                }
 
                 label.MarkLabel(ilg);
 

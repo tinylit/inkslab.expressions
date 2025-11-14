@@ -1,7 +1,7 @@
 <Project>
 	<PropertyGroup>
 		<!-- 版本 -->
-		<Version>1.2.0.2</Version>
+		<Version>1.2.8</Version>
 		<!-- C#语法版本-->
 		<LangVersion>9.0</LangVersion>
 
@@ -16,9 +16,9 @@
 		<Company>TINYLIT</Company>
 		<Copyright>2022 TINYLIT.</Copyright>
 		<RepositoryType>git</RepositoryType>
-		<Copyright>..\..\LICENSE</Copyright>
 		<PackageIcon>inkslab-mini.jpg</PackageIcon>
 		<PackageReadmeFile>README.md</PackageReadmeFile>
+		<PackageLicenseFile>LICENSE</PackageLicenseFile>
 		<RepositoryUrl>https://github.com/tinylit/inkslab.expressions</RepositoryUrl>
 		<PackageProjectUrl>https://github.com/tinylit/inkslab.expressions</PackageProjectUrl>
 
@@ -28,6 +28,19 @@
 
 	<ItemGroup>
 		<None Include="..\..\.editorconfig" Link=".editorconfig" />
+	</ItemGroup>
+
+	<!-- .NETFramework 的预编译条件 -->
+	<PropertyGroup
+        Condition="'$(TargetFramework)'=='net461' OR '$(TargetFramework)'=='net462' OR '$(TargetFramework)'=='net47' OR '$(TargetFramework)'=='net471' OR '$(TargetFramework)'=='net472' OR '$(TargetFramework)'=='net48'">
+		<DefineConstants>$(DefineConstants);NET_Traditional</DefineConstants>
+	</PropertyGroup>
+
+	<ItemGroup>
+		<None Include="..\..\LICENSE">
+			<Pack>True</Pack>
+			<PackagePath>\</PackagePath>
+		</None>
 	</ItemGroup>
 
 	<ItemGroup>
@@ -71,6 +84,11 @@
 					<Version>7.0.0</Version>
 				</PackageReference>
 			</ItemGroup>
+
+			<ItemGroup Condition="'$(TargetFramework)' == 'net6.0'">
+				<FrameworkReference Include="Microsoft.AspNetCore.App" />
+			</ItemGroup>
+			
 			<ItemGroup Condition="'$(TargetFramework)' == 'net461'">
 				<PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions">
 					<Version>6.0.0</Version>
@@ -82,7 +100,7 @@
 	<Choose>
 		<When Condition="!$(MSBuildProjectName.EndsWith('.Tests')) ">
 			<PropertyGroup>
-				<TargetFrameworks Condition="'$(LibraryFrameworks)'==''">net461;netstandard2.1;</TargetFrameworks>
+				<TargetFrameworks Condition="'$(LibraryFrameworks)'==''">net461;netstandard2.1;net6.0;</TargetFrameworks>
 				<TargetFrameworks Condition="'$(LibraryFrameworks)'!=''">$(LibraryFrameworks)</TargetFrameworks>
 			</PropertyGroup>
 		</When>

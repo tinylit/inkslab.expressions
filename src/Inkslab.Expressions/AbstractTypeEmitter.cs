@@ -73,11 +73,13 @@ namespace Inkslab
         {
             private readonly MethodBuilder methodBuilder;
             private readonly MethodInfo methodInfoDeclaration;
+            private readonly bool isVirtualMethod;
 
-            public MethodOverrideEmitter(MethodBuilder methodBuilder, MethodInfo methodInfoDeclaration, Type returnType) : base(methodBuilder.Name, methodBuilder.Attributes, returnType)
+            public MethodOverrideEmitter(AbstractTypeEmitter declaringType, MethodBuilder methodBuilder, MethodInfo methodInfoDeclaration, Type returnType) : base(declaringType, methodBuilder.Name, methodBuilder.Attributes, returnType)
             {
                 this.methodBuilder = methodBuilder;
                 this.methodInfoDeclaration = methodInfoDeclaration;
+                this.isVirtualMethod = methodInfoDeclaration.IsVirtual && !methodInfoDeclaration.IsFinal;
             }
 
             public override bool IsGenericMethod => methodInfoDeclaration.IsGenericMethod;
@@ -115,10 +117,12 @@ namespace Inkslab
 
                 Emit(methodBuilder);
 
-                if (methodInfoDeclaration.DeclaringType.IsInterface)
+                // 只有虚方法或接口方法才能使用 DefineMethodOverride
+                if (isVirtualMethod || methodInfoDeclaration.DeclaringType.IsInterface)
                 {
                     builder.DefineMethodOverride(methodBuilder, methodInfoDeclaration);
                 }
+                // 对于非虚方法，不需要调用 DefineMethodOverride，因为我们使用的是方法隐藏
             }
         }
 
@@ -377,10 +381,22 @@ namespace Inkslab
             return attributes | TypeAttributes.Sealed;
         }
 
-        private static TypeBuilder DefineType(AbstractTypeEmitter emitter, string name) => emitter.typeBuilder.DefineNestedType(emitter.GetUniqueName(name));
-        private static TypeBuilder DefineType(AbstractTypeEmitter emitter, string name, TypeAttributes attr) => emitter.typeBuilder.DefineNestedType(emitter.GetUniqueName(name), MakeNestedTypeAttributes(attr));
-        private static TypeBuilder DefineType(AbstractTypeEmitter emitter, string name, TypeAttributes attr, Type parent) => emitter.typeBuilder.DefineNestedType(emitter.GetUniqueName(name), MakeNestedTypeAttributes(attr), parent);
-        private static TypeBuilder DefineType(AbstractTypeEmitter emitter, string name, TypeAttributes attr, Type parent, Type[] interfaces) => emitter.typeBuilder.DefineNestedType(emitter.GetUniqueName(name), MakeNestedTypeAttributes(attr), parent, interfaces);
+        private static TypeBuilder DefineType(AbstractTypeEmitter emitter, string name, TypeAttributes? attr = null, Type parent = null, Type[] interfaces = null)
+        {
+            var uniqueName = emitter.GetUniqueName(name);
+            
+            if (!attr.HasValue)
+                return emitter.typeBuilder.DefineNestedType(uniqueName);
+            
+            var attributes = MakeNestedTypeAttributes(attr.Value);
+            
+            if (interfaces != null)
+                return emitter.typeBuilder.DefineNestedType(uniqueName, attributes, parent, interfaces);
+            if (parent != null)
+                return emitter.typeBuilder.DefineNestedType(uniqueName, attributes, parent);
+            
+            return emitter.typeBuilder.DefineNestedType(uniqueName, attributes);
+        }
 
         private GenericTypeParameterBuilder[] DefineGenericParameters()
         {
@@ -505,93 +521,59 @@ namespace Inkslab
 
         private void AnalyzeGenericParameters(ref Type[] interfaces)
         {
-            if (interfaces is null || interfaces.Length == 0)
-            {
-
-            }
-            else if (interfaces.Length == 1)
-            {
-                Type interfaceType = interfaces[0];
-
-                if (interfaceType.IsGenericTypeDefinition)
-                {
-                    genericArguments.AddRange(interfaceType.GetGenericArguments());
-                }
-            }
-            else
-            {
-                List<Type> independentTypes = new List<Type>(interfaces.Length);
-
-                Type[] simpleTypes = Array.FindAll(interfaces, type => !type.IsGenericTypeDefinition);
-                Type[] genericTypes = Array.FindAll(interfaces, type => type.IsGenericTypeDefinition);
-
-                independentTypes.AddRange(genericTypes);
-
-                foreach (var interfaceType in genericTypes)
-                {
-                    Array.ForEach(interfaceType.GetInterfaces(), type => independentTypes.Remove(type));
-                }
-
-                if (independentTypes.Count > 1)
-                {
-                    throw new AstException("无法分析多个没有继承关系的泛型定义接口，请自己实现泛型关系！");
-                }
-
-                genericArguments.AddRange(independentTypes.SelectMany(x => x.GetGenericArguments()));
-
-                independentTypes.AddRange(simpleTypes);
-
-                interfaces = independentTypes.ToArray();
-            }
+            AnalyzeGenericParameters(null, ref interfaces);
         }
 
         private void AnalyzeGenericParameters(Type baseType, ref Type[] interfaces)
         {
+            // 处理基类泛型参数
+            if (baseType?.IsGenericTypeDefinition == true)
+            {
+                genericArguments.AddRange(baseType.GetGenericArguments());
+            }
+
+            // 处理接口泛型参数
+            if (interfaces is null || interfaces.Length == 0)
+                return;
+
+            var genericTypes = Array.FindAll(interfaces, type => type.IsGenericTypeDefinition);
+            if (genericTypes.Length == 0)
+                return;
+
+            // 如果没有基类但只有一个泛型接口,直接处理
+            if (baseType is null && genericTypes.Length == 1 && interfaces.Length == 1)
+            {
+                genericArguments.AddRange(genericTypes[0].GetGenericArguments());
+                return;
+            }
+
+            // 处理多个接口的情况
+            var simpleTypes = Array.FindAll(interfaces, type => !type.IsGenericTypeDefinition);
+            var independentTypes = new List<Type>(genericTypes);
+
+            // 移除已被其他接口或基类继承的接口
+            var inheritedInterfaces = baseType?.GetInterfaces() ?? Type.EmptyTypes;
+            foreach (var interfaceType in genericTypes)
+            {
+                Array.ForEach(interfaceType.GetInterfaces(), type => independentTypes.Remove(type));
+            }
+            Array.ForEach(inheritedInterfaces, type => independentTypes.Remove(type));
+
+            if (independentTypes.Count > 1)
+            {
+                throw new AstException("无法分析多个没有继承关系的泛型定义接口，请自己实现泛型关系！");
+            }
+
+            // 只在没有基类时添加泛型参数(有基类时已经在上面添加)
             if (baseType is null || !baseType.IsGenericTypeDefinition)
             {
-                AnalyzeGenericParameters(ref interfaces);
+                genericArguments.AddRange(independentTypes.SelectMany(x => x.GetGenericArguments()));
             }
-            else if (interfaces is null || interfaces.Length == 0)
-            {
-                if (baseType.IsGenericTypeDefinition)
-                {
-                    genericArguments.AddRange(baseType.GetGenericArguments());
-                }
-            }
-            else
-            {
-                if (Array.Exists(interfaces, x => x.IsGenericTypeDefinition))
-                {
-                    Type[] simpleTypes = Array.FindAll(interfaces, type => !type.IsGenericTypeDefinition);
-                    Type[] genericTypes = Array.FindAll(interfaces, type => type.IsGenericTypeDefinition);
 
-                    List<Type> independentTypes = new List<Type>(genericTypes.Length);
-
-                    independentTypes.AddRange(genericTypes);
-
-                    Type[] baseInterfaceTypes = baseType.GetInterfaces();
-
-                    Array.ForEach(baseInterfaceTypes, type => independentTypes.Remove(type));
-
-                    if (independentTypes.Count > 1)
-                    {
-                        throw new AstException("无法分析多个没有继承关系的泛型定义接口，请自己实现泛型关系！");
-                    }
-
-                    genericArguments.AddRange(baseType.GetGenericArguments());
-
-                    independentTypes.AddRange(simpleTypes);
-
-                    // 移除基础类型有的简单类型。
-                    Array.ForEach(baseInterfaceTypes, type => independentTypes.Remove(type));
-
-                    interfaces = independentTypes.ToArray();
-                }
-                else
-                {
-                    genericArguments.AddRange(baseType.GetGenericArguments());
-                }
-            }
+            // 重新组合接口数组
+            independentTypes.AddRange(simpleTypes);
+            Array.ForEach(inheritedInterfaces, type => independentTypes.Remove(type));
+            interfaces = independentTypes.ToArray();
         }
 
         /// <summary>
@@ -646,7 +628,7 @@ namespace Inkslab
         /// 当前类型。
         /// </summary>
         [DebuggerHidden]
-        internal Type Value => typeBuilder;
+        internal TypeBuilder Value => typeBuilder;
 
         private void CheckGenericParameters()
         {
@@ -742,7 +724,7 @@ namespace Inkslab
 
             if ((fieldInfo.Attributes & FieldAttributes.HasDefault) == FieldAttributes.HasDefault)
             {
-                fieldEmitter.SetConstant(fieldInfo.GetRawConstantValue());
+                fieldEmitter.DefaultValue = fieldInfo.GetRawConstantValue();
             }
 
             foreach (var attributeData in fieldInfo.CustomAttributes)
@@ -831,7 +813,7 @@ namespace Inkslab
         /// <returns></returns>
         public MethodEmitter DefineMethod(string name, MethodAttributes attrs, Type returnType)
         {
-            var member = new MethodEmitter(name, attrs, returnType);
+            var member = new MethodEmitter(this, name, attrs, returnType ?? typeof(void));
 
             methods.Add(member);
 
@@ -845,29 +827,50 @@ namespace Inkslab
 
         private static MethodAttributes ObtainAttributes(MethodInfo methodInfo)
         {
-            var attributes = MethodAttributes.Virtual;
+            MethodAttributes attributes;
 
-            if (methodInfo.IsFinal || methodInfo.DeclaringType.IsInterface)
+            // 检查原方法是否为虚方法
+            if (methodInfo.IsVirtual && !methodInfo.IsFinal)
             {
-                attributes |= MethodAttributes.NewSlot;
+                // 虚方法：使用传统的重写方式
+                attributes = MethodAttributes.Virtual;
+
+                if (methodInfo.IsFinal || methodInfo.DeclaringType.IsInterface)
+                {
+                    attributes |= MethodAttributes.NewSlot;
+                }
+            }
+            else
+            {
+                // 非虚方法：使用方法隐藏（new modifier）
+                attributes = MethodAttributes.HideBySig | MethodAttributes.NewSlot;
+
+                // 如果原方法是静态的，保持静态
+                if (methodInfo.IsStatic)
+                {
+                    attributes |= MethodAttributes.Static;
+                }
+                else
+                {
+                    // 对于非虚实例方法，我们创建一个新的虚方法来"隐藏"它
+                    attributes |= MethodAttributes.Virtual;
+                }
             }
 
+            // 复制访问修饰符
             if (methodInfo.IsPublic)
             {
                 attributes |= MethodAttributes.Public;
             }
-
-            if (methodInfo.IsHideBySig)
+            else if (methodInfo.IsPrivate)
             {
-                attributes |= MethodAttributes.HideBySig;
+                attributes |= MethodAttributes.Private;
             }
-
-            if (IsInternal(methodInfo))
+            else if (methodInfo.IsFamily)
             {
-                attributes |= MethodAttributes.Assembly;
+                attributes |= MethodAttributes.Family;
             }
-
-            if (methodInfo.IsFamilyAndAssembly)
+            else if (methodInfo.IsFamilyAndAssembly)
             {
                 attributes |= MethodAttributes.FamANDAssem;
             }
@@ -875,11 +878,12 @@ namespace Inkslab
             {
                 attributes |= MethodAttributes.FamORAssem;
             }
-            else if (methodInfo.IsFamily)
+            else if (IsInternal(methodInfo))
             {
-                attributes |= MethodAttributes.Family;
+                attributes |= MethodAttributes.Assembly;
             }
 
+            // 复制其他特殊属性
             if (methodInfo.IsSpecialName)
             {
                 attributes |= MethodAttributes.SpecialName;
@@ -966,7 +970,7 @@ namespace Inkslab
 
                         t.SetGenericParameterAttributes(g.GenericParameterAttributes);
 
-                        t.SetInterfaceConstraints(AdjustGenericConstraints(newGenericParameters, methodInfoOriginal, genericArguments, g.GetGenericParameterConstraints()));
+                        t.SetInterfaceConstraints(AdjustGenericConstraints(newGenericParameters, g.GetGenericParameterConstraints(), methodInfoOriginal, genericArguments));
 
                         //? 避免重复约束。 T2 where T, T, new()
                         if (g.BaseType.IsGenericParameter)
@@ -1045,7 +1049,7 @@ namespace Inkslab
 
                     t.SetGenericParameterAttributes(g.GenericParameterAttributes);
 
-                    t.SetInterfaceConstraints(AdjustGenericConstraints(newGenericParameters, methodInfoOriginal, genericArguments, g.GetGenericParameterConstraints()));
+                    t.SetInterfaceConstraints(AdjustGenericConstraints(newGenericParameters, g.GetGenericParameterConstraints(), methodInfoOriginal, genericArguments));
 
                     //? 避免重复约束。 T2 where T, T, new()
                     if (g.BaseType.IsGenericParameter)
@@ -1081,7 +1085,7 @@ namespace Inkslab
                 methodInfoDeclaration = new DynamicMethod(methodInfoOriginal, methodInfoOriginal.MakeGenericMethod(newGenericParameters), methodInfoOriginal.DeclaringType, runtimeType, Type.EmptyTypes, false);
             }
 
-            var overrideEmitter = new MethodOverrideEmitter(methodBuilder, methodInfoOriginal, returnType);
+            var overrideEmitter = new MethodOverrideEmitter(this, methodBuilder, methodInfoOriginal, returnType);
 
             for (int i = 0; i < parameterInfos.Length; i++)
             {
@@ -1168,9 +1172,20 @@ namespace Inkslab
         }
 
         /// <summary>
+        /// 设置属性标记。
+        /// </summary>
+        [ComVisible(true)]
+        [SecuritySafeCritical]
+        public void SetCustomAttribute(ConstructorInfo con, byte[] binaryAttribute)
+        {
+            typeBuilder.SetCustomAttribute(con, binaryAttribute);
+        }
+
+        /// <summary>
         /// 自定义标记。
         /// </summary>
         /// <param name="attribute">标记。</param>
+        [SecuritySafeCritical]
         public void DefineCustomAttribute(CustomAttributeBuilder attribute)
         {
             typeBuilder.SetCustomAttribute(attribute);
@@ -1180,12 +1195,14 @@ namespace Inkslab
         /// 自定义标记。
         /// </summary>
         /// <typeparam name="TAttribute">标记类型。</typeparam>
+        [SecuritySafeCritical]
         public void DefineCustomAttribute<TAttribute>() where TAttribute : Attribute, new() => DefineCustomAttribute(EmitUtils.CreateCustomAttribute<TAttribute>());
 
         /// <summary>
         /// 自定义标记。
         /// </summary>
         /// <param name="attributeData">标记信息参数。</param>
+        [SecuritySafeCritical]
         public void DefineCustomAttribute(CustomAttributeData attributeData) => DefineCustomAttribute(EmitUtils.CreateCustomAttribute(attributeData));
 
         /// <summary>
@@ -1236,7 +1253,9 @@ namespace Inkslab
 
             foreach (FieldEmitter emitter in fields.Values)
             {
-                emitter.Emit(typeBuilder.DefineField(emitter.Name, emitter.RuntimeType, emitter.Attributes));
+                var fieldDefinition = typeBuilder.DefineField(emitter.Name, emitter.RuntimeType, emitter.Attributes);
+
+                emitter.Emit(fieldDefinition);
             }
 
             if (!typeBuilder.IsInterface && constructors.Count == 0)
@@ -1282,59 +1301,25 @@ namespace Inkslab
 #endif
         }
 
-        private static Type AdjustConstraintToNewGenericParameters(Type constraint, GenericTypeParameterBuilder[] newGenericParameters)
-        {
-            if (constraint.IsGenericType)
-            {
-                var genericArgumentsOfConstraint = constraint.GetGenericArguments();
-
-                for (var i = 0; i < genericArgumentsOfConstraint.Length; ++i)
-                {
-                    genericArgumentsOfConstraint[i] = AdjustConstraintToNewGenericParameters(genericArgumentsOfConstraint[i], newGenericParameters);
-                }
-
-                if (!constraint.IsGenericTypeDefinition)
-                {
-                    constraint = constraint.GetGenericTypeDefinition();
-                }
-
-                return constraint.MakeGenericType(genericArgumentsOfConstraint);
-            }
-            else
-            {
-                return constraint;
-            }
-        }
-
-        private static Type[] AdjustGenericConstraints(GenericTypeParameterBuilder[] newGenericParameters, Type[] constraints)
-        {
-            Type[] adjustedConstraints = new Type[constraints.Length];
-
-            for (var i = 0; i < constraints.Length; i++)
-            {
-                adjustedConstraints[i] = AdjustConstraintToNewGenericParameters(constraints[i], newGenericParameters);
-            }
-
-            return adjustedConstraints;
-        }
-
         private static Type AdjustConstraintToNewGenericParameters(
-            Type constraint, MethodInfo methodToCopyGenericsFrom, Type[] originalGenericParameters,
-            GenericTypeParameterBuilder[] newGenericParameters)
+            Type constraint, 
+            GenericTypeParameterBuilder[] newGenericParameters,
+            MethodInfo methodToCopyGenericsFrom = null,
+            Type[] originalGenericParameters = null)
         {
             if (constraint.IsGenericType)
             {
                 var genericArgumentsOfConstraint = constraint.GetGenericArguments();
-
                 for (var i = 0; i < genericArgumentsOfConstraint.Length; ++i)
                 {
-                    genericArgumentsOfConstraint[i] =
-                        AdjustConstraintToNewGenericParameters(genericArgumentsOfConstraint[i], methodToCopyGenericsFrom,
-                                                               originalGenericParameters, newGenericParameters);
+                    genericArgumentsOfConstraint[i] = AdjustConstraintToNewGenericParameters(
+                        genericArgumentsOfConstraint[i], newGenericParameters, methodToCopyGenericsFrom, originalGenericParameters);
                 }
-                return constraint.GetGenericTypeDefinition().MakeGenericType(genericArgumentsOfConstraint);
+                var definition = constraint.IsGenericTypeDefinition ? constraint : constraint.GetGenericTypeDefinition();
+                return definition.MakeGenericType(genericArgumentsOfConstraint);
             }
-            else if (constraint.IsGenericParameter)
+            
+            if (constraint.IsGenericParameter && methodToCopyGenericsFrom != null)
             {
                 if (constraint.DeclaringMethod is null)
                 {
@@ -1345,31 +1330,29 @@ namespace Inkslab
 
                     var index = Array.IndexOf(constraint.DeclaringType.GetGenericArguments(), constraint);
                     Trace.Assert(index != -1, "The generic parameter comes from the given type.");
-
-                    var genericArguments = methodToCopyGenericsFrom.DeclaringType.GetGenericArguments();
-
-                    return genericArguments[index]; // these are the actual, concrete types
+                    return methodToCopyGenericsFrom.DeclaringType.GetGenericArguments()[index];
                 }
-                else
-                {
-                    var index = Array.IndexOf(originalGenericParameters, constraint);
-                    Trace.Assert(index != -1,
-                                 "When a generic method parameter has a constraint on another method parameter, both parameters must be declared on the same method.");
-                    return newGenericParameters[index];
-                }
+                
+                var paramIndex = Array.IndexOf(originalGenericParameters, constraint);
+                Trace.Assert(paramIndex != -1,
+                             "When a generic method parameter has a constraint on another method parameter, both parameters must be declared on the same method.");
+                return newGenericParameters[paramIndex];
             }
-            else
-            {
-                return constraint;
-            }
+            
+            return constraint;
         }
 
-        private static Type[] AdjustGenericConstraints(GenericTypeParameterBuilder[] newGenericParameters, MethodInfo methodInfo, Type[] originalGenericArguments, Type[] constraints)
+        private static Type[] AdjustGenericConstraints(
+            GenericTypeParameterBuilder[] newGenericParameters, 
+            Type[] constraints,
+            MethodInfo methodInfo = null,
+            Type[] originalGenericArguments = null)
         {
-            Type[] adjustedConstraints = new Type[constraints.Length];
+            var adjustedConstraints = new Type[constraints.Length];
             for (var i = 0; i < constraints.Length; i++)
             {
-                adjustedConstraints[i] = AdjustConstraintToNewGenericParameters(constraints[i], methodInfo, originalGenericArguments, newGenericParameters);
+                adjustedConstraints[i] = AdjustConstraintToNewGenericParameters(
+                    constraints[i], newGenericParameters, methodInfo, originalGenericArguments);
             }
             return adjustedConstraints;
         }
@@ -1414,150 +1397,78 @@ namespace Inkslab
             return false;
         }
 
-        private static Type MakeGenericParameter(Type type, Type[] typeParameterBuilders)
+        private static Type MakeGenericParameter(
+            Type type, 
+            Type[] typeParameterBuilders,
+            Type[] genericArguments = null,
+            GenericTypeParameterBuilder[] newGenericParameters = null)
         {
             if (type.IsGenericParameter)
             {
+                // 如果提供了genericArguments,检查是否在其中
+                if (genericArguments != null && Array.IndexOf(genericArguments, type) > -1)
+                {
+                    return newGenericParameters?[type.GenericParameterPosition] ?? type;
+                }
                 return typeParameterBuilders[type.GenericParameterPosition];
             }
 
             if (type.IsGenericType)
             {
-                bool flag = false;
+                var genericArgs = type.GetGenericArguments();
+                bool modified = false;
 
-                var genericArguments = type.GetGenericArguments();
-
-                for (int i = 0; i < genericArguments.Length; i++)
+                for (int i = 0; i < genericArgs.Length; i++)
                 {
-                    if (HasGenericParameter(genericArguments[i]))
+                    if (HasGenericParameter(genericArgs[i]))
                     {
-                        flag = true;
-                        genericArguments[i] = MakeGenericParameter(genericArguments[i], typeParameterBuilders);
+                        var mapped = MakeGenericParameter(genericArgs[i], typeParameterBuilders, genericArguments, newGenericParameters);
+                        if (mapped != genericArgs[i])
+                        {
+                            genericArgs[i] = mapped;
+                            modified = true;
+                        }
                     }
-
                 }
 
-                return flag
-                    ? type.GetGenericTypeDefinition().MakeGenericType(genericArguments)
-                    : type;
+                return modified ? type.GetGenericTypeDefinition().MakeGenericType(genericArgs) : type;
             }
 
             if (type.IsArray)
             {
-                Type elementType = MakeGenericParameter(type.GetElementType(), typeParameterBuilders);
+                var elementType = MakeGenericParameter(type.GetElementType(), typeParameterBuilders, genericArguments, newGenericParameters);
                 int rank = type.GetArrayRank();
-
-                return rank == 1
-                    ? elementType.MakeArrayType()
-                    : elementType.MakeArrayType(rank);
+                return rank == 1 ? elementType.MakeArrayType() : elementType.MakeArrayType(rank);
             }
 
             if (type.IsByRef)
             {
-                Type elementType = MakeGenericParameter(type.GetElementType(), typeParameterBuilders);
-
+                var elementType = MakeGenericParameter(type.GetElementType(), typeParameterBuilders, genericArguments, newGenericParameters);
                 return elementType.MakeByRefType();
             }
 
             return type;
         }
 
-        private static Type MakeGenericParameter(Type type, Type[] genericArguments, Type[] typeParameterBuilders)
+        /// <summary>
+        /// 为Emit过程映射返回类型 - 处理泛型类型映射
+        /// </summary>
+        /// <param name="returnType">返回类型</param>
+        /// <returns>映射后的类型</returns>
+        internal Type MapReturnTypeForEmit(Type returnType)
         {
-            if (type.IsGenericParameter)
+            if (returnType is null || (!typeBuilder.IsGenericType && !typeBuilder.IsGenericTypeDefinition))
+                return returnType;
+
+            try
             {
-                if (Array.IndexOf(genericArguments, type) > -1)
-                {
-                    return type;
-                }
-
-                return typeParameterBuilders[type.GenericParameterPosition];
+                var genericArguments = typeBuilder.GetGenericArguments();
+                return genericArguments?.Length > 0 ? MakeGenericParameter(returnType, genericArguments) : returnType;
             }
-
-            if (type.IsGenericType)
+            catch
             {
-                var genericArguments2 = type.GetGenericArguments();
-
-                for (int i = 0; i < genericArguments.Length; i++)
-                {
-                    genericArguments2[i] = MakeGenericParameter(genericArguments[i], genericArguments, typeParameterBuilders);
-                }
-
-                return type.GetGenericTypeDefinition().MakeGenericType(genericArguments);
+                return returnType;
             }
-
-            if (type.IsArray)
-            {
-                Type elementType = MakeGenericParameter(type.GetElementType(), genericArguments, typeParameterBuilders);
-                int rank = type.GetArrayRank();
-
-                return rank == 1
-                    ? elementType.MakeArrayType()
-                    : elementType.MakeArrayType(rank);
-            }
-
-            if (type.IsByRef)
-            {
-                Type elementType = MakeGenericParameter(type.GetElementType(), genericArguments, typeParameterBuilders);
-
-                return elementType.MakeByRefType();
-            }
-
-            return type;
-        }
-
-        private static Type MakeGenericParameter(Type type, Type[] genericArguments, Type[] declaringTypeParameters, GenericTypeParameterBuilder[] newGenericParameters)
-        {
-            if (type.IsGenericParameter)
-            {
-                if (Array.IndexOf(genericArguments, type) > -1)
-                {
-                    return newGenericParameters[type.GenericParameterPosition];
-                }
-
-                return declaringTypeParameters[type.GenericParameterPosition];
-            }
-
-            if (type.IsGenericType)
-            {
-                Debug.Assert(type.IsGenericTypeDefinition == false);
-
-                bool flag = false;
-
-                var genericArguments2 = type.GetGenericArguments();
-
-                for (int i = 0; i < genericArguments2.Length; i++)
-                {
-                    if (HasGenericParameter(genericArguments2[i]))
-                    {
-                        genericArguments2[i] = MakeGenericParameter(genericArguments2[i], genericArguments, declaringTypeParameters, newGenericParameters);
-                    }
-
-                }
-
-                return flag
-                    ? type.GetGenericTypeDefinition().MakeGenericType(genericArguments2)
-                    : type;
-            }
-
-            if (type.IsArray)
-            {
-                Type elementType = MakeGenericParameter(type.GetElementType(), genericArguments, declaringTypeParameters, newGenericParameters);
-                int rank = type.GetArrayRank();
-
-                return rank == 1
-                    ? elementType.MakeArrayType()
-                    : elementType.MakeArrayType(rank);
-            }
-
-            if (type.IsByRef)
-            {
-                Type elementType = MakeGenericParameter(type.GetElementType(), genericArguments, declaringTypeParameters, newGenericParameters);
-
-                return elementType.MakeByRefType();
-            }
-
-            return type;
         }
 
         /// <summary>

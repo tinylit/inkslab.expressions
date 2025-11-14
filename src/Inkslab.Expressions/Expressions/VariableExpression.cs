@@ -49,6 +49,17 @@ namespace Inkslab.Expressions
         }
 
         /// <summary>
+        /// 存储（当前栈顶的值）。
+        /// </summary>
+        /// <param name="ilg">指令。</param>
+        public virtual void Storage(ILGenerator ilg)
+        {
+            local ??= ilg.DeclareLocal(RuntimeType);
+
+            ilg.Emit(OpCodes.Stloc, local);
+        }
+
+        /// <summary>
         /// 重写。
         /// </summary>
         /// <returns></returns>

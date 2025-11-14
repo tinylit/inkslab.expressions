@@ -24,6 +24,8 @@ Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Inkslab.Intercept", "src\In
 EndProject
 Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "Inkslab.Intercept.Tests", "tests\Inkslab.Intercept.Tests\Inkslab.Intercept.Tests.csproj", "{C6125D37-7DEE-44E1-BA73-4EFA464035E1}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Inkslab.Expressions.Tests", "tests\Inkslab.Expressions.Tests\Inkslab.Expressions.Tests.csproj", "{09FC2B16-C69A-40F0-9722-E2E5186567FD}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -42,6 +44,10 @@ Global
 		{C6125D37-7DEE-44E1-BA73-4EFA464035E1}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{C6125D37-7DEE-44E1-BA73-4EFA464035E1}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{C6125D37-7DEE-44E1-BA73-4EFA464035E1}.Release|Any CPU.Build.0 = Release|Any CPU
+		{09FC2B16-C69A-40F0-9722-E2E5186567FD}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{09FC2B16-C69A-40F0-9722-E2E5186567FD}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{09FC2B16-C69A-40F0-9722-E2E5186567FD}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{09FC2B16-C69A-40F0-9722-E2E5186567FD}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -50,6 +56,7 @@ Global
 		{9F80F222-AFE6-4FAF-A4B1-E570B30EC8A7} = {8A207234-8E6F-4EF6-B784-E3F3C4F9C3EF}
 		{06274DA4-EA4F-46CF-A5C5-BEB07B9C5E68} = {8A207234-8E6F-4EF6-B784-E3F3C4F9C3EF}
 		{C6125D37-7DEE-44E1-BA73-4EFA464035E1} = {4DBCB98D-604D-4D13-83DD-DF73CA228512}
+		{09FC2B16-C69A-40F0-9722-E2E5186567FD} = {4DBCB98D-604D-4D13-83DD-DF73CA228512}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {6032918C-2FA4-4D32-B318-57BEA3E10032}

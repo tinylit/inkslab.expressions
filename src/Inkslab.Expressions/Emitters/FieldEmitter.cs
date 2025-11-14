@@ -15,7 +15,6 @@ namespace Inkslab.Emitters
     {
         private FieldBuilder builder;
         private object defaultValue;
-        private bool hasDefaultValue = false;
         private readonly List<CustomAttributeBuilder> customAttributes = new List<CustomAttributeBuilder>();
 
         /// <summary>
@@ -24,11 +23,7 @@ namespace Inkslab.Emitters
         /// <param name="name">字段的名称。</param>
         /// <param name="returnType">字段的返回类型。</param>
         /// <param name="attributes">字段的属性。</param>
-        public FieldEmitter(string name, Type returnType, FieldAttributes attributes) : this(name, returnType, attributes, (attributes & FieldAttributes.Static) == FieldAttributes.Static)
-        {
-        }
-
-        private FieldEmitter(string name, Type returnType, FieldAttributes attributes, bool isStatic) : base(returnType)
+        public FieldEmitter(string name, Type returnType, FieldAttributes attributes) : base(returnType)
         {
             Name = name;
             Attributes = attributes;
@@ -42,24 +37,47 @@ namespace Inkslab.Emitters
         /// <summary>
         /// 字段的属性。
         /// </summary>
-        public FieldAttributes Attributes { get; }
+        public FieldAttributes Attributes { private set; get; }
 
         /// <inheritdoc/>
-        public override bool CanWrite => true;
+        public override bool CanWrite => !Attributes.HasFlag(FieldAttributes.Literal);
+
+        /// <summary>
+        /// 默认值。
+        /// </summary>
+        public object DefaultValue
+        {
+            get => defaultValue;
+            set
+            {
+                if (value is null)
+                {
+                    if (Attributes.HasFlag(FieldAttributes.Literal))
+                    {
+                        throw new ArgumentNullException(nameof(value), "枚举字面量类型不允许设置空值。");
+                    }
+
+                    defaultValue = null;
+
+                    Attributes &= ~FieldAttributes.HasDefault;
+                }
+                else
+                {
+                    defaultValue = EmitUtils.SetConstantOfType(value, RuntimeType);
+
+                    Attributes |= FieldAttributes.HasDefault;
+                }
+            }
+        }
 
         /// <inheritdoc/>
         public override bool IsStatic => (Attributes & FieldAttributes.Static) == FieldAttributes.Static;
 
         /// <summary>
-        /// 设置默认值。
+        /// 自定义标记。
         /// </summary>
-        /// <param name="defaultValue">默认值。</param>
-        public void SetConstant(object defaultValue)
-        {
-            hasDefaultValue = true;
-
-            this.defaultValue = EmitUtils.SetConstantOfType(defaultValue, RuntimeType);
-        }
+        /// <typeparam name="TAttribute">标记类型。</typeparam>
+        public void SetCustomAttribute<TAttribute>() where TAttribute : Attribute, new() => SetCustomAttribute(EmitUtils.CreateCustomAttribute<TAttribute>());
 
         /// <summary>
         /// 设置属性标记。
@@ -131,7 +149,7 @@ namespace Inkslab.Emitters
         {
             this.builder = builder ?? throw new ArgumentNullException(nameof(builder));
 
-            if (hasDefaultValue)
+            if (Attributes.HasFlag(FieldAttributes.HasDefault) && !Attributes.HasFlag(FieldAttributes.Literal))
             {
                 builder.SetConstant(defaultValue);
             }

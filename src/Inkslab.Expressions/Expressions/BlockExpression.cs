@@ -55,6 +55,24 @@ namespace Inkslab.Expressions
         public bool IsEmpty => codes.Count == 0;
 
         /// <summary>
+        /// 是否已闭合。
+        /// </summary>
+        public bool IsClosed
+        {
+            get
+            {
+                if (IsEmpty)
+                {
+                    return IsVoid;
+                }
+
+                Expression last = codes.Last();
+
+                return last is GotoExpression || last is ReturnExpression || last is BreakExpression || last is ContinueExpression || last is ThrowExpression;
+            }
+        }
+
+        /// <summary>
         /// 添加代码。
         /// </summary>
         /// <param name="code">代码。</param>

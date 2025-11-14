@@ -45,14 +45,8 @@ namespace Inkslab
         /// <summary>
         /// 当前上下文。
         /// </summary>
-        /// <param name="instanceType">实例类型。</param>
-        public static Expression This(Type instanceType) => new ThisExpression(instanceType);
-
-        /// <summary>
-        /// 当前上下文。
-        /// </summary>
         /// <param name="typeEmitter">实例类型。</param>
-        public static Expression This(AbstractTypeEmitter typeEmitter) => new ThisExpression(typeEmitter.Value);
+        public static Expression This(AbstractTypeEmitter typeEmitter) => new ThisExpression(typeEmitter);
 
         /// <summary>
         /// 空表达式数组。
