@@ -16,8 +16,6 @@ namespace Inkslab.Emitters
     {
         private MethodEmitter _Getter;
         private MethodEmitter _Setter;
-        private object defaultValue;
-        private bool hasDefaultValue = false;
         private readonly List<CustomAttributeBuilder> customAttributes = new List<CustomAttributeBuilder>();
 
         /// <summary>
@@ -108,7 +106,7 @@ namespace Inkslab.Emitters
         /// <summary>
         /// 属性的特性。
         /// </summary>
-        public PropertyAttributes Attributes { get; }
+        public PropertyAttributes Attributes { private set; get; }
 
         /// <summary>
         /// 属性的参数类型。
@@ -124,7 +122,31 @@ namespace Inkslab.Emitters
         private bool? isStatic;
 
         /// <inheritdoc/>
-        public override bool IsStatic => isStatic ?? throw new NotImplementedException();
+        public override bool IsStatic => isStatic ?? false;
+
+        private object defaultValue;
+        /// <summary>
+        /// 默认值。
+        /// </summary>
+        public object DefaultValue
+        {
+            get => defaultValue;
+            set
+            {
+                if (value is null)
+                {
+                    defaultValue = null;
+
+                    Attributes &= ~PropertyAttributes.HasDefault;
+                }
+                else
+                {
+                    defaultValue = EmitUtils.SetConstantOfType(value, RuntimeType);
+
+                    Attributes |= PropertyAttributes.HasDefault;
+                }
+            }
+        }
 
         /// <summary>
         /// 设置Get方法。
@@ -180,15 +202,10 @@ namespace Inkslab.Emitters
         }
 
         /// <summary>
-        /// 设置默认值。
+        /// 自定义标记。
         /// </summary>
-        /// <param name="defaultValue">默认值。</param>
-        public void SetConstant(object defaultValue)
-        {
-            hasDefaultValue = true;
-
-            this.defaultValue = EmitUtils.SetConstantOfType(defaultValue, RuntimeType);
-        }
+        /// <typeparam name="TAttribute">标记类型。</typeparam>
+        public void SetCustomAttribute<TAttribute>() where TAttribute : Attribute, new() => SetCustomAttribute(EmitUtils.CreateCustomAttribute<TAttribute>());
 
         /// <summary>
         /// 设置属性标记。
@@ -239,7 +256,7 @@ namespace Inkslab.Emitters
                 builder.SetSetMethod((MethodBuilder)_Setter.Value);
             }
 
-            if (hasDefaultValue)
+            if (Attributes.HasFlag(PropertyAttributes.HasDefault))
             {
                 builder.SetConstant(defaultValue);
             }

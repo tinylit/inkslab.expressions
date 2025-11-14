@@ -27,7 +27,7 @@ namespace Inkslab
         private readonly List<ConstructorEmitter> constructors = new List<ConstructorEmitter>();
         private readonly Dictionary<string, FieldEmitter> fields = new Dictionary<string, FieldEmitter>(StringComparer.OrdinalIgnoreCase);
         private readonly Dictionary<string, PropertyEmitter> properties = new Dictionary<string, PropertyEmitter>(StringComparer.OrdinalIgnoreCase);
-        
+
         private readonly object lockObj = new object();
 
         /// <summary>
@@ -650,7 +650,7 @@ namespace Inkslab
         /// 当前类型。
         /// </summary>
         [DebuggerHidden]
-        internal Type Value => typeBuilder;
+        internal TypeBuilder Value => typeBuilder;
 
         private void CheckGenericParameters()
         {
@@ -746,7 +746,7 @@ namespace Inkslab
 
             if ((fieldInfo.Attributes & FieldAttributes.HasDefault) == FieldAttributes.HasDefault)
             {
-                fieldEmitter.SetConstant(fieldInfo.GetRawConstantValue());
+                fieldEmitter.DefaultValue = fieldInfo.GetRawConstantValue();
             }
 
             foreach (var attributeData in fieldInfo.CustomAttributes)
@@ -835,7 +835,7 @@ namespace Inkslab
         /// <returns></returns>
         public MethodEmitter DefineMethod(string name, MethodAttributes attrs, Type returnType)
         {
-            var member = new MethodEmitter(this, name, attrs, returnType);
+            var member = new MethodEmitter(this, name, attrs, returnType ?? typeof(void));
 
             methods.Add(member);
 
@@ -1194,9 +1194,20 @@ namespace Inkslab
         }
 
         /// <summary>
+        /// 设置属性标记。
+        /// </summary>
+        [ComVisible(true)]
+        [SecuritySafeCritical]
+        public void SetCustomAttribute(ConstructorInfo con, byte[] binaryAttribute)
+        {
+            typeBuilder.SetCustomAttribute(con, binaryAttribute);
+        }
+
+        /// <summary>
         /// 自定义标记。
         /// </summary>
         /// <param name="attribute">标记。</param>
+        [SecuritySafeCritical]
         public void DefineCustomAttribute(CustomAttributeBuilder attribute)
         {
             typeBuilder.SetCustomAttribute(attribute);
@@ -1206,12 +1217,14 @@ namespace Inkslab
         /// 自定义标记。
         /// </summary>
         /// <typeparam name="TAttribute">标记类型。</typeparam>
+        [SecuritySafeCritical]
         public void DefineCustomAttribute<TAttribute>() where TAttribute : Attribute, new() => DefineCustomAttribute(EmitUtils.CreateCustomAttribute<TAttribute>());
 
         /// <summary>
         /// 自定义标记。
         /// </summary>
         /// <param name="attributeData">标记信息参数。</param>
+        [SecuritySafeCritical]
         public void DefineCustomAttribute(CustomAttributeData attributeData) => DefineCustomAttribute(EmitUtils.CreateCustomAttribute(attributeData));
 
         /// <summary>
@@ -1262,7 +1275,9 @@ namespace Inkslab
 
             foreach (FieldEmitter emitter in fields.Values)
             {
-                emitter.Emit(typeBuilder.DefineField(emitter.Name, emitter.RuntimeType, emitter.Attributes));
+                var fieldDefinition = typeBuilder.DefineField(emitter.Name, emitter.RuntimeType, emitter.Attributes);
+
+                emitter.Emit(fieldDefinition);
             }
 
             if (!typeBuilder.IsInterface && constructors.Count == 0)
@@ -1539,7 +1554,7 @@ namespace Inkslab
         /// <returns>映射后的类型</returns>
         internal Type MapReturnTypeForEmit(Type returnType)
         {
-            if (returnType == null)
+            if (returnType is null)
                 return null;
 
             // 如果TypeBuilder本身不是泛型类型，则不需要映射

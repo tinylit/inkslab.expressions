@@ -214,6 +214,23 @@ namespace Inkslab
         }
 
         /// <summary>
+        /// 定义枚举。
+        /// </summary>
+        /// <param name="name">名称。</param>
+        /// <param name="visibility">显示级别。</param>
+        /// <param name="underlyingType">基础类型。</param>
+        /// <returns></returns>
+        public EnumEmitter DefineEnum(string name, TypeAttributes visibility, Type underlyingType)
+        {
+            if (name is null)
+            {
+                throw new ArgumentNullException(nameof(name));
+            }
+
+            return new EnumEmitter(this, name, visibility, underlyingType);
+        }
+
+        /// <summary>
         /// 在此模块中用指定的名称为公共类型构造 TypeBuilder。
         /// </summary>
         /// <param name="name">类型的完整路径，其中包括命名空间。 name 不能包含嵌入的 null。</param>
@@ -305,6 +322,7 @@ namespace Inkslab
         /// <returns></returns>
         public INamingScope BeginScope() => namingScope.BeginScope();
 
+        internal static EnumBuilder DefineEnum(ModuleEmitter emitter, string name, TypeAttributes visibility, Type underlyingType) => emitter.Complete().DefineEnum(emitter.GetUniqueName(name), visibility, underlyingType);
         internal static TypeBuilder DefineType(ModuleEmitter emitter, string name) => emitter.Complete().DefineType(emitter.GetUniqueName(name));
         internal static TypeBuilder DefineType(ModuleEmitter emitter, string name, TypeAttributes attributes) => emitter.Complete().DefineType(emitter.GetUniqueName(name), attributes);
         internal static TypeBuilder DefineType(ModuleEmitter emitter, string name, TypeAttributes attributes, Type baseType) => emitter.Complete().DefineType(emitter.GetUniqueName(name), attributes, baseType);

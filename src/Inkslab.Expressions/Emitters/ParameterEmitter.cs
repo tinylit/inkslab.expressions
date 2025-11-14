@@ -68,6 +68,12 @@ namespace Inkslab.Emitters
         }
 
         /// <summary>
+        /// 自定义标记。
+        /// </summary>
+        /// <typeparam name="TAttribute">标记类型。</typeparam>
+        public void SetCustomAttribute<TAttribute>() where TAttribute : Attribute, new() => SetCustomAttribute(EmitUtils.CreateCustomAttribute<TAttribute>());
+
+        /// <summary>
         /// 设置属性标记。
         /// </summary>
         /// <param name="attributeData">属性。</param>
@@ -144,7 +150,7 @@ namespace Inkslab.Emitters
                 }
             }
 
-            label_core:
+label_core:
 
             foreach (var item in customAttributes)
             {
