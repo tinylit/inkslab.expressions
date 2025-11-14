@@ -195,7 +195,7 @@ namespace Inkslab.Expressions.Tests
             {
                 var code = level == 0
                     ? member.Code
-                    : member.Code[prefix.Length..];
+                    : member.Code.Substring(prefix.Length);
 
                 if (!hashSet.Add(code))
                 {
@@ -245,11 +245,6 @@ namespace Inkslab.Expressions.Tests
                 setterEmitter.Append(Expression.Assign(fieldBuilder, parameterEmitter));
 
                 var propertyBuilder = typeEmitter.DefineProperty(code, PropertyAttributes.None, memberType);
-
-                if(member.Required)
-                {
-                    propertyBuilder.SetCustomAttribute(new CustomAttributeBuilder(typeof(System.ComponentModel.DataAnnotations.RequiredAttribute).GetConstructor(Type.EmptyTypes), Array.Empty<object>()));
-                }
 
                 propertyBuilder.SetGetMethod(getterEmitter);
                 propertyBuilder.SetSetMethod(setterEmitter);
