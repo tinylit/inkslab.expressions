@@ -35,11 +35,6 @@ namespace Inkslab.Expressions
         /// <param name="arguments">调用参数。</param>
         internal InvocationExpression(Expression instanceAst, MethodInfo methodInfo, Expression arguments) : base(methodInfo.ReturnType)
         {
-            if (instanceAst is null)
-            {
-                throw new ArgumentNullException(nameof(instanceAst));
-            }
-
             if (arguments is null)
             {
                 throw new ArgumentNullException(nameof(arguments));
@@ -109,11 +104,6 @@ namespace Inkslab.Expressions
         /// <param name="arguments">调用参数。</param>
         internal InvocationExpression(Expression instanceAst, Expression methodAst, Expression arguments) : base(typeof(object))
         {
-            if (instanceAst is null)
-            {
-                throw new ArgumentNullException(nameof(instanceAst));
-            }
-
             if (methodAst is null)
             {
                 throw new ArgumentNullException(nameof(methodAst));

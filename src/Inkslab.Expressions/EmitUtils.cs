@@ -1621,16 +1621,15 @@ namespace Inkslab
                         }
 
                         // 回退到常量缓存机制
-                        if (!ConstantCache.TryGetValue(value, out int key))
-                        {
-                            lock (ConstantCache)
-                            {
-                                if (!ConstantCache.TryGetValue(value, out key))
-                                {
-                                    ConstantCache.Add(value, key = Constants.Count);
+                        int key;
 
-                                    Constants.Add(value);
-                                }
+                        lock (ConstantCache)
+                        {
+                            if (!ConstantCache.TryGetValue(value, out key))
+                            {
+                                ConstantCache.Add(value, key = Constants.Count);
+
+                                Constants.Add(value);
                             }
                         }
 

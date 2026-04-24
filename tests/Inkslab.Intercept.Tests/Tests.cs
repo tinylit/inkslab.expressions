@@ -1097,6 +1097,9 @@ namespace Inkslab.Intercept.Tests
         /// <summary>
         /// ref/out/in 参数拦截测试。
         /// </summary>
+        /// <summary>
+        /// ref/out/in 参数拦截测试。
+        /// </summary>
         [Fact]
         public void RefOutInParameterInterceptTest()
         {
@@ -1397,5 +1400,557 @@ namespace Inkslab.Intercept.Tests
         /// <param name="other">其他对象。</param>
         /// <returns>比较结果。</returns>
         public int CompareTo(ComparableTestClass other) => 0;
+    }
+
+    /// <summary>
+    /// 记录执行顺序的拦截器A。
+    /// </summary>
+    public class OrderedInterceptA : InterceptAttribute
+    {
+        /// <inheritdoc/>
+        public override void Run(InterceptContext context, Intercept intercept)
+        {
+            ChainOrderTracker.ExecutionOrder.Add("A-before");
+            intercept.Run(context);
+            ChainOrderTracker.ExecutionOrder.Add("A-after");
+        }
+    }
+
+    /// <summary>
+    /// 记录执行顺序的拦截器B。
+    /// </summary>
+    public class OrderedInterceptB : InterceptAttribute
+    {
+        /// <inheritdoc/>
+        public override void Run(InterceptContext context, Intercept intercept)
+        {
+            ChainOrderTracker.ExecutionOrder.Add("B-before");
+            intercept.Run(context);
+            ChainOrderTracker.ExecutionOrder.Add("B-after");
+        }
+    }
+
+    /// <summary>
+    /// 记录执行顺序的拦截器C。
+    /// </summary>
+    public class OrderedInterceptC : InterceptAttribute
+    {
+        /// <inheritdoc/>
+        public override void Run(InterceptContext context, Intercept intercept)
+        {
+            ChainOrderTracker.ExecutionOrder.Add("C-before");
+            intercept.Run(context);
+            ChainOrderTracker.ExecutionOrder.Add("C-after");
+        }
+    }
+
+    /// <summary>
+    /// 记录执行顺序的返回值拦截器A。
+    /// </summary>
+    public class OrderedReturnInterceptA : ReturnValueInterceptAttribute
+    {
+        /// <inheritdoc/>
+        public override T Run<T>(InterceptContext context, Intercept<T> intercept)
+        {
+            ChainOrderTracker.ExecutionOrder.Add("RA-before");
+            var result = intercept.Run(context);
+            ChainOrderTracker.ExecutionOrder.Add("RA-after");
+            return result;
+        }
+    }
+
+    /// <summary>
+    /// 记录执行顺序的返回值拦截器B。
+    /// </summary>
+    public class OrderedReturnInterceptB : ReturnValueInterceptAttribute
+    {
+        /// <inheritdoc/>
+        public override T Run<T>(InterceptContext context, Intercept<T> intercept)
+        {
+            ChainOrderTracker.ExecutionOrder.Add("RB-before");
+            var result = intercept.Run(context);
+            ChainOrderTracker.ExecutionOrder.Add("RB-after");
+            return result;
+        }
+    }
+
+    /// <summary>
+    /// 捕获上下文信息的拦截器。
+    /// </summary>
+    public class ContextCaptureIntercept : InterceptAttribute
+    {
+        /// <inheritdoc/>
+        public override void Run(InterceptContext context, Intercept intercept)
+        {
+            ContextCaptureTracker.CapturedServices = context.Services;
+            ContextCaptureTracker.CapturedMethodName = context.Main?.Name;
+            ContextCaptureTracker.CapturedInputs = context.Inputs;
+            intercept.Run(context);
+        }
+    }
+
+    /// <summary>
+    /// 捕获上下文信息的返回值拦截器。
+    /// </summary>
+    public class ContextCaptureReturnIntercept : ReturnValueInterceptAttribute
+    {
+        /// <inheritdoc/>
+        public override T Run<T>(InterceptContext context, Intercept<T> intercept)
+        {
+            ContextCaptureTracker.CapturedServices = context.Services;
+            ContextCaptureTracker.CapturedMethodName = context.Main?.Name;
+            ContextCaptureTracker.CapturedInputs = context.Inputs;
+            return intercept.Run(context);
+        }
+    }
+
+    /// <summary>
+    /// 短路拦截器：不调用 intercept.Run。
+    /// </summary>
+    public class ShortCircuitIntercept : InterceptAttribute
+    {
+        /// <inheritdoc/>
+        public override void Run(InterceptContext context, Intercept intercept)
+        {
+            ChainOrderTracker.ExecutionOrder.Add("short-circuit");
+            // 不调用 intercept.Run，短路
+        }
+    }
+
+    /// <summary>
+    /// 执行顺序追踪器。
+    /// </summary>
+    public static class ChainOrderTracker
+    {
+        [ThreadStatic]
+        private static List<string> _executionOrder;
+
+        /// <summary>
+        /// 执行顺序。
+        /// </summary>
+        public static List<string> ExecutionOrder
+        {
+            get => _executionOrder ??= new List<string>();
+            set => _executionOrder = value;
+        }
+
+        /// <summary>
+        /// 重置。
+        /// </summary>
+        public static void Reset() => _executionOrder = new List<string>();
+    }
+
+    /// <summary>
+    /// 上下文捕获追踪器。
+    /// </summary>
+    public static class ContextCaptureTracker
+    {
+        [ThreadStatic]
+        private static IServiceProvider _capturedServices;
+
+        [ThreadStatic]
+        private static string _capturedMethodName;
+
+        [ThreadStatic]
+        private static object[] _capturedInputs;
+
+        /// <summary>
+        /// 捕获到的服务提供器。
+        /// </summary>
+        public static IServiceProvider CapturedServices { get => _capturedServices; set => _capturedServices = value; }
+
+        /// <summary>
+        /// 捕获到的方法名称。
+        /// </summary>
+        public static string CapturedMethodName { get => _capturedMethodName; set => _capturedMethodName = value; }
+
+        /// <summary>
+        /// 捕获到的输入参数。
+        /// </summary>
+        public static object[] CapturedInputs { get => _capturedInputs; set => _capturedInputs = value; }
+
+        /// <summary>
+        /// 重置。
+        /// </summary>
+        public static void Reset()
+        {
+            _capturedServices = null;
+            _capturedMethodName = null;
+            _capturedInputs = null;
+        }
+    }
+
+    /// <summary>
+    /// 多拦截器链式执行测试服务。
+    /// </summary>
+    public class ChainedInterceptServiceType
+    {
+        /// <summary>
+        /// 标记三个拦截器的 void 方法。
+        /// </summary>
+        [OrderedInterceptA]
+        [OrderedInterceptB]
+        [OrderedInterceptC]
+        public virtual void TripleInterceptMethod()
+        {
+            ChainOrderTracker.ExecutionOrder.Add("method");
+        }
+
+        /// <summary>
+        /// 标记两个返回值拦截器的方法。
+        /// </summary>
+        [OrderedReturnInterceptA]
+        [OrderedReturnInterceptB]
+        public virtual int DoubleReturnInterceptMethod() => 42;
+
+        /// <summary>
+        /// 短路拦截 + 正常拦截。
+        /// </summary>
+        [ShortCircuitIntercept]
+        [OrderedInterceptA]
+        public virtual void ShortCircuitMethod()
+        {
+            ChainOrderTracker.ExecutionOrder.Add("method-should-not-run");
+        }
+    }
+
+    /// <summary>
+    /// 上下文验证测试服务。
+    /// </summary>
+    public class ContextVerifyServiceType
+    {
+        /// <summary>
+        /// 捕获上下文的 void 方法。
+        /// </summary>
+        [ContextCaptureIntercept]
+        public virtual void CaptureVoid(int a, string b) { }
+
+        /// <summary>
+        /// 捕获上下文的返回值方法。
+        /// </summary>
+        [ContextCaptureReturnIntercept]
+        public virtual string CaptureReturn(int x) => x.ToString();
+    }
+
+    /// <summary>
+    /// ValueTask 异步无返回值测试接口。
+    /// </summary>
+    public interface IValueTaskService
+    {
+        /// <summary>
+        /// 异步 ValueTask 方法。
+        /// </summary>
+        [ServiceTypeInterceptAsync]
+        ValueTask DoWorkAsync();
+
+        /// <summary>
+        /// 异步 ValueTask 有返回值方法。
+        /// </summary>
+        [ServiceTypeInterceptAsync]
+        ValueTask<int> ComputeAsync(int a, int b);
+    }
+
+    /// <summary>
+    /// ValueTask 异步无返回值测试实现。
+    /// </summary>
+    public class ValueTaskServiceType : IValueTaskService
+    {
+        /// <inheritdoc/>
+        public virtual ValueTask DoWorkAsync() => default;
+
+        /// <inheritdoc/>
+        public virtual ValueTask<int> ComputeAsync(int a, int b) => new ValueTask<int>(a + b);
+    }
+
+    /// <summary>
+    /// Scoped 生命周期测试服务。
+    /// </summary>
+    public class ScopedTestServiceType
+    {
+        private readonly Guid _id = Guid.NewGuid();
+
+        /// <summary>
+        /// 获取实例 ID。
+        /// </summary>
+        [ReturnValueServiceIntercept]
+        public virtual Guid GetId() => _id;
+    }
+
+    /// <summary>
+    /// 补充测试类。
+    /// </summary>
+    public class SupplementalTests
+    {
+        /// <summary>
+        /// 多拦截器链式执行顺序验证：3个 void 拦截器按 A→B→C→method→C→B→A 顺序执行。
+        /// </summary>
+        [Fact]
+        public void MultipleInterceptors_VoidMethod_ExecuteInOrder()
+        {
+            ChainOrderTracker.Reset();
+
+            var services = new ServiceCollection();
+            services.AddTransient<ChainedInterceptServiceType>()
+                .UseIntercept();
+
+            var provider = services.BuildServiceProvider();
+            var instance = provider.GetRequiredService<ChainedInterceptServiceType>();
+
+            instance.TripleInterceptMethod();
+
+            Assert.Equal(new[] { "A-before", "B-before", "C-before", "method", "C-after", "B-after", "A-after" },
+                ChainOrderTracker.ExecutionOrder);
+        }
+
+        /// <summary>
+        /// 多返回值拦截器链式执行。
+        /// </summary>
+        [Fact]
+        public void MultipleInterceptors_ReturnValueMethod_ExecuteInOrder()
+        {
+            ChainOrderTracker.Reset();
+
+            var services = new ServiceCollection();
+            services.AddTransient<ChainedInterceptServiceType>()
+                .UseIntercept();
+
+            var provider = services.BuildServiceProvider();
+            var instance = provider.GetRequiredService<ChainedInterceptServiceType>();
+
+            var result = instance.DoubleReturnInterceptMethod();
+
+            Assert.Equal(42, result);
+            Assert.Equal(new[] { "RA-before", "RB-before", "RB-after", "RA-after" },
+                ChainOrderTracker.ExecutionOrder);
+        }
+
+        /// <summary>
+        /// 拦截器短路：第一个拦截器不调用 intercept.Run，后续拦截器和方法不执行。
+        /// </summary>
+        [Fact]
+        public void ShortCircuitInterceptor_PreventsMethodExecution()
+        {
+            ChainOrderTracker.Reset();
+
+            var services = new ServiceCollection();
+            services.AddTransient<ChainedInterceptServiceType>()
+                .UseIntercept();
+
+            var provider = services.BuildServiceProvider();
+            var instance = provider.GetRequiredService<ChainedInterceptServiceType>();
+
+            instance.ShortCircuitMethod();
+
+            Assert.Equal(new[] { "short-circuit" }, ChainOrderTracker.ExecutionOrder);
+        }
+
+        /// <summary>
+        /// InterceptContext 验证：void 方法的 Services / Main / Inputs 正确传递。
+        /// </summary>
+        [Fact]
+        public void InterceptContext_VoidMethod_PropertiesCorrect()
+        {
+            ContextCaptureTracker.Reset();
+
+            var services = new ServiceCollection();
+            services.AddTransient<ContextVerifyServiceType>()
+                .UseIntercept();
+
+            var provider = services.BuildServiceProvider();
+            var instance = provider.GetRequiredService<ContextVerifyServiceType>();
+
+            instance.CaptureVoid(123, "hello");
+
+            Assert.NotNull(ContextCaptureTracker.CapturedServices);
+            Assert.Equal("CaptureVoid", ContextCaptureTracker.CapturedMethodName);
+            Assert.NotNull(ContextCaptureTracker.CapturedInputs);
+            Assert.Equal(2, ContextCaptureTracker.CapturedInputs.Length);
+            Assert.Equal(123, ContextCaptureTracker.CapturedInputs[0]);
+            Assert.Equal("hello", ContextCaptureTracker.CapturedInputs[1]);
+        }
+
+        /// <summary>
+        /// InterceptContext 验证：返回值方法的 Services / Main / Inputs 正确传递。
+        /// </summary>
+        [Fact]
+        public void InterceptContext_ReturnValueMethod_PropertiesCorrect()
+        {
+            ContextCaptureTracker.Reset();
+
+            var services = new ServiceCollection();
+            services.AddTransient<ContextVerifyServiceType>()
+                .UseIntercept();
+
+            var provider = services.BuildServiceProvider();
+            var instance = provider.GetRequiredService<ContextVerifyServiceType>();
+
+            var result = instance.CaptureReturn(42);
+
+            Assert.Equal("42", result);
+            Assert.Equal("CaptureReturn", ContextCaptureTracker.CapturedMethodName);
+            Assert.Single(ContextCaptureTracker.CapturedInputs);
+            Assert.Equal(42, ContextCaptureTracker.CapturedInputs[0]);
+        }
+
+        /// <summary>
+        /// Intercept 构造函数 null 参数。
+        /// </summary>
+        [Fact]
+        public void Intercept_NullInvocation_ThrowsArgumentNullException()
+        {
+            Assert.Throws<ArgumentNullException>(() => new Intercept(null));
+        }
+
+        /// <summary>
+        /// Intercept&lt;T&gt; 构造函数 null 参数。
+        /// </summary>
+        [Fact]
+        public void InterceptGeneric_NullInvocation_ThrowsArgumentNullException()
+        {
+            Assert.Throws<ArgumentNullException>(() => new Intercept<int>(null));
+        }
+
+        /// <summary>
+        /// ImplementInvocation 构造函数 null target。
+        /// </summary>
+        [Fact]
+        public void ImplementInvocation_NullTarget_ThrowsArgumentNullException()
+        {
+            var method = typeof(object).GetMethod(nameof(object.ToString));
+            Assert.Throws<ArgumentNullException>(() => new ImplementInvocation(null, method));
+        }
+
+        /// <summary>
+        /// ImplementInvocation 构造函数 null methodInfo。
+        /// </summary>
+        [Fact]
+        public void ImplementInvocation_NullMethodInfo_ThrowsArgumentNullException()
+        {
+            Assert.Throws<ArgumentNullException>(() => new ImplementInvocation(new object(), null));
+        }
+
+        /// <summary>
+        /// InterceptContext 构造函数 null 参数。
+        /// </summary>
+        [Fact]
+        public void InterceptContext_NullServices_ThrowsArgumentNullException()
+        {
+            var method = typeof(object).GetMethod(nameof(object.ToString));
+            Assert.Throws<ArgumentNullException>(() => new InterceptContext(null, method, Array.Empty<object>()));
+        }
+
+        /// <summary>
+        /// InterceptContext 构造函数 null 方法。
+        /// </summary>
+        [Fact]
+        public void InterceptContext_NullMain_ThrowsArgumentNullException()
+        {
+            var services = new ServiceCollection().BuildServiceProvider();
+            Assert.Throws<ArgumentNullException>(() => new InterceptContext(services, null, Array.Empty<object>()));
+        }
+
+        /// <summary>
+        /// InterceptContext 构造函数 null 输入参数。
+        /// </summary>
+        [Fact]
+        public void InterceptContext_NullInputs_ThrowsArgumentNullException()
+        {
+            var services = new ServiceCollection().BuildServiceProvider();
+            var method = typeof(object).GetMethod(nameof(object.ToString));
+            Assert.Throws<ArgumentNullException>(() => new InterceptContext(services, method, null));
+        }
+
+        /// <summary>
+        /// ImplementInvocation 正常调用。
+        /// </summary>
+        [Fact]
+        public void ImplementInvocation_Invoke_CallsMethod()
+        {
+            var target = "hello";
+            var method = typeof(string).GetMethod(nameof(string.ToUpper), Type.EmptyTypes);
+
+            var invocation = new ImplementInvocation(target, method);
+            var result = invocation.Invoke(Array.Empty<object>());
+
+            Assert.Equal("HELLO", result);
+        }
+
+        /// <summary>
+        /// ValueTask 接口代理 - void 返回。
+        /// </summary>
+        [Fact]
+        public async Task ValueTaskInterface_VoidProxy()
+        {
+            var services = new ServiceCollection();
+            services.AddTransient<IValueTaskService, ValueTaskServiceType>()
+                .UseIntercept();
+
+            var provider = services.BuildServiceProvider();
+            var instance = provider.GetRequiredService<IValueTaskService>();
+
+            await instance.DoWorkAsync();
+        }
+
+        /// <summary>
+        /// Scoped 生命周期：同一 scope 内获取同一实例。
+        /// </summary>
+        [Fact]
+        public void ScopedLifetime_SameScope_SameInstance()
+        {
+            var services = new ServiceCollection();
+            services.AddScoped<ScopedTestServiceType>()
+                .UseIntercept();
+
+            var provider = services.BuildServiceProvider();
+
+            using var scope = provider.CreateScope();
+            var instance1 = scope.ServiceProvider.GetRequiredService<ScopedTestServiceType>();
+            var instance2 = scope.ServiceProvider.GetRequiredService<ScopedTestServiceType>();
+
+            Assert.Equal(instance1.GetId(), instance2.GetId());
+        }
+
+        /// <summary>
+        /// Scoped 生命周期：不同 scope 获取不同实例。
+        /// </summary>
+        [Fact]
+        public void ScopedLifetime_DifferentScope_DifferentInstance()
+        {
+            var services = new ServiceCollection();
+            services.AddScoped<ScopedTestServiceType>()
+                .UseIntercept();
+
+            var provider = services.BuildServiceProvider();
+
+            Guid id1, id2;
+            using (var scope1 = provider.CreateScope())
+            {
+                id1 = scope1.ServiceProvider.GetRequiredService<ScopedTestServiceType>().GetId();
+            }
+            using (var scope2 = provider.CreateScope())
+            {
+                id2 = scope2.ServiceProvider.GetRequiredService<ScopedTestServiceType>().GetId();
+            }
+
+            Assert.NotEqual(id1, id2);
+        }
+
+        /// <summary>
+        /// 多次调用 UseIntercept 不会报错（幂等性）。
+        /// </summary>
+        [Fact]
+        public void UseIntercept_CalledMultipleTimes_NoError()
+        {
+            var services = new ServiceCollection();
+            services.AddTransient<ServiceType>();
+
+            services.UseIntercept();
+            services.UseIntercept(); // 第二次调用
+
+            var provider = services.BuildServiceProvider();
+            var instance = provider.GetRequiredService<ServiceType>();
+
+            instance.Records();
+        }
     }
 }

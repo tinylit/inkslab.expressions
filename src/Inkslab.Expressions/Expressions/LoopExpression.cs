@@ -28,12 +28,14 @@ namespace Inkslab.Expressions
             var breakLabel = new Label(LabelKind.Break);
             var continueLabel = new Label(LabelKind.Continue);
 
-            MarkLabel(breakLabel);
-            MarkLabel(continueLabel);
+            base.MarkLabel(breakLabel);
+            base.MarkLabel(continueLabel);
 
             continueLabel.MarkLabel(ilg);
 
             base.Load(ilg);
+
+            continueLabel.Goto(ilg);
 
             breakLabel.MarkLabel(ilg);
 

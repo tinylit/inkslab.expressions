@@ -20,7 +20,7 @@ namespace Inkslab.Expressions
                 throw new AstException("没有要继续的封闭式循环！");
             }
 
-            throw new NotImplementedException();
+            label.Goto(ilg);
         }
 
         /// <inheritdoc/>

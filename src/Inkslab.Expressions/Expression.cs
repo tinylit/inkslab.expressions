@@ -1,8 +1,7 @@
-﻿using Inkslab.Emitters;
+using Inkslab.Emitters;
 using Inkslab.Expressions;
 using System;
 using System.Collections.Generic;
-using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.Linq;
 using System.Reflection;

@@ -68,7 +68,7 @@ namespace Inkslab.Expressions
             {
 
             }
-            else if (EmitUtils.IsAssignableFromSignatureTypes(returnType, ifTrue.RuntimeType))
+            else if (EmitUtils.IsAssignableFromSignatureTypes(returnType, ifFalse.RuntimeType))
             {
                 this.ifFalse = new ConvertExpression(ifFalse, returnType);
             }
@@ -172,20 +172,18 @@ namespace Inkslab.Expressions
 
             ifTrue.Load(ilg);
 
-            if (ifFalse.RuntimeType != typeof(void))
+            if (ifTrue.RuntimeType != typeof(void))
             {
                 ilg.Emit(OpCodes.Pop);
             }
 
-            ilg.MarkLabel(label);
-
-            ilg.Emit(OpCodes.Leave_S, leave);
+            ilg.Emit(OpCodes.Br, leave);
 
             ilg.MarkLabel(label);
 
             ifFalse.Load(ilg);
 
-            if (ifTrue.RuntimeType != typeof(void))
+            if (ifFalse.RuntimeType != typeof(void))
             {
                 ilg.Emit(OpCodes.Pop);
             }
