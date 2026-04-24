@@ -1,8 +1,7 @@
-﻿using Inkslab.Emitters;
+using Inkslab.Emitters;
 using Inkslab.Expressions;
 using System;
 using System.Collections.Generic;
-using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.Linq;
 using System.Reflection;
@@ -15,12 +14,6 @@ namespace Inkslab
     /// </summary>
     public abstract class Expression
     {
-        private sealed class DynamicType
-        {
-        }
-
-        private static readonly Type _dynamicType = typeof(DynamicType);
-
         /// <summary>
         /// 构造函数（无返回值）。
         /// </summary>
@@ -39,7 +32,25 @@ namespace Inkslab
             RuntimeType = returnType ?? throw new ArgumentNullException(nameof(returnType));
 
             IsVoid = returnType == typeof(void);
-            IsContext = returnType == _dynamicType;
+        }
+
+        private Expression(AbstractTypeEmitter typeEmitter)
+        {
+            if (typeEmitter is null)
+            {
+                throw new ArgumentNullException(nameof(typeEmitter));
+            }
+
+            var instanceType = typeEmitter.Value;
+
+            if (instanceType.IsAbstract)
+            {
+                throw new AstException($"抽象类型({instanceType.Name})不支持“this”关键字！");
+            }
+
+            IsContext = true;
+
+            RuntimeType = instanceType;
         }
 
         /// <summary>
@@ -64,7 +75,7 @@ namespace Inkslab
         public bool IsVoid { get; }
 
         /// <summary>
-        /// 是上下文对象（this/base）。
+        /// 是上下文对象（this）。
         /// </summary>
         public bool IsContext { get; }
 
@@ -244,6 +255,24 @@ namespace Inkslab
             /// <param name="ilg">指令。</param>
             public override void Load(ILGenerator ilg) => left.Assign(ilg, Convert(right, RuntimeType));
         }
+
+        /// <summary>
+        /// 当前上下文。
+        /// </summary>
+        [DebuggerDisplay("this")]
+        private class ThisExpression : Expression
+        {
+            public ThisExpression(AbstractTypeEmitter typeEmitter) : base(typeEmitter)
+            {
+            }
+
+            /// <inheritdoc/>
+            public override void Load(ILGenerator ilg)
+            {
+                ilg.Emit(OpCodes.Ldarg_0);
+            }
+        }
+
         #endregion
 
         /// <summary>

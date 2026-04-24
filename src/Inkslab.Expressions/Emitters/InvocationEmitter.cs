@@ -34,11 +34,6 @@ namespace Inkslab.Emitters
         /// <param name="arguments">调用参数。</param>
         internal InvocationEmitter(Expression instanceAst, MethodEmitter methodEmitter, Expression arguments) : base(typeof(object))
         {
-            if (instanceAst is null)
-            {
-                throw new ArgumentNullException(nameof(instanceAst));
-            }
-
             if (methodEmitter is null)
             {
                 throw new ArgumentNullException(nameof(methodEmitter));

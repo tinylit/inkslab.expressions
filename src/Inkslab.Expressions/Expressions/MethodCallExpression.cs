@@ -126,7 +126,7 @@ namespace Inkslab.Expressions
             {
                 virtualCall = false;
             }
-            else if (instanceAst is ThisExpression)
+            else if (instanceAst.IsContext)
             {
                 virtualCall = false;
             }
