@@ -1953,4 +1953,134 @@ namespace Inkslab.Intercept.Tests
             instance.Records();
         }
     }
+
+    /// <summary>
+    /// 验证 UseIntercept 重复调用的代理类型缓存行为：
+    /// 相同的服务类型在多次 UseIntercept 调用中应复用同一个代理类型，不重复生成。
+    /// </summary>
+    public class UseInterceptCachingTests
+    {
+        /// <summary>
+        /// 两次独立的 ServiceCollection 调用 UseIntercept 注册相同类型，
+        /// 解析出的实例应属于同一个代理类型（缓存命中，未重复生成）。
+        /// </summary>
+        [Fact]
+        public void UseIntercept_SameServiceType_ReusesProxyType()
+        {
+            var services1 = new ServiceCollection();
+            services1.AddTransient<IServiceType, ServiceType>().UseIntercept();
+            var provider1 = services1.BuildServiceProvider();
+            var instance1 = provider1.GetRequiredService<IServiceType>();
+
+            var services2 = new ServiceCollection();
+            services2.AddTransient<IServiceType, ServiceType>().UseIntercept();
+            var provider2 = services2.BuildServiceProvider();
+            var instance2 = provider2.GetRequiredService<IServiceType>();
+
+            // 两次解析出的对象应属于完全相同的代理类型（同一 Type 对象），
+            // 说明第二次调用命中了缓存，没有重复生成代理类型。
+            Assert.Same(instance1.GetType(), instance2.GetType());
+        }
+
+        /// <summary>
+        /// 在同一个 ServiceCollection 上连续调用两次 UseIntercept，
+        /// 第二次对已存在描述符的处理应命中缓存，返回相同代理类型。
+        /// </summary>
+        [Fact]
+        public void UseIntercept_CalledTwiceOnSameCollection_ProxyTypeUnchanged()
+        {
+            var services = new ServiceCollection();
+            services.AddTransient<IServiceType, ServiceType>();
+
+            // 第一次 UseIntercept 后记录代理类型
+            services.UseIntercept();
+            var provider1 = services.BuildServiceProvider();
+            var typeAfterFirst = provider1.GetRequiredService<IServiceType>().GetType();
+
+            // 第二次 UseIntercept（此时集合中已是代理描述符）
+            services.UseIntercept();
+            var provider2 = services.BuildServiceProvider();
+            var typeAfterSecond = provider2.GetRequiredService<IServiceType>().GetType();
+
+            // 代理类型应保持一致
+            Assert.Same(typeAfterFirst, typeAfterSecond);
+        }
+
+        /// <summary>
+        /// 工厂注册方式（无 ImplementationType）在重复调用时复用代理类型。
+        /// </summary>
+        [Fact]
+        public void UseIntercept_FactoryRegistration_ReusesProxyType()
+        {
+            var services1 = new ServiceCollection();
+            services1.AddTransient<IServiceType>(_ => new ServiceType()).UseIntercept();
+            var instance1 = services1.BuildServiceProvider().GetRequiredService<IServiceType>();
+
+            var services2 = new ServiceCollection();
+            services2.AddTransient<IServiceType>(_ => new ServiceType()).UseIntercept();
+            var instance2 = services2.BuildServiceProvider().GetRequiredService<IServiceType>();
+
+            Assert.Same(instance1.GetType(), instance2.GetType());
+        }
+
+        /// <summary>
+        /// 并发多线程同时首次调用 UseIntercept，不应出现异常，
+        /// 且所有线程解析出的实例属于相同的代理类型。
+        /// </summary>
+        [Fact]
+        public void UseIntercept_ConcurrentFirstCall_NoDuplicateProxyTypes()
+        {
+            const int threadCount = 8;
+            var results = new System.Type[threadCount];
+            var barrier = new System.Threading.Barrier(threadCount);
+            var threads = new System.Threading.Thread[threadCount];
+
+            for (int i = 0; i < threadCount; i++)
+            {
+                int idx = i;
+                threads[idx] = new System.Threading.Thread(() =>
+                {
+                    var svc = new ServiceCollection();
+                    svc.AddTransient<ServiceGenericMethodType>();
+
+                    barrier.SignalAndWait(); // 所有线程同时发起
+
+                    svc.UseIntercept();
+                    results[idx] = svc.BuildServiceProvider()
+                        .GetRequiredService<ServiceGenericMethodType>()
+                        .GetType();
+                });
+            }
+
+            foreach (var t in threads) t.Start();
+            foreach (var t in threads) t.Join();
+
+            // 所有线程得到的代理类型必须一致
+            for (int i = 1; i < threadCount; i++)
+            {
+                Assert.Same(results[0], results[i]);
+            }
+        }
+
+        /// <summary>
+        /// 不需要代理的类型（无拦截特性）在重复调用时不应产生代理包装，
+        /// 且两次结果都是原始类型（缓存 Primitive=true 路径）。
+        /// </summary>
+        [Fact]
+        public void UseIntercept_NonInterceptedType_ReturnsPrimitiveDescriptor()
+        {
+            // SealedServiceType 是密封类，直接返回原始描述符
+            var services1 = new ServiceCollection();
+            services1.AddTransient<SealedServiceType>().UseIntercept();
+            var type1 = services1.BuildServiceProvider().GetRequiredService<SealedServiceType>().GetType();
+
+            var services2 = new ServiceCollection();
+            services2.AddTransient<SealedServiceType>().UseIntercept();
+            var type2 = services2.BuildServiceProvider().GetRequiredService<SealedServiceType>().GetType();
+
+            // 密封类不会被代理，两次均返回原始类型
+            Assert.Equal(typeof(SealedServiceType), type1);
+            Assert.Equal(typeof(SealedServiceType), type2);
+        }
+    }
 }

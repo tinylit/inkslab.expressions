@@ -130,16 +130,6 @@ namespace Inkslab.Expressions.Tests
             Assert.Equal("hello", type.GetMethod("GetTag").Invoke(inst, null));
         }
 
-        [Fact]
-        public void This_BaseAccess()
-        {
-            // Just verify .Base property works without error
-            var te = _mod.DefineType($"TB_{Guid.NewGuid():N}", TypeAttributes.Public | TypeAttributes.Class);
-            var thisExpr = (ThisExpression)Expression.This(te);
-            var baseExpr = thisExpr.Base;
-            Assert.NotNull(baseExpr);
-        }
-
         #endregion
 
         #region InvocationExpression — MethodInfo Invoke

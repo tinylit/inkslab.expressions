@@ -2,6 +2,7 @@
 using Inkslab.Intercept.Proxys;
 using Microsoft.Extensions.DependencyInjection;
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
@@ -16,7 +17,49 @@ namespace Inkslab.Intercept
     public class ProxySolution
     {
         private readonly ModuleEmitter _moduleEmitter;
-        private readonly Dictionary<Tuple<Type, Type>, ProxyItem> proxyCachings = new Dictionary<Tuple<Type, Type>, ProxyItem>();
+
+        /// <summary>
+        /// 代理类型缓存：键为 (serviceType, implType)，值为 <see cref="ProxyItem"/>。
+        /// 使用 <see cref="ConcurrentDictionary{TKey,TValue}"/> 支持多线程读，
+        /// 配合 <see cref="_proxyCreationLock"/> 双重检查锁保证代理类型只生成一次。
+        /// </summary>
+        private readonly ConcurrentDictionary<Tuple<Type, Type>, ProxyItem> proxyCachings = new ConcurrentDictionary<Tuple<Type, Type>, ProxyItem>();
+
+        /// <summary>用于保护代理类型生成阶段的互斥锁。</summary>
+        private readonly object _proxyCreationLock = new object();
+
+        /// <summary>
+        /// 已代理工厂的包装器。将此类实例作为委托的 Target，可在重复调用时通过
+        /// <c>descriptor.ImplementationFactory?.Target is WrappedProxyFactory</c> 识别出
+        /// 该工厂已由本方案处理过，从而避免对工厂委托进行二次包装。
+        /// </summary>
+        private sealed class WrappedProxyFactory
+        {
+            private readonly Type _proxyType;
+            private readonly Func<IServiceProvider, object> _innerFactory;
+            private readonly object _innerInstance;
+
+            public WrappedProxyFactory(Type proxyType, Func<IServiceProvider, object> innerFactory)
+            {
+                _proxyType = proxyType;
+                _innerFactory = innerFactory;
+            }
+
+            public WrappedProxyFactory(Type proxyType, object innerInstance)
+            {
+                _proxyType = proxyType;
+                _innerInstance = innerInstance;
+            }
+
+            public object Invoke(IServiceProvider serviceProvider)
+            {
+                var instance = _innerFactory != null
+                    ? _innerFactory.Invoke(serviceProvider)
+                    : _innerInstance;
+
+                return Activator.CreateInstance(_proxyType, serviceProvider, instance);
+            }
+        }
 
         private class ProxyItem
         {
@@ -128,30 +171,43 @@ namespace Inkslab.Intercept
                 return descriptor;
             }
 
-            var tuple = Tuple.Create(descriptor.ServiceType, descriptor.ImplementationType ?? descriptor.ServiceType);
-
-            if (proxyCachings.TryGetValue(tuple, out ProxyItem proxyItem))
+            // 若实现类型上已标记 ProxyGeneratedAttribute，说明该类型是本方案生成的代理类型，
+            // 直接返回，避免重复包装导致 DI 循环依赖。
+            if (descriptor.ImplementationType != null && descriptor.ImplementationType.IsDefined(typeof(ProxyGeneratedAttribute), false))
             {
-                if (proxyItem.Primitive)
-                {
-                    return descriptor;
-                }
-
-                goto label_ready;
+                return descriptor;
             }
 
-            var implementationType = descriptor.ImplementationType is null
-                ? ProxyArgument(descriptor.ServiceType)
-                : ProxyImplementation(descriptor.ServiceType, descriptor.ImplementationType);
+            // 若工厂委托的 Target 是 WrappedProxyFactory，说明该工厂已由本方案包装过，直接返回。
+            if (descriptor.ImplementationFactory?.Target is WrappedProxyFactory)
+            {
+                return descriptor;
+            }
 
-            proxyCachings.Add(tuple, proxyItem = new ProxyItem(implementationType, implementationType == tuple.Item2));
+            var tuple = Tuple.Create(descriptor.ServiceType, descriptor.ImplementationType);
+
+            if (!proxyCachings.TryGetValue(tuple, out ProxyItem proxyItem))
+            {
+                // 双重检查锁：快速路径（无锁读）未命中时，加锁后再次检查，
+                // 保证代理类型只生成一次，避免并发场景下重复分析和重复创建动态类型。
+                lock (_proxyCreationLock)
+                {
+                    if (!proxyCachings.TryGetValue(tuple, out proxyItem))
+                    {
+                        var implementationType = descriptor.ImplementationType is null
+                            ? ProxyArgument(descriptor.ServiceType)
+                            : ProxyImplementation(descriptor.ServiceType, descriptor.ImplementationType);
+
+                        proxyItem = new ProxyItem(implementationType, implementationType == tuple.Item2);
+                        proxyCachings.TryAdd(tuple, proxyItem);
+                    }
+                }
+            }
 
             if (proxyItem.Primitive)
             {
                 return descriptor;
             }
-
-label_ready:
 
             if (descriptor.ImplementationType is null)
             {
@@ -159,18 +215,13 @@ label_ready:
                 var implementationInstance = descriptor.ImplementationInstance;
                 var implementationFactory = descriptor.ImplementationFactory;
 
-                return implementationInstance is null
-                    ? new ServiceDescriptor(descriptor.ServiceType, serviceProvider =>
-                    {
-                        var instance = implementationFactory.Invoke(serviceProvider);
+                var wrapper = implementationInstance is null
+                    ? new WrappedProxyFactory(destinationType, implementationFactory)
+                    : new WrappedProxyFactory(destinationType, implementationInstance);
 
-                        return Activator.CreateInstance(destinationType, serviceProvider, instance);
-
-                    }, descriptor.Lifetime)
-                    : new ServiceDescriptor(descriptor.ServiceType, serviceProvider =>
-                    {
-                        return Activator.CreateInstance(destinationType, serviceProvider, implementationInstance);
-                    }, descriptor.Lifetime);
+                return new ServiceDescriptor(descriptor.ServiceType,
+                    new Func<IServiceProvider, object>(wrapper.Invoke),
+                    descriptor.Lifetime);
             }
             else
             {
@@ -455,6 +506,7 @@ label_ready:
                 }
             }
 
+            classEmitter.DefineCustomAttribute<ProxyGeneratedAttribute>();
             return classEmitter.CreateType();
         }
 
@@ -502,6 +554,7 @@ label_ready:
                 proxyMethod.OverrideMethod(classEmitter, servicesAst, instanceAst);
             }
 
+            classEmitter.DefineCustomAttribute<ProxyGeneratedAttribute>();
             return classEmitter.CreateType();
         }
 
@@ -531,4 +584,12 @@ label_ready:
         }
         #endregion
     }
+
+    /// <summary>
+    /// 标记由 <see cref="ProxySolution"/> 动态生成的代理类型。
+    /// 写入到生成类的元数据中，随类型本身常驻运行时而无额外内存常驻，
+    /// 通过 <see cref="MemberInfo.IsDefined"/> 即可判断某类型是否已被代理。
+    /// </summary>
+    [AttributeUsage(AttributeTargets.Class, Inherited = false)]
+    public sealed class ProxyGeneratedAttribute : Attribute { }
 }
