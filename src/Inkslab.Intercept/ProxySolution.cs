@@ -198,7 +198,7 @@ namespace Inkslab.Intercept
                             ? ProxyArgument(descriptor.ServiceType)
                             : ProxyImplementation(descriptor.ServiceType, descriptor.ImplementationType);
 
-                        proxyItem = new ProxyItem(implementationType, implementationType == tuple.Item2);
+                        proxyItem = new ProxyItem(implementationType, implementationType == (tuple.Item2 ?? tuple.Item1));
                         proxyCachings.TryAdd(tuple, proxyItem);
                     }
                 }

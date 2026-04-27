@@ -2083,4 +2083,154 @@ namespace Inkslab.Intercept.Tests
             Assert.Equal(typeof(SealedServiceType), type2);
         }
     }
+
+    /// <summary>
+    /// 无拦截标记的接口（仅用于测试未标记类型不应被代理）。
+    /// </summary>
+    public interface INoInterceptService
+    {
+        /// <summary>
+        /// 普通方法，无拦截属性。
+        /// </summary>
+        void DoWork();
+
+        /// <summary>
+        /// 获取值。
+        /// </summary>
+        int GetValue();
+    }
+
+    /// <summary>
+    /// 无拦截标记的实现类。
+    /// </summary>
+    public class NoInterceptService : INoInterceptService
+    {
+        /// <inheritdoc/>
+        public void DoWork() { }
+
+        /// <inheritdoc/>
+        public int GetValue() => 42;
+    }
+
+    /// <summary>
+    /// 无拦截标记的具体类（含虚方法但无拦截属性）。
+    /// </summary>
+    public class NoInterceptConcreteService
+    {
+        /// <summary>
+        /// 虚方法，无拦截属性。
+        /// </summary>
+        public virtual void Execute() { }
+
+        /// <summary>
+        /// 虚属性，无拦截属性。
+        /// </summary>
+        public virtual string Name { get; set; } = "test";
+    }
+
+    /// <summary>
+    /// 验证未标记拦截属性的类型通过工厂/实例注册时不应被代理。
+    /// </summary>
+    public class NoInterceptProxyTests
+    {
+        /// <summary>
+        /// 通过工厂注册的无拦截接口，不应被代理。
+        /// </summary>
+        [Fact]
+        public void UseIntercept_FactoryRegistration_NoInterceptAttribute_ShouldNotProxy()
+        {
+            var services = new ServiceCollection();
+            services.AddTransient<INoInterceptService>(_ => new NoInterceptService())
+                .UseIntercept();
+
+            var provider = services.BuildServiceProvider();
+            var instance = provider.GetRequiredService<INoInterceptService>();
+
+            // 无拦截属性，不应产生代理类型，应为原始实现类型
+            Assert.IsType<NoInterceptService>(instance);
+        }
+
+        /// <summary>
+        /// 通过实例注册的无拦截接口，不应被代理。
+        /// </summary>
+        [Fact]
+        public void UseIntercept_InstanceRegistration_NoInterceptAttribute_ShouldNotProxy()
+        {
+            var services = new ServiceCollection();
+            services.AddSingleton<INoInterceptService>(new NoInterceptService())
+                .UseIntercept();
+
+            var provider = services.BuildServiceProvider();
+            var instance = provider.GetRequiredService<INoInterceptService>();
+
+            // 无拦截属性，不应产生代理类型
+            Assert.IsType<NoInterceptService>(instance);
+        }
+
+        /// <summary>
+        /// 通过工厂注册的无拦截具体类（仅ServiceType，无ImplementationType），不应被代理。
+        /// </summary>
+        [Fact]
+        public void UseIntercept_FactoryRegistration_ConcreteType_NoInterceptAttribute_ShouldNotProxy()
+        {
+            var services = new ServiceCollection();
+            services.AddTransient(_ => new NoInterceptConcreteService())
+                .UseIntercept();
+
+            var provider = services.BuildServiceProvider();
+            var instance = provider.GetRequiredService<NoInterceptConcreteService>();
+
+            Assert.IsType<NoInterceptConcreteService>(instance);
+        }
+
+        /// <summary>
+        /// 通过实例注册的无拦截具体类，不应被代理。
+        /// </summary>
+        [Fact]
+        public void UseIntercept_InstanceRegistration_ConcreteType_NoInterceptAttribute_ShouldNotProxy()
+        {
+            var services = new ServiceCollection();
+            services.AddSingleton(new NoInterceptConcreteService())
+                .UseIntercept();
+
+            var provider = services.BuildServiceProvider();
+            var instance = provider.GetRequiredService<NoInterceptConcreteService>();
+
+            Assert.IsType<NoInterceptConcreteService>(instance);
+        }
+
+        /// <summary>
+        /// 有拦截标记的类型通过工厂注册仍应被正常代理。
+        /// </summary>
+        [Fact]
+        public void UseIntercept_FactoryRegistration_WithInterceptAttribute_ShouldProxy()
+        {
+            var services = new ServiceCollection();
+            services.AddTransient<IServiceType>(_ => new ServiceType())
+                .UseIntercept();
+
+            var provider = services.BuildServiceProvider();
+            var instance = provider.GetRequiredService<IServiceType>();
+
+            // 有拦截属性，应产生代理类型
+            Assert.NotEqual(typeof(ServiceType), instance.GetType());
+        }
+
+        /// <summary>
+        /// 有拦截标记的类型通过实例注册仍应被正常代理。
+        /// </summary>
+        [Fact]
+        public void UseIntercept_InstanceRegistration_WithInterceptAttribute_ShouldProxy()
+        {
+            var services = new ServiceCollection();
+            services.AddSingleton<IServiceType>(new ServiceType())
+                .UseIntercept();
+
+            var provider = services.BuildServiceProvider();
+            var instance = provider.GetRequiredService<IServiceType>();
+
+            // 有拦截属性，应产生代理类型
+            Assert.NotEqual(typeof(ServiceType), instance.GetType());
+        }
+    }
 }
