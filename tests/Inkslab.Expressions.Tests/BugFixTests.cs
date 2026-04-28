@@ -289,5 +289,158 @@ namespace Inkslab.Expressions.Tests
         }
 
         #endregion
+
+        #region ArrayIndexExpression.Assign 索引发射
+
+        /// <summary>
+        /// 修复 #1：ArrayIndexExpression.Assign 在使用 Expression 索引时，
+        /// 旧实现误用 OpCodes.Ldc_I4 把 LocalBuilder 当成常量推栈，运行时几乎必然下标越界。
+        /// 修复后应能正确按动态下标写入数组元素。
+        /// </summary>
+        [Fact]
+        public void ArrayIndexExpression_AssignWithExpressionIndex_ShouldWriteCorrectSlot()
+        {
+            // 等价 C#：
+            // public static int[] Fill(int[] arr, int idx, int val)
+            // {
+            //     arr[idx] = val;
+            //     return arr;
+            // }
+            var typeEmitter = _emitter.DefineType($"ArrIdxAssign_{Guid.NewGuid():N}", TypeAttributes.Public | TypeAttributes.Class);
+            var methodEmitter = typeEmitter.DefineMethod("Fill", MethodAttributes.Public | MethodAttributes.Static, typeof(int[]));
+
+            var arrParam = methodEmitter.DefineParameter(typeof(int[]), "arr");
+            var idxParam = methodEmitter.DefineParameter(typeof(int), "idx");
+            var valParam = methodEmitter.DefineParameter(typeof(int), "val");
+
+            methodEmitter.Append(Expression.Assign(Expression.ArrayIndex(arrParam, (Expression)idxParam), valParam));
+            methodEmitter.Append(Expression.Return(arrParam));
+
+            var type = typeEmitter.CreateType();
+            var method = type.GetMethod("Fill");
+
+            // Act：将值 99 写入索引 2
+            var arr = new[] { 0, 0, 0, 0, 0 };
+            var ret = (int[])method.Invoke(null, new object[] { arr, 2, 99 });
+
+            // Assert：仅索引 2 被写入，其余保持 0
+            Assert.Same(arr, ret);
+            Assert.Equal(new[] { 0, 0, 99, 0, 0 }, ret);
+        }
+
+        /// <summary>
+        /// 修复 #1：复杂下标表达式（idx + 1）赋值同样应正确。
+        /// </summary>
+        [Fact]
+        public void ArrayIndexExpression_AssignWithComputedIndex_ShouldWriteCorrectSlot()
+        {
+            var typeEmitter = _emitter.DefineType($"ArrIdxAssign2_{Guid.NewGuid():N}", TypeAttributes.Public | TypeAttributes.Class);
+            var methodEmitter = typeEmitter.DefineMethod("FillNext", MethodAttributes.Public | MethodAttributes.Static, typeof(void));
+
+            var arrParam = methodEmitter.DefineParameter(typeof(int[]), "arr");
+            var idxParam = methodEmitter.DefineParameter(typeof(int), "idx");
+            var valParam = methodEmitter.DefineParameter(typeof(int), "val");
+
+            // arr[idx + 1] = val;
+            methodEmitter.Append(
+                Expression.Assign(
+                    Expression.ArrayIndex(arrParam, Expression.Add(idxParam, Expression.Constant(1))),
+                    valParam));
+
+            var type = typeEmitter.CreateType();
+            var method = type.GetMethod("FillNext");
+
+            var arr = new[] { 10, 20, 30, 40, 50 };
+            method.Invoke(null, new object[] { arr, 1, 999 });
+
+            // 写入 idx=1 +1 = 2 位置
+            Assert.Equal(new[] { 10, 20, 999, 40, 50 }, arr);
+        }
+
+        #endregion
+
+        #region MethodEmitter.Value 在另一个方法体中前向引用
+
+        /// <summary>
+        /// 修复 #3：当一个方法的方法体通过 <c>Expression.Call(MethodEmitter, ...)</c> 引用
+        /// 后续才会发射的另一个方法时，旧实现下 <c>MethodEmitter.Value</c> 会因为
+        /// <c>methodBuilder == null</c> 抛 NotImplementedException。
+        /// 修复后应允许前向 / 相互引用。
+        /// </summary>
+        [Fact]
+        public void MethodEmitter_ForwardReference_ShouldEmitSuccessfully()
+        {
+            // 等价 C#：
+            // public class X
+            // {
+            //     public int Outer(int v) => Inner(v) + 1;   // 调用稍后定义的 Inner
+            //     public int Inner(int v) => v * 2;
+            // }
+            var typeEmitter = _emitter.DefineType($"FwdRef_{Guid.NewGuid():N}", TypeAttributes.Public | TypeAttributes.Class);
+
+            var outer = typeEmitter.DefineMethod("Outer", MethodAttributes.Public, typeof(int));
+            var outerParam = outer.DefineParameter(typeof(int), "v");
+
+            var inner = typeEmitter.DefineMethod("Inner", MethodAttributes.Public, typeof(int));
+            var innerParam = inner.DefineParameter(typeof(int), "v");
+
+            // outer 的方法体首先被构建，引用尚未发射的 inner
+            outer.Append(Expression.Add(Expression.Call(inner, outerParam), Expression.Constant(1)));
+
+            // inner: return v * 2;
+            inner.Append(Expression.Multiply(innerParam, Expression.Constant(2)));
+
+            var type = typeEmitter.CreateType();
+            var instance = Activator.CreateInstance(type);
+
+            var outerMi = type.GetMethod("Outer");
+
+            // 5 * 2 + 1 = 11
+            Assert.Equal(11, outerMi.Invoke(instance, new object[] { 5 }));
+        }
+
+        /// <summary>
+        /// 修复 #3：方法 A 引用方法 B，方法 B 又反过来引用方法 A（相互引用），
+        /// 也应能正确编译并运行（不会发生递归实际无限运行——这里 A 仅在条件分支调 B）。
+        /// </summary>
+        [Fact]
+        public void MethodEmitter_MutualReference_ShouldEmitSuccessfully()
+        {
+            // 等价 C#：
+            // public class X
+            // {
+            //     public int A(int v) => v <= 0 ? 0 : B(v - 1) + 1;
+            //     public int B(int v) => v <= 0 ? 0 : A(v - 1) + 1;
+            // }
+            var typeEmitter = _emitter.DefineType($"Mutual_{Guid.NewGuid():N}", TypeAttributes.Public | TypeAttributes.Class);
+
+            var a = typeEmitter.DefineMethod("A", MethodAttributes.Public, typeof(int));
+            var aParam = a.DefineParameter(typeof(int), "v");
+
+            var b = typeEmitter.DefineMethod("B", MethodAttributes.Public, typeof(int));
+            var bParam = b.DefineParameter(typeof(int), "v");
+
+            a.Append(Expression.Condition(
+                Expression.LessThanOrEqual(aParam, Expression.Constant(0)),
+                Expression.Constant(0),
+                Expression.Add(Expression.Call(b, Expression.Subtract(aParam, Expression.Constant(1))), Expression.Constant(1)),
+                typeof(int)));
+
+            b.Append(Expression.Condition(
+                Expression.LessThanOrEqual(bParam, Expression.Constant(0)),
+                Expression.Constant(0),
+                Expression.Add(Expression.Call(a, Expression.Subtract(bParam, Expression.Constant(1))), Expression.Constant(1)),
+                typeof(int)));
+
+            var type = typeEmitter.CreateType();
+            var instance = Activator.CreateInstance(type);
+
+            var aMi = type.GetMethod("A");
+
+            // A(3) = B(2)+1 = (A(1)+1)+1 = ((B(0)+1)+1)+1 = ((0+1)+1)+1 = 3
+            Assert.Equal(3, aMi.Invoke(instance, new object[] { 3 }));
+        }
+
+        #endregion
     }
 }

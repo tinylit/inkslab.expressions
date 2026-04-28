@@ -75,7 +75,7 @@ namespace Inkslab
             private readonly MethodInfo methodInfoDeclaration;
             private readonly bool isVirtualMethod;
 
-            public MethodOverrideEmitter(AbstractTypeEmitter declaringType, MethodBuilder methodBuilder, MethodInfo methodInfoDeclaration, Type returnType) : base(declaringType, methodBuilder.Name, methodBuilder.Attributes, returnType)
+            public MethodOverrideEmitter(AbstractTypeEmitter declaringType, MethodBuilder methodBuilder, MethodInfo methodInfoDeclaration, Type returnType) : base(declaringType, methodBuilder, returnType)
             {
                 this.methodBuilder = methodBuilder;
                 this.methodInfoDeclaration = methodInfoDeclaration;

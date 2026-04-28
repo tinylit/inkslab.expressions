@@ -87,22 +87,14 @@ namespace Inkslab.Expressions
         /// <param name="value">值。</param>
         protected override void Assign(ILGenerator ilg, Expression value)
         {
+            array.Load(ilg);
+
             if (index == -1)
             {
-                var local = ilg.DeclareLocal(typeof(int));
-
                 indexExp.Load(ilg);
-
-                ilg.Emit(OpCodes.Stloc, local);
-
-                array.Load(ilg);
-
-                ilg.Emit(OpCodes.Ldc_I4, local);
             }
             else
             {
-                array.Load(ilg);
-
                 EmitUtils.EmitInt(ilg, index);
             }
 

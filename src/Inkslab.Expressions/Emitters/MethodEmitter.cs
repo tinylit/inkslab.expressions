@@ -69,6 +69,30 @@ namespace Inkslab.Emitters
             Attributes = attributes;
         }
 
+        /// <summary>
+        /// 构造函数（接收已预定义的 <see cref="MethodBuilder"/>）。
+        /// </summary>
+        /// <remarks>
+        /// 供已持有外部定义的方法构造器的派生类（如重写方法）使用；
+        /// 预赋值后 <see cref="DefineMethod"/> 将因幂等检查自动跳过创建逻辑，
+        /// 且 <see cref="Value"/> 从构造期起即可返回有效 <see cref="MethodInfo"/>。
+        /// </remarks>
+        /// <param name="declaringType">声明类型。</param>
+        /// <param name="methodBuilder">已预定义的方法构造器。</param>
+        /// <param name="returnType">方法的返回类型。</param>
+        protected MethodEmitter(AbstractTypeEmitter declaringType, MethodBuilder methodBuilder, Type returnType) : base(declaringType?.MapReturnTypeForEmit(returnType))
+        {
+            if (methodBuilder is null)
+            {
+                throw new ArgumentNullException(nameof(methodBuilder));
+            }
+
+            DeclaringType = declaringType;
+            Name = methodBuilder.Name;
+            Attributes = methodBuilder.Attributes;
+            this.methodBuilder = methodBuilder;
+        }
+
         [DebuggerHidden]
         private string DebuggerView
         {
@@ -139,6 +163,10 @@ namespace Inkslab.Emitters
         /// <summary>
         /// 成员。
         /// </summary>
+        /// <remarks>
+        /// 若在调用 <see cref="DefineMethod"/> 之前访问（例如另一个方法体发射期间前向引用），
+        /// 将自动使用 <see cref="DeclaringType"/> 的 <see cref="TypeBuilder"/> 进行惰性定义。
+        /// </remarks>
         [DebuggerHidden]
         internal virtual MethodInfo Value
         {
@@ -146,7 +174,7 @@ namespace Inkslab.Emitters
             {
                 if (methodBuilder is null)
                 {
-                    throw new NotImplementedException();
+                    DefineMethod(DeclaringType.Value);
                 }
 
                 var declaringType = methodBuilder.DeclaringType;
@@ -306,6 +334,39 @@ namespace Inkslab.Emitters
         }
 
         /// <summary>
+        /// 在 <see cref="TypeBuilder"/> 上预定义方法（仅声明签名，不发射方法体）。
+        /// </summary>
+        /// <remarks>
+        /// 该方法用于支持方法之间的相互引用：在所有方法体发射之前先完成全部 <see cref="MethodBuilder"/> 的定义，
+        /// 这样 <see cref="MethodCallEmitter"/> 在发射时即可拿到目标 <see cref="MethodInfo"/>。
+        /// 通过接收 <see cref="MethodBuilder"/> 的保护构造函数创建的实例会因幂等检查自动跳过。
+        /// </remarks>
+        /// <param name="builder">类型构造器。</param>
+        public void DefineMethod(TypeBuilder builder)
+        {
+            if (builder is null)
+            {
+                throw new ArgumentNullException(nameof(builder));
+            }
+
+            if (methodBuilder is not null)
+            {
+                return;
+            }
+
+            int index = 0;
+
+            var parameterTypes = new Type[parameters.Count];
+
+            foreach (var parameterEmitter in parameters)
+            {
+                parameterTypes[index++] = parameterEmitter.RuntimeType;
+            }
+
+            methodBuilder = builder.DefineMethod(Name, Attributes, CallingConventions.Standard, RuntimeType, parameterTypes);
+        }
+
+        /// <summary>
         /// 发行。
         /// </summary>
         /// <param name="builder">构造器。</param>
@@ -316,17 +377,9 @@ namespace Inkslab.Emitters
                 throw new ArgumentNullException(nameof(builder));
             }
 
-            int index = 0;
+            DefineMethod(builder);
 
-            var parameterTypes = new Type[parameters.Count];
-
-            foreach (var parameterEmitter in parameters)
-            {
-                // 自动处理泛型参数类型映射
-                parameterTypes[index++] = parameterEmitter.RuntimeType;
-            }
-
-            Emit(builder.DefineMethod(Name, Attributes, CallingConventions.Standard, RuntimeType, parameterTypes));
+            Emit(methodBuilder);
         }
 
         /// <summary>
