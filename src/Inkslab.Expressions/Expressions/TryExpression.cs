@@ -12,8 +12,8 @@ namespace Inkslab.Expressions
     [DebuggerDisplay("{DebuggerView}")]
     public class TryExpression : BlockExpression
     {
-        private readonly Expression finallyAst;
-        private readonly List<CatchExpression> catchAsts;
+        private readonly Expression _finallyAst;
+        private readonly List<CatchExpression> _catchAsts;
 
         /// <summary>
         /// 异常处理。
@@ -36,18 +36,18 @@ namespace Inkslab.Expressions
 
                 sb.Append("try { //TODO:somethings }");
 
-                foreach (var catchAst in catchAsts)
+                foreach (var catchAst in _catchAsts)
                 {
                     sb.AppendLine()
                         .Append(catchAst);
                 }
 
-                if (finallyAst is not null)
+                if (_finallyAst is not null)
                 {
                     sb.AppendLine()
                         .Append('{')
                         .AppendLine()
-                        .Append(finallyAst)
+                        .Append(_finallyAst)
                         .AppendLine()
                         .Append('}');
                 }
@@ -73,8 +73,8 @@ namespace Inkslab.Expressions
                 }
             }
 
-            private readonly Type exceptionType;
-            private readonly VariableExpression variable;
+            private readonly Type _exceptionType;
+            private readonly VariableExpression _variable;
 
             public CatchExpression(Type exceptionType)
             {
@@ -85,7 +85,7 @@ namespace Inkslab.Expressions
 
                 if (exceptionType == typeof(Exception) || exceptionType.IsAssignableFrom(typeof(Exception)))
                 {
-                    this.exceptionType = exceptionType;
+                    _exceptionType = exceptionType;
                 }
                 else
                 {
@@ -100,15 +100,15 @@ namespace Inkslab.Expressions
                     throw new ArgumentNullException(nameof(variable));
                 }
 
-                exceptionType = variable.RuntimeType;
+                _exceptionType = variable.RuntimeType;
 
-                if (exceptionType == typeof(Exception) || exceptionType.IsAssignableFrom(typeof(Exception)))
+                if (_exceptionType == typeof(Exception) || _exceptionType.IsAssignableFrom(typeof(Exception)))
                 {
-                    this.variable = variable;
+                    _variable = variable;
                 }
                 else
                 {
-                    throw new AstException($"变量类型“{exceptionType}”未继承“{typeof(Exception)}”异常基类!");
+                    throw new AstException($"变量类型“{_exceptionType}”未继承“{typeof(Exception)}”异常基类!");
                 }
             }
 
@@ -118,13 +118,13 @@ namespace Inkslab.Expressions
             /// <param name="ilg">指令。</param>
             public override void Load(ILGenerator ilg)
             {
-                if (variable is null)
+                if (_variable is null)
                 {
-                    ilg.BeginCatchBlock(exceptionType);
+                    ilg.BeginCatchBlock(_exceptionType);
                 }
                 else
                 {
-                    Assign(variable, new CatchBlockAst(exceptionType))
+                    Assign(_variable, new CatchBlockAst(_exceptionType))
                         .Load(ilg);
                 }
 
@@ -146,13 +146,13 @@ namespace Inkslab.Expressions
 
                 sb.Append("catch(");
 
-                if (variable is not null)
+                if (_variable is not null)
                 {
-                    sb.Append(variable);
+                    sb.Append(_variable);
                 }
                 else
                 {
-                    sb.Append(exceptionType.Name);
+                    sb.Append(_exceptionType.Name);
                 }
 
                 sb.Append(')')
@@ -167,7 +167,7 @@ namespace Inkslab.Expressions
         /// </summary>
         internal TryExpression()
         {
-            catchAsts = new List<CatchExpression>();
+            _catchAsts = new List<CatchExpression>();
         }
 
         /// <summary>
@@ -176,9 +176,9 @@ namespace Inkslab.Expressions
         /// <param name="finallyAst">一定会执行的代码。</param>
         internal TryExpression(Expression finallyAst)
         {
-            this.finallyAst = finallyAst ?? throw new ArgumentNullException(nameof(finallyAst));
+            _finallyAst = finallyAst ?? throw new ArgumentNullException(nameof(finallyAst));
 
-            catchAsts = new List<CatchExpression>();
+            _catchAsts = new List<CatchExpression>();
         }
 
         /// <summary>
@@ -201,7 +201,7 @@ namespace Inkslab.Expressions
 
             var catchAst = new CatchExpression(exceptionType);
 
-            catchAsts.Add(catchAst);
+            _catchAsts.Add(catchAst);
 
             return catchAst;
         }
@@ -220,7 +220,7 @@ namespace Inkslab.Expressions
 
             var catchAst = new CatchExpression(variable);
 
-            catchAsts.Add(catchAst);
+            _catchAsts.Add(catchAst);
 
             return catchAst;
         }
@@ -235,14 +235,14 @@ namespace Inkslab.Expressions
 
             if (label.Kind == LabelKind.Return)
             {
-                foreach (var @catch in catchAsts)
+                foreach (var @catch in _catchAsts)
                 {
                     @catch.MarkLabel(label);
                 }
 
                 base.MarkLabel(label);
 
-                finallyAst?.MarkLabel(label);
+                _finallyAst?.MarkLabel(label);
             }
         }
         
@@ -254,19 +254,19 @@ namespace Inkslab.Expressions
                 throw new ArgumentNullException(nameof(variable));
             }
 
-            foreach (var @catch in catchAsts)
+            foreach (var @catch in _catchAsts)
             {
                 @catch.StoredLocal(variable);
             }
 
             base.StoredLocal(variable);
 
-            finallyAst?.StoredLocal(variable);
+            _finallyAst?.StoredLocal(variable);
         }
         /// <inheritdoc/>
         protected internal override bool DetectionResult(Type returnType)
         {
-            foreach (var @catch in catchAsts)
+            foreach (var @catch in _catchAsts)
             {
                 if (!@catch.DetectionResult(returnType))
                 {
@@ -283,7 +283,7 @@ namespace Inkslab.Expressions
         /// <param name="ilg">指令。</param>
         public override void Load(ILGenerator ilg)
         {
-            if (catchAsts.Count == 0 && finallyAst is null)
+            if (_catchAsts.Count == 0 && _finallyAst is null)
             {
                 throw new AstException("表达式残缺，未设置“catch”代码块和“finally”代码块至少设置其一！");
             }
@@ -292,9 +292,9 @@ namespace Inkslab.Expressions
 
             base.Load(ilg);
 
-            if (catchAsts.Count > 0)
+            if (_catchAsts.Count > 0)
             {
-                foreach (var catchAst in catchAsts)
+                foreach (var catchAst in _catchAsts)
                 {
                     catchAst.Load(ilg);
                 }
@@ -302,13 +302,13 @@ namespace Inkslab.Expressions
                 ilg.Emit(OpCodes.Nop);
             }
 
-            if (finallyAst != null)
+            if (_finallyAst != null)
             {
                 ilg.BeginFinallyBlock();
 
-                finallyAst.Load(ilg);
+                _finallyAst.Load(ilg);
 
-                if (!finallyAst.IsVoid)
+                if (!_finallyAst.IsVoid)
                 {
                     ilg.Emit(OpCodes.Nop);
                 }

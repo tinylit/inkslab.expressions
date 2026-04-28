@@ -14,9 +14,9 @@ namespace Inkslab.Emitters
     [DebuggerDisplay("{DebuggerView}")]
     public class PropertyEmitter : MemberExpression
     {
-        private MethodEmitter _Getter;
-        private MethodEmitter _Setter;
-        private readonly List<CustomAttributeBuilder> customAttributes = new List<CustomAttributeBuilder>();
+        private MethodEmitter _getter;
+        private MethodEmitter _setter;
+        private readonly List<CustomAttributeBuilder> _customAttributes = new List<CustomAttributeBuilder>();
 
         /// <summary>
         /// 构造函数。
@@ -50,7 +50,7 @@ namespace Inkslab.Emitters
             {
                 var sb = new StringBuilder();
 
-                if (_Getter is not null && (_Getter.Attributes & MethodAttributes.Public) == MethodAttributes.Public || _Setter is not null && (_Setter.Attributes & MethodAttributes.Public) == MethodAttributes.Public)
+                if (_getter is not null && (_getter.Attributes & MethodAttributes.Public) == MethodAttributes.Public || _setter is not null && (_setter.Attributes & MethodAttributes.Public) == MethodAttributes.Public)
                 {
                     sb.Append("public");
                 }
@@ -64,28 +64,28 @@ namespace Inkslab.Emitters
                     .Append(Name)
                     .Append('{');
 
-                if (_Getter is null || _Setter is null || (_Getter.Attributes & MethodAttributes.Public) == (_Setter.Attributes & MethodAttributes.Public))
+                if (_getter is null || _setter is null || (_getter.Attributes & MethodAttributes.Public) == (_setter.Attributes & MethodAttributes.Public))
                 {
-                    if (_Getter is not null)
+                    if (_getter is not null)
                     {
                         sb.Append(" get;");
                     }
 
-                    if (_Setter is not null)
+                    if (_setter is not null)
                     {
                         sb.Append(" set;");
                     }
                 }
                 else
                 {
-                    if ((_Getter.Attributes & MethodAttributes.Public) != MethodAttributes.Public)
+                    if ((_getter.Attributes & MethodAttributes.Public) != MethodAttributes.Public)
                     {
                         sb.Append("private");
                     }
 
                     sb.Append(" get;");
 
-                    if ((_Setter.Attributes & MethodAttributes.Public) != MethodAttributes.Public)
+                    if ((_setter.Attributes & MethodAttributes.Public) != MethodAttributes.Public)
                     {
                         sb.Append("private");
                     }
@@ -114,34 +114,34 @@ namespace Inkslab.Emitters
         public Type[] ParameterTypes { get; }
 
         /// <inheritdoc/>
-        public override bool CanRead => _Setter is not null;
+        public override bool CanRead => _setter is not null;
 
         /// <inheritdoc/>
-        public override bool CanWrite => _Setter is not null;
+        public override bool CanWrite => _setter is not null;
 
-        private bool? isStatic;
+        private bool? _isStatic;
 
         /// <inheritdoc/>
-        public override bool IsStatic => isStatic ?? false;
+        public override bool IsStatic => _isStatic ?? false;
 
-        private object defaultValue;
+        private object _defaultValue;
         /// <summary>
         /// 默认值。
         /// </summary>
         public object DefaultValue
         {
-            get => defaultValue;
+            get => _defaultValue;
             set
             {
                 if (value is null)
                 {
-                    defaultValue = null;
+                    _defaultValue = null;
 
                     Attributes &= ~PropertyAttributes.HasDefault;
                 }
                 else
                 {
-                    defaultValue = EmitUtils.SetConstantOfType(value, RuntimeType);
+                    _defaultValue = EmitUtils.SetConstantOfType(value, RuntimeType);
 
                     Attributes |= PropertyAttributes.HasDefault;
                 }
@@ -160,17 +160,17 @@ namespace Inkslab.Emitters
                 throw new ArgumentNullException(nameof(getter));
             }
 
-            if (isStatic.HasValue && isStatic.Value != getter.IsStatic)
+            if (_isStatic.HasValue && _isStatic.Value != getter.IsStatic)
             {
                 throw new InvalidOperationException();
             }
 
             if (getter.IsStatic)
             {
-                isStatic = true;
+                _isStatic = true;
             }
 
-            _Getter = getter;
+            _getter = getter;
 
             return this;
         }
@@ -186,17 +186,17 @@ namespace Inkslab.Emitters
                 throw new ArgumentNullException(nameof(setter));
             }
 
-            if (isStatic.HasValue && isStatic.Value != setter.IsStatic)
+            if (_isStatic.HasValue && _isStatic.Value != setter.IsStatic)
             {
                 throw new InvalidOperationException();
             }
 
             if (setter.IsStatic)
             {
-                isStatic = true;
+                _isStatic = true;
             }
 
-            _Setter = setter;
+            _setter = setter;
 
             return this;
         }
@@ -218,7 +218,7 @@ namespace Inkslab.Emitters
                 throw new ArgumentNullException(nameof(attributeData));
             }
 
-            customAttributes.Add(EmitUtils.CreateCustomAttribute(attributeData));
+            _customAttributes.Add(EmitUtils.CreateCustomAttribute(attributeData));
         }
 
         /// <summary>
@@ -232,7 +232,7 @@ namespace Inkslab.Emitters
                 throw new ArgumentNullException(nameof(customBuilder));
             }
 
-            customAttributes.Add(customBuilder);
+            _customAttributes.Add(customBuilder);
         }
 
         /// <summary>
@@ -241,27 +241,27 @@ namespace Inkslab.Emitters
         /// <param name="builder">类型构造器。</param>
         public void Emit(PropertyBuilder builder)
         {
-            if (_Getter is null && _Setter is null)
+            if (_getter is null && _setter is null)
             {
                 throw new InvalidOperationException("属性不能既不可读，也不可写!");
             }
 
-            if (_Getter != null)
+            if (_getter != null)
             {
-                builder.SetGetMethod((MethodBuilder)_Getter.Value);
+                builder.SetGetMethod((MethodBuilder)_getter.Value);
             }
 
-            if (_Setter != null)
+            if (_setter != null)
             {
-                builder.SetSetMethod((MethodBuilder)_Setter.Value);
+                builder.SetSetMethod((MethodBuilder)_setter.Value);
             }
 
             if (Attributes.HasFlag(PropertyAttributes.HasDefault))
             {
-                builder.SetConstant(defaultValue);
+                builder.SetConstant(_defaultValue);
             }
 
-            foreach (var item in customAttributes)
+            foreach (var item in _customAttributes)
             {
                 builder.SetCustomAttribute(item);
             }
@@ -273,7 +273,7 @@ namespace Inkslab.Emitters
         /// <param name="ilg">指令。</param>
         public override void Load(ILGenerator ilg)
         {
-            if (_Getter is null)
+            if (_getter is null)
             {
                 throw new AstException($"属性“{Name}”不可读!");
             }
@@ -283,7 +283,7 @@ namespace Inkslab.Emitters
                 ilg.Emit(OpCodes.Ldarg_0);
             }
 
-            ilg.Emit(OpCodes.Callvirt, _Getter.Value);
+            ilg.Emit(OpCodes.Callvirt, _getter.Value);
         }
 
         /// <summary>
@@ -293,7 +293,7 @@ namespace Inkslab.Emitters
         /// <param name="value">值。</param>
         protected override void Assign(ILGenerator ilg, Expression value)
         {
-            if (_Setter is null)
+            if (_setter is null)
             {
                 throw new AstException($"属性“{Name}”不可写!");
             }
@@ -305,7 +305,7 @@ namespace Inkslab.Emitters
 
             value.Load(ilg);
 
-            ilg.Emit(OpCodes.Call, _Setter.Value);
+            ilg.Emit(OpCodes.Call, _setter.Value);
         }
     }
 }

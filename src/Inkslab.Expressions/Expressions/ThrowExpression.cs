@@ -11,7 +11,7 @@ namespace Inkslab.Expressions
     [DebuggerDisplay("throw new {RuntimeType.Name}({errorMsg})")]
     public class ThrowExpression : Expression
     {
-        private readonly Expression exception;
+        private readonly Expression _exception;
 
         /// <summary>
         /// 构造函数。
@@ -36,7 +36,7 @@ namespace Inkslab.Expressions
         /// <param name="exception">异常。</param>
         internal ThrowExpression(Expression exception) : base(exception.RuntimeType)
         {
-            this.exception = exception ?? throw new ArgumentNullException(nameof(exception));
+            _exception = exception ?? throw new ArgumentNullException(nameof(exception));
 
             if (!exception.RuntimeType.IsSubclassOf(typeof(Exception)))
             {
@@ -50,7 +50,7 @@ namespace Inkslab.Expressions
         /// <param name="ilg">指令。</param>
         public override void Load(ILGenerator ilg)
         {
-            exception.Load(ilg);
+            _exception.Load(ilg);
 
             ilg.Emit(OpCodes.Throw);
         }

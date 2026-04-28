@@ -12,27 +12,27 @@ namespace Inkslab.Emitters
     /// </summary>
     public class ConstructorEmitter : Expression
     {
-        private static readonly ParameterEmitter[] EmptyParameters = new ParameterEmitter[0];
+        private static readonly ParameterEmitter[] _emptyParameters = new ParameterEmitter[0];
 
-        private int parameterIndex = 0;
-        private readonly TypeBuilder typeBuilder;
-        private readonly BlockExpression blockAst = new BlockExpression();
-        private readonly List<ParameterEmitter> parameters = new List<ParameterEmitter>();
+        private int _parameterIndex = 0;
+        private readonly TypeBuilder _typeBuilder;
+        private readonly BlockExpression _blockAst = new BlockExpression();
+        private readonly List<ParameterEmitter> _parameterEmitters = new List<ParameterEmitter>();
 
         private class ConstructorExpression : Expression
         {
-            private readonly ConstructorInfo constructor;
-            private readonly Expression[] parameters;
+            private readonly ConstructorInfo _constructor;
+            private readonly Expression[] _parameters;
 
             public ConstructorExpression(ConstructorInfo constructor) : base(constructor.DeclaringType)
             {
-                this.constructor = constructor ?? throw new ArgumentNullException(nameof(constructor));
+                _constructor = constructor ?? throw new ArgumentNullException(nameof(constructor));
             }
             public ConstructorExpression(ConstructorInfo constructor, Expression[] parameters) : this(constructor)
             {
                 ArgumentsCheck(constructor, parameters);
 
-                this.parameters = parameters;
+                _parameters = parameters;
             }
 
             private static void ArgumentsCheck(ConstructorInfo constructorInfo, Expression[] arguments)
@@ -55,73 +55,73 @@ namespace Inkslab.Emitters
             {
                 ilg.Emit(OpCodes.Ldarg_0);
 
-                if (parameters?.Length > 0)
+                if (_parameters?.Length > 0)
                 {
-                    foreach (var expression in parameters)
+                    foreach (var expression in _parameters)
                     {
                         expression.Load(ilg);
                     }
                 }
 
-                ilg.Emit(OpCodes.Call, constructor);
+                ilg.Emit(OpCodes.Call, _constructor);
             }
         }
 
         private class InitConstructorEmitter : ConstructorEmitter
         {
-            private readonly Type[] typeArguments;
-            private readonly ConstructorEmitter constructorEmitter;
+            private readonly Type[] _typeArguments;
+            private readonly ConstructorEmitter _constructorEmitter;
 
-            public InitConstructorEmitter(ConstructorEmitter constructorEmitter, Type[] typeArguments) : base(constructorEmitter.typeBuilder, constructorEmitter.Attributes, constructorEmitter.Conventions)
+            public InitConstructorEmitter(ConstructorEmitter constructorEmitter, Type[] typeArguments) : base(constructorEmitter._typeBuilder, constructorEmitter.Attributes, constructorEmitter.Conventions)
             {
-                this.constructorEmitter = constructorEmitter;
-                this.typeArguments = typeArguments;
+                _constructorEmitter = constructorEmitter;
+                _typeArguments = typeArguments;
             }
 
             internal override ConstructorInfo Value
             {
                 get
                 {
-                    var constructorBuilder = constructorEmitter.constructorBuilder ?? throw new NotImplementedException();
+                    var constructorBuilder = _constructorEmitter._constructorBuilder ?? throw new NotImplementedException();
 
-                    var typeBuilder = constructorEmitter.typeBuilder;
+                    var typeBuilder = _constructorEmitter._typeBuilder;
 
                     var declaringType = typeBuilder.DeclaringType;
 
                     if (declaringType is null || !declaringType.IsGenericType)
                     {
-                        return TypeBuilder.GetConstructor(typeBuilder.MakeGenericType(typeArguments), constructorBuilder);
+                        return TypeBuilder.GetConstructor(typeBuilder.MakeGenericType(_typeArguments), constructorBuilder);
                     }
 
                     var genericArguments = declaringType.GetGenericArguments();
 
-                    var typeGenericArguments = new Type[genericArguments.Length + typeArguments.Length];
+                    var typeGenericArguments = new Type[genericArguments.Length + _typeArguments.Length];
 
                     System.Array.Copy(genericArguments, typeGenericArguments, genericArguments.Length);
 
-                    System.Array.Copy(typeArguments, 0, typeGenericArguments, genericArguments.Length, typeArguments.Length);
+                    System.Array.Copy(_typeArguments, 0, typeGenericArguments, genericArguments.Length, _typeArguments.Length);
 
                     return TypeBuilder.GetConstructor(typeBuilder.MakeGenericType(typeGenericArguments), constructorBuilder);
                 }
             }
 
-            public override ParameterEmitter[] GetParameters() => constructorEmitter.GetParameters();
+            public override ParameterEmitter[] GetParameters() => _constructorEmitter.GetParameters();
 
             public override ParameterEmitter DefineParameter(Type parameterType, ParameterAttributes attributes, string parameterName)
             {
-                return constructorEmitter.DefineParameter(parameterType, attributes, parameterName);
+                return _constructorEmitter.DefineParameter(parameterType, attributes, parameterName);
             }
             public override void InvokeBaseConstructor(ConstructorInfo constructor, params Expression[] parameters)
             {
-                constructorEmitter.InvokeBaseConstructor(constructor, parameters);
+                _constructorEmitter.InvokeBaseConstructor(constructor, parameters);
             }
             public override ConstructorEmitter MakeGenericConstructor(params Type[] typeArguments)
             {
-                return constructorEmitter.MakeGenericConstructor(typeArguments);
+                return _constructorEmitter.MakeGenericConstructor(typeArguments);
             }
         }
 
-        private ConstructorBuilder constructorBuilder;
+        private ConstructorBuilder _constructorBuilder;
 
         /// <summary>
         /// 构造函数。
@@ -140,7 +140,7 @@ namespace Inkslab.Emitters
         /// <param name="conventions">调用约定。</param>
         public ConstructorEmitter(TypeBuilder typeBuilder, MethodAttributes attributes, CallingConventions conventions) : base(typeBuilder)
         {
-            this.typeBuilder = typeBuilder;
+            _typeBuilder = typeBuilder;
             Attributes = attributes;
             Conventions = conventions;
         }
@@ -167,33 +167,33 @@ namespace Inkslab.Emitters
         {
             get
             {
-                if (constructorBuilder is null)
+                if (_constructorBuilder is null)
                 {
                     throw new NotImplementedException();
                 }
 
-                var declaringType = typeBuilder.DeclaringType;
+                var declaringType = _typeBuilder.DeclaringType;
 
                 if (declaringType is null || !declaringType.IsGenericType)
                 {
-                    return constructorBuilder;
+                    return _constructorBuilder;
                 }
 
-                return TypeBuilder.GetConstructor(typeBuilder.MakeGenericType(declaringType.GetGenericArguments()), constructorBuilder);
+                return TypeBuilder.GetConstructor(_typeBuilder.MakeGenericType(declaringType.GetGenericArguments()), _constructorBuilder);
             }
         }
 
         private bool _initializedConstructor = false;
-        private ParameterEmitter[] _parameters = EmptyParameters;
+        private ParameterEmitter[] _parameters = _emptyParameters;
 
         /// <summary>
         /// 参数。
         /// </summary>
         public virtual ParameterEmitter[] GetParameters()
         {
-            if (parameters.Count > _parameters.Length)
+            if (_parameterEmitters.Count > _parameters.Length)
             {
-                _parameters = parameters.ToArray();
+                _parameters = _parameterEmitters.ToArray();
             }
 
             return _parameters;
@@ -230,9 +230,9 @@ namespace Inkslab.Emitters
         /// <returns></returns>
         public virtual ParameterEmitter DefineParameter(Type parameterType, ParameterAttributes attributes, string parameterName)
         {
-            var parameter = new ParameterEmitter(parameterType, ++parameterIndex, attributes, parameterName);
+            var parameter = new ParameterEmitter(parameterType, ++_parameterIndex, attributes, parameterName);
 
-            parameters.Add(parameter);
+            _parameterEmitters.Add(parameter);
 
             return parameter;
         }
@@ -259,7 +259,7 @@ namespace Inkslab.Emitters
         {
             var flags = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
 
-            var type = typeBuilder.BaseType ?? typeof(object);
+            var type = _typeBuilder.BaseType ?? typeof(object);
 
             if (type.IsGenericParameter)
             {
@@ -290,14 +290,14 @@ namespace Inkslab.Emitters
         /// <summary>
         /// 是否为空。
         /// </summary>
-        public bool IsEmpty => blockAst.IsEmpty;
+        public bool IsEmpty => _blockAst.IsEmpty;
 
         /// <summary>
         /// 添加代码。
         /// </summary>
         /// <param name="code">代码。</param>
         /// <returns>当前代码块。</returns>
-        public BlockExpression Append(Expression code) => blockAst.Append(code);
+        public BlockExpression Append(Expression code) => _blockAst.Append(code);
 
         /// <summary>
         /// 发行。
@@ -309,7 +309,7 @@ namespace Inkslab.Emitters
                 throw new ArgumentNullException(nameof(constructorBuilder));
             }
 
-            this.constructorBuilder = constructorBuilder;
+            _constructorBuilder = constructorBuilder;
 
             var attributes = constructorBuilder.MethodImplementationFlags;
 
@@ -323,7 +323,7 @@ namespace Inkslab.Emitters
                 InvokeBaseConstructor();
             }
 
-            foreach (var parameter in parameters)
+            foreach (var parameter in _parameterEmitters)
             {
                 parameter.Emit(constructorBuilder.DefineParameter(parameter.Position, parameter.Attributes, parameter.ParameterName));
             }
@@ -345,7 +345,7 @@ namespace Inkslab.Emitters
 
             MarkLabel(label);
 
-            blockAst.Load(ilg);
+            _blockAst.Load(ilg);
 
             label.MarkLabel(ilg);
         }

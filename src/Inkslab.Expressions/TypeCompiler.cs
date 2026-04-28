@@ -339,7 +339,9 @@ label_continue:
         private static Type SafeTypeGetReturnType(Type returnType, Type[] methodGenericArguments)
         {
             if (returnType == null)
+            {
                 return null;
+            }
 
             // 如果是泛型参数，直接映射
             if (returnType.IsGenericParameter)
@@ -360,7 +362,9 @@ label_continue:
                 {
                     mappedArgs[i] = SafeTypeGetReturnType(genericArgs[i], methodGenericArguments);
                     if (mappedArgs[i] != genericArgs[i])
+                    {
                         hasChanged = true;
+                    }
                 }
 
                 if (hasChanged)
@@ -435,7 +439,9 @@ label_continue:
         private static Type SafeTypeGetReturnType(Type returnType, Type[] methodGenericArguments, Type[] typeGenericArguments)
         {
             if (returnType == null)
+            {
                 return null;
+            }
 
             // 如果是泛型参数，根据声明位置映射
             if (returnType.IsGenericParameter)
@@ -468,7 +474,9 @@ label_continue:
                 {
                     mappedArgs[i] = SafeTypeGetReturnType(genericArgs[i], methodGenericArguments, typeGenericArguments);
                     if (mappedArgs[i] != genericArgs[i])
+                    {
                         hasChanged = true;
+                    }
                 }
 
                 if (hasChanged)

@@ -10,9 +10,9 @@ namespace Inkslab.Expressions
     [DebuggerDisplay("{test} ? {ifTrue} : {ifFalse}")]
     public class ConditionExpression : Expression
     {
-        private readonly Expression test;
-        private readonly Expression ifTrue;
-        private readonly Expression ifFalse;
+        private readonly Expression _test;
+        private readonly Expression _ifTrue;
+        private readonly Expression _ifFalse;
 
         /// <summary>
         /// 构造函数。
@@ -34,12 +34,12 @@ namespace Inkslab.Expressions
         /// <param name="returnType">结果类型。</param>
         public ConditionExpression(Expression test, Expression ifTrue, Expression ifFalse, Type returnType) : base(returnType)
         {
-            this.test = test ?? throw new ArgumentNullException(nameof(test));
+            _test = test ?? throw new ArgumentNullException(nameof(test));
 
             if (test.RuntimeType == typeof(bool))
             {
-                this.ifTrue = ifTrue ?? throw new ArgumentNullException(nameof(ifTrue));
-                this.ifFalse = ifFalse ?? throw new ArgumentNullException(nameof(ifFalse));
+                _ifTrue = ifTrue ?? throw new ArgumentNullException(nameof(ifTrue));
+                _ifFalse = ifFalse ?? throw new ArgumentNullException(nameof(ifFalse));
             }
             else
             {
@@ -57,7 +57,7 @@ namespace Inkslab.Expressions
             }
             else if (EmitUtils.IsAssignableFromSignatureTypes(returnType, ifTrue.RuntimeType))
             {
-                this.ifTrue = new ConvertExpression(ifTrue, returnType);
+                _ifTrue = new ConvertExpression(ifTrue, returnType);
             }
             else
             {
@@ -70,7 +70,7 @@ namespace Inkslab.Expressions
             }
             else if (EmitUtils.IsAssignableFromSignatureTypes(returnType, ifFalse.RuntimeType))
             {
-                this.ifFalse = new ConvertExpression(ifFalse, returnType);
+                _ifFalse = new ConvertExpression(ifFalse, returnType);
             }
             else
             {
@@ -136,13 +136,13 @@ namespace Inkslab.Expressions
             var leave = ilg.DefineLabel();
             var variable = ilg.DeclareLocal(RuntimeType);
 
-            test.Load(ilg);
+            _test.Load(ilg);
 
             ilg.Emit(OpCodes.Brfalse_S, label);
 
             ilg.Emit(OpCodes.Nop);
 
-            ifTrue.Load(ilg);
+            _ifTrue.Load(ilg);
 
             ilg.Emit(OpCodes.Stloc, variable);
 
@@ -150,7 +150,7 @@ namespace Inkslab.Expressions
 
             ilg.MarkLabel(label);
 
-            ifFalse.Load(ilg);
+            _ifFalse.Load(ilg);
 
             ilg.Emit(OpCodes.Stloc, variable);
 
@@ -164,15 +164,15 @@ namespace Inkslab.Expressions
             var label = ilg.DefineLabel();
             var leave = ilg.DefineLabel();
 
-            test.Load(ilg);
+            _test.Load(ilg);
 
             ilg.Emit(OpCodes.Brfalse_S, label);
 
             ilg.Emit(OpCodes.Nop);
 
-            ifTrue.Load(ilg);
+            _ifTrue.Load(ilg);
 
-            if (ifTrue.RuntimeType != typeof(void))
+            if (_ifTrue.RuntimeType != typeof(void))
             {
                 ilg.Emit(OpCodes.Pop);
             }
@@ -181,9 +181,9 @@ namespace Inkslab.Expressions
 
             ilg.MarkLabel(label);
 
-            ifFalse.Load(ilg);
+            _ifFalse.Load(ilg);
 
-            if (ifFalse.RuntimeType != typeof(void))
+            if (_ifFalse.RuntimeType != typeof(void))
             {
                 ilg.Emit(OpCodes.Pop);
             }

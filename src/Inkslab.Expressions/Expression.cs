@@ -231,8 +231,8 @@ namespace Inkslab
         [DebuggerDisplay("{left} = {right}")]
         private class AssignExpression : Expression
         {
-            private readonly Expression left;
-            private readonly Expression right;
+            private readonly Expression _left;
+            private readonly Expression _right;
 
             /// <summary>
             /// 赋值运算。
@@ -245,15 +245,15 @@ namespace Inkslab
             {
                 AssignChecked(left, right);
 
-                this.left = left ?? throw new ArgumentNullException(nameof(left));
-                this.right = right ?? throw new ArgumentNullException(nameof(right));
+                _left = left ?? throw new ArgumentNullException(nameof(left));
+                _right = right ?? throw new ArgumentNullException(nameof(right));
             }
 
             /// <summary>
             /// 发行。
             /// </summary>
             /// <param name="ilg">指令。</param>
-            public override void Load(ILGenerator ilg) => left.Assign(ilg, Convert(right, RuntimeType));
+            public override void Load(ILGenerator ilg) => _left.Assign(ilg, Convert(_right, RuntimeType));
         }
 
         /// <summary>

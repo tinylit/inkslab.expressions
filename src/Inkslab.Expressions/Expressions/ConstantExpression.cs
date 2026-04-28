@@ -10,13 +10,13 @@ namespace Inkslab.Expressions
     /// </summary>
     public class ConstantExpression : Expression
     {
-        private readonly object value;
+        private readonly object _value;
 
         /// <summary>
         /// 构造函数。
         /// </summary>
         /// <param name="value">值。</param>
-        internal ConstantExpression(object value) : this(value, (value is MethodInfo || value is MethodEmitter) ? typeof(MethodInfo) : (value is Type || value is AbstractTypeEmitter) ? typeof(Type) : value?.GetType() ?? typeof(object))
+        internal ConstantExpression(object value) : this(value, (value is MethodInfo or MethodEmitter) ? typeof(MethodInfo) : (value is Type or AbstractTypeEmitter) ? typeof(Type) : value?.GetType() ?? typeof(object))
         {
         }
 
@@ -34,11 +34,11 @@ namespace Inkslab.Expressions
                     throw new NotSupportedException($"常量null，不能对值类型({type})进行转换!");
                 }
 
-                this.value = value;
+                _value = value;
             }
-            else if ((value is Type || value is AbstractTypeEmitter) ? type == typeof(Type) : value is MethodEmitter ? type == typeof(MethodInfo) : EmitUtils.IsAssignableFromSignatureTypes(type, value.GetType()))
+            else if ((value is Type or AbstractTypeEmitter) ? type == typeof(Type) : value is MethodEmitter ? type == typeof(MethodInfo) : EmitUtils.IsAssignableFromSignatureTypes(type, value.GetType()))
             {
-                this.value = value;
+                _value = value;
             }
             else
             {
@@ -49,13 +49,13 @@ namespace Inkslab.Expressions
         /// <summary>
         /// 空的。
         /// </summary>
-        public bool IsNull => value is null;
+        public bool IsNull => _value is null;
 
         /// <summary>
         /// 生成。
         /// </summary>
         /// <param name="ilg">指令。</param>
-        public override void Load(ILGenerator ilg) => EmitUtils.EmitConstantOfType(ilg, value, RuntimeType);
+        public override void Load(ILGenerator ilg) => EmitUtils.EmitConstantOfType(ilg, _value, RuntimeType);
 
         /// <summary>
         /// 重写。
@@ -68,7 +68,7 @@ namespace Inkslab.Expressions
                 return "null";
             }
 
-            return value.ToString();
+            return _value.ToString();
         }
     }
 }

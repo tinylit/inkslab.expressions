@@ -11,16 +11,16 @@ namespace Inkslab.Expressions
     [DebuggerDisplay("{left} {expressionType} {right}")]
     public class BinaryExpression : Expression
     {
-        private readonly Expression left;
-        private readonly BinaryExpressionType expressionType;
-        private readonly Expression right;
-        private readonly MethodInfo operatorMethod;
+        private readonly Expression _left;
+        private readonly BinaryExpressionType _expressionType;
+        private readonly Expression _right;
+        private readonly MethodInfo _operatorMethod;
         private BinaryExpression(BinaryExpression binaryAst) : base(binaryAst.RuntimeType)
         {
-            left = binaryAst.left;
-            expressionType = binaryAst.expressionType - 1;
-            right = binaryAst.right;
-            operatorMethod = binaryAst.operatorMethod;
+            _left = binaryAst._left;
+            _expressionType = binaryAst._expressionType - 1;
+            _right = binaryAst._right;
+            _operatorMethod = binaryAst._operatorMethod;
         }
 
         /// <summary>
@@ -31,10 +31,10 @@ namespace Inkslab.Expressions
         /// <param name="right">右表达式。</param>
         internal BinaryExpression(Expression left, BinaryExpressionType expressionType, Expression right) : base(AnalysisType(left, expressionType, right, out MethodInfo operatorMethod))
         {
-            this.left = left;
-            this.expressionType = expressionType;
-            this.right = right;
-            this.operatorMethod = operatorMethod;
+            _left = left;
+            _expressionType = expressionType;
+            _right = right;
+            _operatorMethod = operatorMethod;
         }
 
         private static Type AnalysisType(Expression left, BinaryExpressionType expressionType, Expression right, out MethodInfo operatorMethod)
@@ -241,49 +241,49 @@ namespace Inkslab.Expressions
         /// <param name="ilg">命令。</param>
         public override void Load(ILGenerator ilg)
         {
-            if (expressionType < BinaryExpressionType.OrElse && (expressionType & BinaryExpressionType.Add) == 0)
+            if (_expressionType < BinaryExpressionType.OrElse && (_expressionType & BinaryExpressionType.Add) == 0)
             {
-                Assign(left, new BinaryExpression(this))
+                Assign(_left, new BinaryExpression(this))
                     .Load(ilg);
             }
             else
             {
-                if (left is ConstantExpression constantAst && constantAst.IsNull)
+                if (_left is ConstantExpression constantAst && constantAst.IsNull)
                 {
                     ilg.Emit(OpCodes.Ldnull);
                 }
                 else
                 {
-                    left.Load(ilg);
+                    _left.Load(ilg);
                 }
 
-                if (right is ConstantExpression constantAst2 && constantAst2.IsNull)
+                if (_right is ConstantExpression constantAst2 && constantAst2.IsNull)
                 {
                     ilg.Emit(OpCodes.Ldnull);
                 }
                 else
                 {
-                    right.Load(ilg);
+                    _right.Load(ilg);
                 }
 
-                if (operatorMethod is not null)
+                if (_operatorMethod is not null)
                 {
-                    ilg.Emit(OpCodes.Call, operatorMethod);
+                    ilg.Emit(OpCodes.Call, _operatorMethod);
 
                     return;
                 }
 
-                switch (expressionType)
+                switch (_expressionType)
                 {
                     case BinaryExpressionType.Add:
                         ilg.Emit(OpCodes.Add);
                         break;
                     case BinaryExpressionType.AddChecked:
-                        if (IsFloatingPoint(left.RuntimeType))
+                        if (IsFloatingPoint(_left.RuntimeType))
                         {
                             ilg.Emit(OpCodes.Add);
                         }
-                        else if (IsUnsigned(left.RuntimeType))
+                        else if (IsUnsigned(_left.RuntimeType))
                         {
                             ilg.Emit(OpCodes.Add_Ovf_Un);
                         }
@@ -296,11 +296,11 @@ namespace Inkslab.Expressions
                         ilg.Emit(OpCodes.Sub);
                         break;
                     case BinaryExpressionType.SubtractChecked:
-                        if (IsFloatingPoint(left.RuntimeType))
+                        if (IsFloatingPoint(_left.RuntimeType))
                         {
                             ilg.Emit(OpCodes.Sub);
                         }
-                        else if (IsUnsigned(left.RuntimeType))
+                        else if (IsUnsigned(_left.RuntimeType))
                         {
                             ilg.Emit(OpCodes.Sub_Ovf_Un);
                         }
@@ -313,11 +313,11 @@ namespace Inkslab.Expressions
                         ilg.Emit(OpCodes.Mul);
                         break;
                     case BinaryExpressionType.MultiplyChecked:
-                        if (IsFloatingPoint(left.RuntimeType))
+                        if (IsFloatingPoint(_left.RuntimeType))
                         {
                             ilg.Emit(OpCodes.Mul);
                         }
-                        else if (IsUnsigned(left.RuntimeType))
+                        else if (IsUnsigned(_left.RuntimeType))
                         {
                             ilg.Emit(OpCodes.Mul_Ovf_Un);
                         }
@@ -327,7 +327,7 @@ namespace Inkslab.Expressions
                         }
                         break;
                     case BinaryExpressionType.Divide:
-                        if (IsUnsigned(left.RuntimeType))
+                        if (IsUnsigned(_left.RuntimeType))
                         {
                             ilg.Emit(OpCodes.Div_Un);
                         }
@@ -337,7 +337,7 @@ namespace Inkslab.Expressions
                         }
                         break;
                     case BinaryExpressionType.Modulo:
-                        if (IsUnsigned(left.RuntimeType))
+                        if (IsUnsigned(_left.RuntimeType))
                         {
                             ilg.Emit(OpCodes.Rem_Un);
                         }
@@ -361,7 +361,7 @@ namespace Inkslab.Expressions
                         ilg.Emit(OpCodes.Shl);
                         break;
                     case BinaryExpressionType.RightShift:
-                        if (IsUnsigned(left.RuntimeType))
+                        if (IsUnsigned(_left.RuntimeType))
                         {
                             ilg.Emit(OpCodes.Shr_Un);
                         }
@@ -372,7 +372,7 @@ namespace Inkslab.Expressions
                         break;
                     case BinaryExpressionType.Power:
 #if NETSTANDARD2_1_OR_GREATER
-                        if (left.RuntimeType == typeof(double))
+                        if (_left.RuntimeType == typeof(double))
                         {
                             ilg.Emit(OpCodes.Call, typeof(Math).GetMethod(nameof(Math.Pow), BindingFlags.Static | BindingFlags.Public));
                         }
@@ -385,7 +385,7 @@ namespace Inkslab.Expressions
 #endif
                         break;
                     case BinaryExpressionType.LessThan:
-                        if (IsUnsigned(left.RuntimeType))
+                        if (IsUnsigned(_left.RuntimeType))
                         {
                             ilg.Emit(OpCodes.Clt_Un);
                         }
@@ -398,7 +398,7 @@ namespace Inkslab.Expressions
                         ilg.Emit(OpCodes.Ceq);
                         break;
                     case BinaryExpressionType.GreaterThan:
-                        if (IsUnsigned(left.RuntimeType))
+                        if (IsUnsigned(_left.RuntimeType))
                         {
                             ilg.Emit(OpCodes.Cgt_Un);
                         }
@@ -410,9 +410,9 @@ namespace Inkslab.Expressions
                     case BinaryExpressionType.GreaterThanOrEqual:
                     case BinaryExpressionType.LessThanOrEqual:
                     case BinaryExpressionType.NotEqual:
-                        if (expressionType == BinaryExpressionType.GreaterThanOrEqual)
+                        if (_expressionType == BinaryExpressionType.GreaterThanOrEqual)
                         {
-                            if (IsUnsigned(left.RuntimeType))
+                            if (IsUnsigned(_left.RuntimeType))
                             {
                                 ilg.Emit(OpCodes.Clt_Un);
                             }
@@ -421,9 +421,9 @@ namespace Inkslab.Expressions
                                 ilg.Emit(OpCodes.Clt);
                             }
                         }
-                        else if (expressionType == BinaryExpressionType.LessThanOrEqual)
+                        else if (_expressionType == BinaryExpressionType.LessThanOrEqual)
                         {
-                            if (IsUnsigned(left.RuntimeType))
+                            if (IsUnsigned(_left.RuntimeType))
                             {
                                 ilg.Emit(OpCodes.Cgt_Un);
                             }

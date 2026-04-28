@@ -15,21 +15,21 @@ namespace Inkslab
     /// </summary>
     public static class EmitUtils
     {
-        private static readonly ConstructorInfo GuidConstructorInfo = typeof(Guid).GetConstructor(new Type[1] { typeof(string) });
+        private static readonly ConstructorInfo _guidConstructorInfo = typeof(Guid).GetConstructor(new Type[1] { typeof(string) });
 
-        private static readonly Type Type_Type = typeof(Type);
-        private static readonly Type MethodBase_Type = typeof(MethodBase);
+        private static readonly Type _typeType = typeof(Type);
+        private static readonly Type _methodBaseType = typeof(MethodBase);
 
-        internal static readonly MethodInfo GetTypeFromHandle = Type_Type.GetMethod(nameof(Type.GetTypeFromHandle));
+        internal static readonly MethodInfo GetTypeFromHandle = _typeType.GetMethod(nameof(Type.GetTypeFromHandle));
 
-        private static readonly MethodInfo GetMethodFromHandleBySingle = MethodBase_Type.GetMethod(nameof(MethodBase.GetMethodFromHandle), new[] { typeof(RuntimeMethodHandle) });
-        private static readonly MethodInfo GetMethodFromHandleByDouble = MethodBase_Type.GetMethod(nameof(MethodBase.GetMethodFromHandle), new[] { typeof(RuntimeMethodHandle), typeof(RuntimeTypeHandle) });
+        private static readonly MethodInfo _getMethodFromHandleBySingle = _methodBaseType.GetMethod(nameof(MethodBase.GetMethodFromHandle), new[] { typeof(RuntimeMethodHandle) });
+        private static readonly MethodInfo _getMethodFromHandleByDouble = _methodBaseType.GetMethod(nameof(MethodBase.GetMethodFromHandle), new[] { typeof(RuntimeMethodHandle), typeof(RuntimeTypeHandle) });
 
-        private static readonly List<object> Constants = new List<object>();
-        private static readonly Dictionary<object, int> ConstantCache = new Dictionary<object, int>();
-        private static readonly MethodInfo GetConstantMethod = typeof(EmitUtils).GetMethod(nameof(GetConstant), BindingFlags.NonPublic | BindingFlags.Static | BindingFlags.Instance);
+        private static readonly List<object> _constants = new List<object>();
+        private static readonly Dictionary<object, int> _constantCache = new Dictionary<object, int>();
+        private static readonly MethodInfo _getConstantMethod = typeof(EmitUtils).GetMethod(nameof(GetConstant), BindingFlags.NonPublic | BindingFlags.Static | BindingFlags.Instance);
 
-        private static object GetConstant(int index) => Constants[index];
+        private static object GetConstant(int index) => _constants[index];
 
         #region Convert
 
@@ -233,7 +233,9 @@ namespace Inkslab
             }
             // Variant delegate conversion
             if (IsLegalExplicitVariantDelegateConversion(source, dest))
+            {
                 return true;
+            }
 
             // Object conversion
             if (source == typeof(object) || dest == typeof(object))
@@ -256,12 +258,16 @@ namespace Inkslab
             //     or Si and Ti must both be reference types.
 
             if (!IsDelegate(source) || !IsDelegate(dest) || !source.IsGenericType || !dest.IsGenericType)
+            {
                 return false;
+            }
 
             Type genericDelegate = source.GetGenericTypeDefinition();
 
             if (dest.GetGenericTypeDefinition() != genericDelegate)
+            {
                 return false;
+            }
 
             Type[] genericParameters = genericDelegate.GetGenericArguments();
             Type[] sourceArguments = source.GetGenericArguments();
@@ -401,13 +407,19 @@ namespace Inkslab
             if (typeTo == typeof(float))
             {
                 if (isFromUnsigned)
+                {
                     ilg.Emit(OpCodes.Conv_R_Un);
+                }
+
                 ilg.Emit(OpCodes.Conv_R4);
             }
             else if (typeTo == typeof(double))
             {
                 if (isFromUnsigned)
+                {
                     ilg.Emit(OpCodes.Conv_R_Un);
+                }
+
                 ilg.Emit(OpCodes.Conv_R8);
             }
             else
@@ -900,7 +912,7 @@ namespace Inkslab
                     c = OpCodes.Ldc_I4_8;
                     break;
                 default:
-                    if (value >= -128 && value <= 127)
+                    if (value is >= -128 and <= 127)
                     {
                         ilg.Emit(OpCodes.Ldc_I4_S, (sbyte)value);
                     }
@@ -970,13 +982,13 @@ namespace Inkslab
         {
             if (decimal.Truncate(value) == value)
             {
-                if (int.MinValue <= value && value <= int.MaxValue)
+                if (value is >= int.MinValue and <= int.MaxValue)
                 {
                     int intValue = decimal.ToInt32(value);
                     EmitInt(ilg, intValue);
                     EmitNew(ilg, typeof(decimal).GetConstructor(new Type[] { typeof(int) }));
                 }
-                else if (long.MinValue <= value && value <= long.MaxValue)
+                else if (value is >= long.MinValue and <= long.MaxValue)
                 {
                     long longValue = decimal.ToInt64(value);
                     EmitLong(ilg, longValue);
@@ -1417,7 +1429,7 @@ namespace Inkslab
             }
             else
             {
-                valueType ??= (value is Type || value is AbstractTypeEmitter) ? typeof(Type) : (value is MethodInfo || value is MethodEmitter) ? typeof(MethodInfo) : value.GetType();
+                valueType ??= (value is Type or AbstractTypeEmitter) ? typeof(Type) : (value is MethodInfo or MethodEmitter) ? typeof(MethodInfo) : value.GetType();
 
                 switch (value)
                 {
@@ -1425,7 +1437,7 @@ namespace Inkslab
                         ilg.Emit(OpCodes.Ldtoken, type);
                         ilg.Emit(OpCodes.Call, GetTypeFromHandle);
 
-                        if (valueType != Type_Type)
+                        if (valueType != _typeType)
                         {
                             ilg.Emit(OpCodes.Castclass, valueType);
                         }
@@ -1446,11 +1458,11 @@ namespace Inkslab
                             if (methodInfo.DeclaringType?.IsGenericType ?? false)
                             {
                                 ilg.Emit(OpCodes.Ldtoken, methodInfo.DeclaringType);
-                                ilg.Emit(OpCodes.Call, GetMethodFromHandleByDouble);
+                                ilg.Emit(OpCodes.Call, _getMethodFromHandleByDouble);
                             }
                             else
                             {
-                                ilg.Emit(OpCodes.Call, GetMethodFromHandleBySingle);
+                                ilg.Emit(OpCodes.Call, _getMethodFromHandleBySingle);
                             }
 
                             ilg.Emit(OpCodes.Castclass, valueType);
@@ -1471,21 +1483,21 @@ namespace Inkslab
                         if (methodInfo.DeclaringType?.IsGenericType ?? false)
                         {
                             ilg.Emit(OpCodes.Ldtoken, methodInfo.DeclaringType);
-                            ilg.Emit(OpCodes.Call, GetMethodFromHandleByDouble);
+                            ilg.Emit(OpCodes.Call, _getMethodFromHandleByDouble);
                         }
                         else
                         {
-                            ilg.Emit(OpCodes.Call, GetMethodFromHandleBySingle);
+                            ilg.Emit(OpCodes.Call, _getMethodFromHandleBySingle);
                         }
 
-                        if (valueType != MethodBase_Type)
+                        if (valueType != _methodBaseType)
                         {
                             ilg.Emit(OpCodes.Castclass, valueType);
                         }
                         break;
                     case Guid guid:
                         ilg.Emit(OpCodes.Ldstr, guid.ToString("D"));
-                        ilg.Emit(OpCodes.Newobj, GuidConstructorInfo);
+                        ilg.Emit(OpCodes.Newobj, _guidConstructorInfo);
                         break;
                     case Array array:
                         if (!IsSimpleArray(valueType))
@@ -1623,19 +1635,19 @@ namespace Inkslab
                         // 回退到常量缓存机制
                         int key;
 
-                        lock (ConstantCache)
+                        lock (_constantCache)
                         {
-                            if (!ConstantCache.TryGetValue(value, out key))
+                            if (!_constantCache.TryGetValue(value, out key))
                             {
-                                ConstantCache.Add(value, key = Constants.Count);
+                                _constantCache.Add(value, key = _constants.Count);
 
-                                Constants.Add(value);
+                                _constants.Add(value);
                             }
                         }
 
                         EmitInt(ilg, key);
 
-                        ilg.Emit(OpCodes.Call, GetConstantMethod);
+                        ilg.Emit(OpCodes.Call, _getConstantMethod);
 
                         if (valueType.IsValueType)
                         {

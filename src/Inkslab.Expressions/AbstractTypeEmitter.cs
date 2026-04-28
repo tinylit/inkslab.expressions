@@ -16,19 +16,19 @@ namespace Inkslab
     /// </summary>
     public abstract class AbstractTypeEmitter
     {
-        private bool initializedGenericType = false;
-        private readonly List<Type> genericArguments = new List<Type>();
-        private readonly Type baseType;
-        private readonly Type[] interfaces;
-        private readonly TypeBuilder typeBuilder;
-        private readonly INamingScope namingScope;
-        private readonly List<MethodEmitter> methods = new List<MethodEmitter>();
-        private readonly List<AbstractTypeEmitter> abstracts = new List<AbstractTypeEmitter>();
-        private readonly List<ConstructorEmitter> constructors = new List<ConstructorEmitter>();
-        private readonly Dictionary<string, FieldEmitter> fields = new Dictionary<string, FieldEmitter>(StringComparer.OrdinalIgnoreCase);
-        private readonly Dictionary<string, PropertyEmitter> properties = new Dictionary<string, PropertyEmitter>(StringComparer.OrdinalIgnoreCase);
+        private bool _initializedGenericType = false;
+        private readonly List<Type> _genericArguments = new List<Type>();
+        private readonly Type _baseType;
+        private readonly Type[] _interfaces;
+        private readonly TypeBuilder _typeBuilder;
+        private readonly INamingScope _namingScope;
+        private readonly List<MethodEmitter> _methods = new List<MethodEmitter>();
+        private readonly List<AbstractTypeEmitter> _abstracts = new List<AbstractTypeEmitter>();
+        private readonly List<ConstructorEmitter> _constructors = new List<ConstructorEmitter>();
+        private readonly Dictionary<string, FieldEmitter> _fields = new Dictionary<string, FieldEmitter>(StringComparer.OrdinalIgnoreCase);
+        private readonly Dictionary<string, PropertyEmitter> _properties = new Dictionary<string, PropertyEmitter>(StringComparer.OrdinalIgnoreCase);
 
-        private readonly object lockObj = new object();
+        private readonly object _lockObj = new object();
 
         /// <summary>
         /// 静态构造函数。
@@ -71,20 +71,20 @@ namespace Inkslab
         /// </summary>
         private sealed class MethodOverrideEmitter : MethodEmitter
         {
-            private readonly MethodBuilder methodBuilder;
-            private readonly MethodInfo methodInfoDeclaration;
-            private readonly bool isVirtualMethod;
+            private readonly MethodBuilder _methodBuilder;
+            private readonly MethodInfo _methodInfoDeclaration;
+            private readonly bool _isVirtualMethod;
 
-            public MethodOverrideEmitter(AbstractTypeEmitter declaringType, MethodBuilder methodBuilder, MethodInfo methodInfoDeclaration, Type returnType) : base(declaringType, methodBuilder.Name, methodBuilder.Attributes, returnType)
+            public MethodOverrideEmitter(AbstractTypeEmitter declaringType, MethodBuilder methodBuilder, MethodInfo methodInfoDeclaration, Type returnType) : base(declaringType, methodBuilder, returnType)
             {
-                this.methodBuilder = methodBuilder;
-                this.methodInfoDeclaration = methodInfoDeclaration;
-                this.isVirtualMethod = methodInfoDeclaration.IsVirtual && !methodInfoDeclaration.IsFinal;
+                _methodBuilder = methodBuilder;
+                _methodInfoDeclaration = methodInfoDeclaration;
+                _isVirtualMethod = methodInfoDeclaration.IsVirtual && !methodInfoDeclaration.IsFinal;
             }
 
-            public override bool IsGenericMethod => methodInfoDeclaration.IsGenericMethod;
+            public override bool IsGenericMethod => _methodInfoDeclaration.IsGenericMethod;
 
-            public override Type[] GetGenericArguments() => methodBuilder.GetGenericArguments();
+            public override Type[] GetGenericArguments() => _methodBuilder.GetGenericArguments();
 
             public ParameterEmitter DefineParameter(ParameterInfo parameterInfo, Type parameterType)
             {
@@ -110,17 +110,17 @@ namespace Inkslab
 
             public override void Emit(TypeBuilder builder)
             {
-                if (builder != methodBuilder.DeclaringType)
+                if (builder != _methodBuilder.DeclaringType)
                 {
                     throw new ArgumentException("方法声明类型和类型构造器不一致!", nameof(builder));
                 }
 
-                Emit(methodBuilder);
+                Emit(_methodBuilder);
 
                 // 只有虚方法或接口方法才能使用 DefineMethodOverride
-                if (isVirtualMethod || methodInfoDeclaration.DeclaringType.IsInterface)
+                if (_isVirtualMethod || _methodInfoDeclaration.DeclaringType.IsInterface)
                 {
-                    builder.DefineMethodOverride(methodBuilder, methodInfoDeclaration);
+                    builder.DefineMethodOverride(_methodBuilder, _methodInfoDeclaration);
                 }
                 // 对于非虚方法，不需要调用 DefineMethodOverride，因为我们使用的是方法隐藏
             }
@@ -138,8 +138,8 @@ namespace Inkslab
                 throw new ArgumentNullException(nameof(moduleEmitter));
             }
 
-            namingScope = moduleEmitter.BeginScope();
-            typeBuilder = ModuleEmitter.DefineType(moduleEmitter, name);
+            _namingScope = moduleEmitter.BeginScope();
+            _typeBuilder = ModuleEmitter.DefineType(moduleEmitter, name);
         }
 
         /// <summary>
@@ -191,29 +191,29 @@ namespace Inkslab
                     {
                         AnalyzeGenericParameters(ref interfaces);
 
-                        this.interfaces = interfaces;
+                        _interfaces = interfaces;
 
-                        typeBuilder = ModuleEmitter.DefineType(moduleEmitter, name, attributes, typeof(object));
+                        _typeBuilder = ModuleEmitter.DefineType(moduleEmitter, name, attributes, typeof(object));
                     }
                     else
                     {
-                        typeBuilder = ModuleEmitter.DefineType(moduleEmitter, name, attributes, typeof(object), interfaces);
+                        _typeBuilder = ModuleEmitter.DefineType(moduleEmitter, name, attributes, typeof(object), interfaces);
                     }
                 }
                 else
                 {
-                    typeBuilder = ModuleEmitter.DefineType(moduleEmitter, name, attributes);
+                    _typeBuilder = ModuleEmitter.DefineType(moduleEmitter, name, attributes);
                 }
             }
             else if (baseType.IsGenericTypeDefinition)
             {
-                this.baseType = baseType;
+                _baseType = baseType;
 
                 AnalyzeGenericParameters(baseType, ref interfaces);
 
-                this.interfaces = interfaces;
+                _interfaces = interfaces;
 
-                typeBuilder = ModuleEmitter.DefineType(moduleEmitter, name, attributes);
+                _typeBuilder = ModuleEmitter.DefineType(moduleEmitter, name, attributes);
             }
             else if (interfaces?.Length > 0)
             {
@@ -221,21 +221,21 @@ namespace Inkslab
                 {
                     AnalyzeGenericParameters(baseType, ref interfaces);
 
-                    this.interfaces = interfaces;
+                    _interfaces = interfaces;
 
-                    typeBuilder = ModuleEmitter.DefineType(moduleEmitter, name, attributes, baseType);
+                    _typeBuilder = ModuleEmitter.DefineType(moduleEmitter, name, attributes, baseType);
                 }
                 else
                 {
-                    typeBuilder = ModuleEmitter.DefineType(moduleEmitter, name, attributes, baseType, interfaces);
+                    _typeBuilder = ModuleEmitter.DefineType(moduleEmitter, name, attributes, baseType, interfaces);
                 }
             }
             else
             {
-                typeBuilder = ModuleEmitter.DefineType(moduleEmitter, name, attributes, baseType);
+                _typeBuilder = ModuleEmitter.DefineType(moduleEmitter, name, attributes, baseType);
             }
 
-            namingScope = moduleEmitter.BeginScope();
+            _namingScope = moduleEmitter.BeginScope();
         }
 
         /// <summary>
@@ -245,8 +245,8 @@ namespace Inkslab
         /// <param name="name">匿名类型名称。</param>
         protected AbstractTypeEmitter(AbstractTypeEmitter typeEmitter, string name) : this(typeEmitter, name, TypeAttributes.NotPublic)
         {
-            namingScope = typeEmitter.BeginScope();
-            typeBuilder = DefineType(typeEmitter, name);
+            _namingScope = typeEmitter.BeginScope();
+            _typeBuilder = DefineType(typeEmitter, name);
         }
 
         /// <summary>
@@ -298,29 +298,29 @@ namespace Inkslab
                     {
                         AnalyzeGenericParameters(ref interfaces);
 
-                        this.interfaces = interfaces;
+                        _interfaces = interfaces;
 
-                        typeBuilder = DefineType(typeEmitter, name, attributes, typeof(object));
+                        _typeBuilder = DefineType(typeEmitter, name, attributes, typeof(object));
                     }
                     else
                     {
-                        typeBuilder = DefineType(typeEmitter, name, attributes, typeof(object), interfaces);
+                        _typeBuilder = DefineType(typeEmitter, name, attributes, typeof(object), interfaces);
                     }
                 }
                 else
                 {
-                    typeBuilder = DefineType(typeEmitter, name, attributes);
+                    _typeBuilder = DefineType(typeEmitter, name, attributes);
                 }
             }
             else if (baseType.IsGenericTypeDefinition)
             {
-                this.baseType = baseType;
+                _baseType = baseType;
 
                 AnalyzeGenericParameters(baseType, ref interfaces);
 
-                this.interfaces = interfaces;
+                _interfaces = interfaces;
 
-                typeBuilder = DefineType(typeEmitter, name, attributes);
+                _typeBuilder = DefineType(typeEmitter, name, attributes);
             }
             else if (interfaces?.Length > 0)
             {
@@ -328,32 +328,32 @@ namespace Inkslab
                 {
                     AnalyzeGenericParameters(baseType, ref interfaces);
 
-                    this.interfaces = interfaces;
+                    _interfaces = interfaces;
 
-                    typeBuilder = DefineType(typeEmitter, name, attributes, baseType);
+                    _typeBuilder = DefineType(typeEmitter, name, attributes, baseType);
                 }
                 else
                 {
-                    typeBuilder = DefineType(typeEmitter, name, attributes, baseType, interfaces);
+                    _typeBuilder = DefineType(typeEmitter, name, attributes, baseType, interfaces);
                 }
             }
             else
             {
-                typeBuilder = DefineType(typeEmitter, name, attributes, baseType);
+                _typeBuilder = DefineType(typeEmitter, name, attributes, baseType);
             }
 
-            namingScope = typeEmitter.BeginScope();
+            _namingScope = typeEmitter.BeginScope();
 
-            typeEmitter.abstracts.Add(this);
+            typeEmitter._abstracts.Add(this);
         }
 
         /// <summary>
         /// 开始名称范围。
         /// </summary>
         /// <returns></returns>
-        public INamingScope BeginScope() => namingScope.BeginScope();
+        public INamingScope BeginScope() => _namingScope.BeginScope();
 
-        private string GetUniqueName(string name) => namingScope.GetUniqueName(name);
+        private string GetUniqueName(string name) => _namingScope.GetUniqueName(name);
 
         private static TypeAttributes MakeNestedTypeAttributes(TypeAttributes attributes)
         {
@@ -386,42 +386,49 @@ namespace Inkslab
             var uniqueName = emitter.GetUniqueName(name);
             
             if (!attr.HasValue)
-                return emitter.typeBuilder.DefineNestedType(uniqueName);
-            
+            {
+                return emitter._typeBuilder.DefineNestedType(uniqueName);
+            }
+
             var attributes = MakeNestedTypeAttributes(attr.Value);
             
             if (interfaces != null)
-                return emitter.typeBuilder.DefineNestedType(uniqueName, attributes, parent, interfaces);
+            {
+                return emitter._typeBuilder.DefineNestedType(uniqueName, attributes, parent, interfaces);
+            }
+
             if (parent != null)
-                return emitter.typeBuilder.DefineNestedType(uniqueName, attributes, parent);
-            
-            return emitter.typeBuilder.DefineNestedType(uniqueName, attributes);
+            {
+                return emitter._typeBuilder.DefineNestedType(uniqueName, attributes, parent);
+            }
+
+            return emitter._typeBuilder.DefineNestedType(uniqueName, attributes);
         }
 
         private GenericTypeParameterBuilder[] DefineGenericParameters()
         {
-            if (typeBuilder.DeclaringType?.IsGenericType ?? false)
+            if (_typeBuilder.DeclaringType?.IsGenericType ?? false)
             {
-                genericArguments.InsertRange(0, typeBuilder.DeclaringType.GetGenericArguments());
+                _genericArguments.InsertRange(0, _typeBuilder.DeclaringType.GetGenericArguments());
             }
 
-            if (genericArguments.Count == 0)
+            if (_genericArguments.Count == 0)
             {
                 return Array.Empty<GenericTypeParameterBuilder>();
             }
 
-            var names = new string[genericArguments.Count];
+            var names = new string[_genericArguments.Count];
 
-            for (int i = 0; i < genericArguments.Count; i++)
+            for (int i = 0; i < _genericArguments.Count; i++)
             {
-                names[i] = genericArguments[i].Name;
+                names[i] = _genericArguments[i].Name;
             }
 
-            var typeParameterBuilders = typeBuilder.DefineGenericParameters(names.ToArray());
+            var typeParameterBuilders = _typeBuilder.DefineGenericParameters(names.ToArray());
 
-            for (int i = 0; i < genericArguments.Count; i++)
+            for (int i = 0; i < _genericArguments.Count; i++)
             {
-                var g = genericArguments[i];
+                var g = _genericArguments[i];
                 var t = typeParameterBuilders[i];
 
                 t.SetGenericParameterAttributes(g.GenericParameterAttributes);
@@ -452,41 +459,41 @@ namespace Inkslab
                 }
             }
 
-            if (baseType is null || !baseType.IsGenericTypeDefinition)
+            if (_baseType is null || !_baseType.IsGenericTypeDefinition)
             {
-                if (interfaces?.Length > 0)
+                if (_interfaces?.Length > 0)
                 {
-                    foreach (var interfaceType in interfaces)
+                    foreach (var interfaceType in _interfaces)
                     {
-                        typeBuilder.AddInterfaceImplementation(MakeGenericType(interfaceType, typeParameterBuilders));
+                        _typeBuilder.AddInterfaceImplementation(MakeGenericType(interfaceType, typeParameterBuilders));
                     }
                 }
             }
-            else if (interfaces is null || interfaces.Length == 0)
+            else if (_interfaces is null || _interfaces.Length == 0)
             {
-                var serviceType = MakeGenericType(baseType, typeParameterBuilders);
+                var serviceType = MakeGenericType(_baseType, typeParameterBuilders);
 
-                typeBuilder.SetParent(serviceType);
+                _typeBuilder.SetParent(serviceType);
 
-                foreach (var interfaceType in baseType.GetInterfaces())
+                foreach (var interfaceType in _baseType.GetInterfaces())
                 {
-                    typeBuilder.AddInterfaceImplementation(MakeGenericType(interfaceType, typeParameterBuilders));
+                    _typeBuilder.AddInterfaceImplementation(MakeGenericType(interfaceType, typeParameterBuilders));
                 }
             }
             else
             {
-                var serviceType = MakeGenericType(baseType, typeParameterBuilders);
+                var serviceType = MakeGenericType(_baseType, typeParameterBuilders);
 
-                typeBuilder.SetParent(serviceType);
+                _typeBuilder.SetParent(serviceType);
 
-                foreach (var interfaceType in baseType.GetInterfaces())
+                foreach (var interfaceType in _baseType.GetInterfaces())
                 {
-                    typeBuilder.AddInterfaceImplementation(MakeGenericType(interfaceType, typeParameterBuilders));
+                    _typeBuilder.AddInterfaceImplementation(MakeGenericType(interfaceType, typeParameterBuilders));
                 }
 
-                foreach (var interfaceType in interfaces)
+                foreach (var interfaceType in _interfaces)
                 {
-                    typeBuilder.AddInterfaceImplementation(interfaceType);
+                    _typeBuilder.AddInterfaceImplementation(interfaceType);
                 }
             }
 
@@ -529,21 +536,25 @@ namespace Inkslab
             // 处理基类泛型参数
             if (baseType?.IsGenericTypeDefinition == true)
             {
-                genericArguments.AddRange(baseType.GetGenericArguments());
+                _genericArguments.AddRange(baseType.GetGenericArguments());
             }
 
             // 处理接口泛型参数
             if (interfaces is null || interfaces.Length == 0)
+            {
                 return;
+            }
 
             var genericTypes = Array.FindAll(interfaces, type => type.IsGenericTypeDefinition);
             if (genericTypes.Length == 0)
+            {
                 return;
+            }
 
             // 如果没有基类但只有一个泛型接口,直接处理
             if (baseType is null && genericTypes.Length == 1 && interfaces.Length == 1)
             {
-                genericArguments.AddRange(genericTypes[0].GetGenericArguments());
+                _genericArguments.AddRange(genericTypes[0].GetGenericArguments());
                 return;
             }
 
@@ -567,7 +578,7 @@ namespace Inkslab
             // 只在没有基类时添加泛型参数(有基类时已经在上面添加)
             if (baseType is null || !baseType.IsGenericTypeDefinition)
             {
-                genericArguments.AddRange(independentTypes.SelectMany(x => x.GetGenericArguments()));
+                _genericArguments.AddRange(independentTypes.SelectMany(x => x.GetGenericArguments()));
             }
 
             // 重新组合接口数组
@@ -584,7 +595,7 @@ namespace Inkslab
         /// <summary>
         /// 是否为泛型类。
         /// </summary>
-        public bool IsGenericType => genericArguments.Count > 0;
+        public bool IsGenericType => _genericArguments.Count > 0;
 
         /// <summary>
         /// 泛型参数。
@@ -594,13 +605,13 @@ namespace Inkslab
         {
             CheckGenericParameters();
 
-            return typeBuilder.GetGenericArguments();
+            return _typeBuilder.GetGenericArguments();
         }
 
         /// <summary>
         /// 类名称。
         /// </summary>
-        public string Name => typeBuilder.Name;
+        public string Name => _typeBuilder.Name;
 
         /// <summary>
         /// 父类型。
@@ -609,12 +620,12 @@ namespace Inkslab
         {
             get
             {
-                if (typeBuilder.IsInterface)
+                if (_typeBuilder.IsInterface)
                 {
                     return typeof(object);
                 }
 
-                return baseType ?? typeBuilder.BaseType;
+                return _baseType ?? _typeBuilder.BaseType;
             }
         }
 
@@ -622,29 +633,29 @@ namespace Inkslab
         /// 接口。
         /// </summary>
         /// <returns></returns>
-        public Type[] GetInterfaces() => interfaces ?? Type.EmptyTypes;
+        public Type[] GetInterfaces() => _interfaces ?? Type.EmptyTypes;
 
         /// <summary>
         /// 当前类型。
         /// </summary>
         [DebuggerHidden]
-        internal TypeBuilder Value => typeBuilder;
+        internal TypeBuilder Value => _typeBuilder;
 
         private void CheckGenericParameters()
         {
-            if (initializedGenericType)
+            if (_initializedGenericType)
             {
                 return;
             }
 
-            lock (lockObj)
+            lock (_lockObj)
             {
-                if (initializedGenericType)
+                if (_initializedGenericType)
                 {
                     return;
                 }
 
-                initializedGenericType = true;
+                _initializedGenericType = true;
 
                 DefineGenericParameters();
             }
@@ -665,19 +676,19 @@ namespace Inkslab
                 throw new ArgumentNullException(nameof(genericTypeArguments));
             }
 
-            if (initializedGenericType)
+            if (_initializedGenericType)
             {
                 throw new InvalidOperationException("类型已经定义了泛型约束！");
             }
 
-            lock (lockObj)
+            lock (_lockObj)
             {
-                if (initializedGenericType)
+                if (_initializedGenericType)
                 {
                     throw new InvalidOperationException("类型已经定义了泛型约束！");
                 }
 
-                initializedGenericType = true;
+                _initializedGenericType = true;
 
                 for (int i = 0; i < genericTypeArguments.Length; i++)
                 {
@@ -685,7 +696,7 @@ namespace Inkslab
 
                     if (genericType.IsGenericParameter)
                     {
-                        genericArguments.Add(genericType);
+                        _genericArguments.Add(genericType);
                     }
                     else
                     {
@@ -771,11 +782,11 @@ namespace Inkslab
         /// <returns></returns>
         public FieldEmitter DefineField(string name, Type fieldType, FieldAttributes atts)
         {
-            name = namingScope.GetUniqueName(name);
+            name = _namingScope.GetUniqueName(name);
 
             var fieldEmitter = new FieldEmitter(name, fieldType, atts);
 
-            fields.Add(name, fieldEmitter);
+            _fields.Add(name, fieldEmitter);
 
             return fieldEmitter;
         }
@@ -800,7 +811,7 @@ namespace Inkslab
         public PropertyEmitter DefineProperty(string name, PropertyAttributes attributes, Type propertyType, Type[] arguments)
         {
             var propEmitter = new PropertyEmitter(name, attributes, propertyType, arguments);
-            properties.Add(name, propEmitter);
+            _properties.Add(name, propEmitter);
             return propEmitter;
         }
 
@@ -815,7 +826,7 @@ namespace Inkslab
         {
             var member = new MethodEmitter(this, name, attrs, returnType ?? typeof(void));
 
-            methods.Add(member);
+            _methods.Add(member);
 
             return member;
         }
@@ -910,7 +921,7 @@ namespace Inkslab
                 parameterTypes[i] = parameterInfos[i].ParameterType;
             }
 
-            var methodBuilder = typeBuilder.DefineMethod(methodInfoDeclaration.Name, ObtainAttributes(methodInfoDeclaration), CallingConventions.Standard);
+            var methodBuilder = _typeBuilder.DefineMethod(methodInfoDeclaration.Name, ObtainAttributes(methodInfoDeclaration), CallingConventions.Standard);
 
             var genericArguments = Type.EmptyTypes;
             Type returnType = methodInfoDeclaration.ReturnType;
@@ -926,7 +937,7 @@ namespace Inkslab
             {
                 bool hasDeclaringTypes = false;
 
-                Type declaringTypeEmit = typeBuilder;
+                Type declaringTypeEmit = _typeBuilder;
 
                 Type typeDefinition = declaringType.GetGenericTypeDefinition();
 
@@ -1123,7 +1134,7 @@ namespace Inkslab
                 parametersRequiredCustomModifiers,
                 parametersOptionalCustomModifiers);
 
-            methods.Add(overrideEmitter);
+            _methods.Add(overrideEmitter);
 
             return overrideEmitter;
         }
@@ -1143,8 +1154,8 @@ namespace Inkslab
         /// <returns></returns>
         public ConstructorEmitter DefineConstructor(MethodAttributes attributes, CallingConventions conventions)
         {
-            var member = new ConstructorEmitter(typeBuilder, attributes, conventions);
-            constructors.Add(member);
+            var member = new ConstructorEmitter(_typeBuilder, attributes, conventions);
+            _constructors.Add(member);
             return member;
         }
 
@@ -1154,7 +1165,7 @@ namespace Inkslab
         /// <returns></returns>
         public void DefineDefaultConstructor()
         {
-            constructors.Add(new ConstructorEmitter(typeBuilder, MethodAttributes.Public));
+            _constructors.Add(new ConstructorEmitter(_typeBuilder, MethodAttributes.Public));
         }
 
         /// <summary>
@@ -1168,7 +1179,7 @@ namespace Inkslab
                 throw new ArgumentNullException(nameof(attributeData));
             }
 
-            typeBuilder.SetCustomAttribute(EmitUtils.CreateCustomAttribute(attributeData));
+            _typeBuilder.SetCustomAttribute(EmitUtils.CreateCustomAttribute(attributeData));
         }
 
         /// <summary>
@@ -1178,7 +1189,7 @@ namespace Inkslab
         [SecuritySafeCritical]
         public void SetCustomAttribute(ConstructorInfo con, byte[] binaryAttribute)
         {
-            typeBuilder.SetCustomAttribute(con, binaryAttribute);
+            _typeBuilder.SetCustomAttribute(con, binaryAttribute);
         }
 
         /// <summary>
@@ -1188,7 +1199,7 @@ namespace Inkslab
         [SecuritySafeCritical]
         public void DefineCustomAttribute(CustomAttributeBuilder attribute)
         {
-            typeBuilder.SetCustomAttribute(attribute);
+            _typeBuilder.SetCustomAttribute(attribute);
         }
 
         /// <summary>
@@ -1251,24 +1262,24 @@ namespace Inkslab
         {
             CheckGenericParameters();
 
-            foreach (FieldEmitter emitter in fields.Values)
+            foreach (FieldEmitter emitter in _fields.Values)
             {
-                var fieldDefinition = typeBuilder.DefineField(emitter.Name, emitter.RuntimeType, emitter.Attributes);
+                var fieldDefinition = _typeBuilder.DefineField(emitter.Name, emitter.RuntimeType, emitter.Attributes);
 
                 emitter.Emit(fieldDefinition);
             }
 
-            if (!typeBuilder.IsInterface && constructors.Count == 0)
+            if (!_typeBuilder.IsInterface && _constructors.Count == 0)
             {
                 DefineDefaultConstructor();
             }
 
-            foreach (var emitter in abstracts)
+            foreach (var emitter in _abstracts)
             {
                 emitter.Emit();
             }
 
-            foreach (ConstructorEmitter emitter in constructors)
+            foreach (ConstructorEmitter emitter in _constructors)
             {
                 var parameters = emitter.GetParameters();
 
@@ -1279,25 +1290,25 @@ namespace Inkslab
                     parameterTypes[i] = parameters[i].RuntimeType;
                 }
 
-                emitter.Emit(typeBuilder.DefineConstructor(emitter.Attributes, emitter.Conventions, parameterTypes));
+                emitter.Emit(_typeBuilder.DefineConstructor(emitter.Attributes, emitter.Conventions, parameterTypes));
             }
 
-            foreach (MethodEmitter emitter in methods)
+            foreach (MethodEmitter emitter in _methods)
             {
-                emitter.Emit(typeBuilder);
+                emitter.Emit(_typeBuilder);
             }
 
-            foreach (PropertyEmitter emitter in properties.Values)
+            foreach (PropertyEmitter emitter in _properties.Values)
             {
-                emitter.Emit(typeBuilder.DefineProperty(emitter.Name, emitter.Attributes, emitter.RuntimeType, emitter.ParameterTypes));
+                emitter.Emit(_typeBuilder.DefineProperty(emitter.Name, emitter.Attributes, emitter.RuntimeType, emitter.ParameterTypes));
             }
 
-            TypeInitializer.Emit(typeBuilder.DefineTypeInitializer());
+            TypeInitializer.Emit(_typeBuilder.DefineTypeInitializer());
 
 #if NETSTANDARD2_0_OR_GREATER
-            return typeBuilder.CreateTypeInfo().AsType();
+            return _typeBuilder.CreateTypeInfo().AsType();
 #else
-            return typeBuilder.CreateType();
+            return _typeBuilder.CreateType();
 #endif
         }
 
@@ -1457,12 +1468,14 @@ namespace Inkslab
         /// <returns>映射后的类型</returns>
         internal Type MapReturnTypeForEmit(Type returnType)
         {
-            if (returnType is null || (!typeBuilder.IsGenericType && !typeBuilder.IsGenericTypeDefinition))
+            if (returnType is null || (!_typeBuilder.IsGenericType && !_typeBuilder.IsGenericTypeDefinition))
+            {
                 return returnType;
+            }
 
             try
             {
-                var genericArguments = typeBuilder.GetGenericArguments();
+                var genericArguments = _typeBuilder.GetGenericArguments();
                 return genericArguments?.Length > 0 ? MakeGenericParameter(returnType, genericArguments) : returnType;
             }
             catch
@@ -1475,6 +1488,6 @@ namespace Inkslab
         /// 是否已创建。
         /// </summary>
         /// <returns></returns>
-        public bool IsCreated() => typeBuilder.IsCreated();
+        public bool IsCreated() => _typeBuilder.IsCreated();
     }
 }

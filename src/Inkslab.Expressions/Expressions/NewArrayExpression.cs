@@ -10,8 +10,8 @@ namespace Inkslab.Expressions
     [DebuggerDisplay("new {RuntimeType.Name}[{size}]")]
     public class NewArrayExpression : Expression
     {
-        private readonly int size;
-        private readonly Type elementType;
+        private readonly int _size;
+        private readonly Type _elementType;
 
         /// <summary>
         /// 构造函数【生成object[]】。
@@ -28,8 +28,8 @@ namespace Inkslab.Expressions
         /// <param name="elementType">数组元素类型。</param>
         internal NewArrayExpression(int size, Type elementType) : base(elementType.MakeArrayType())
         {
-            this.size = size;
-            this.elementType = elementType;
+            _size = size;
+            _elementType = elementType;
         }
 
         /// <summary>
@@ -38,8 +38,8 @@ namespace Inkslab.Expressions
         /// <param name="ilg">指令。</param>
         public override void Load(ILGenerator ilg)
         {
-            ilg.Emit(OpCodes.Ldc_I4, size);
-            ilg.Emit(OpCodes.Newarr, elementType);
+            ilg.Emit(OpCodes.Ldc_I4, _size);
+            ilg.Emit(OpCodes.Newarr, _elementType);
         }
     }
 }

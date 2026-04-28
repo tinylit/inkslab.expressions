@@ -7,117 +7,117 @@ namespace Inkslab
 {
     internal class DynamicMethod : MethodInfo
     {
-        private readonly Type declaringType;
-        private readonly Type returnType;
-        private readonly MethodInfo methodInfoOriginal;
-        private readonly Type[] declaringTypeParameters;
-        private readonly MethodInfo methodInfoDeclaration;
-        private readonly bool hasDeclaringTypes;
+        private readonly Type _declaringType;
+        private readonly Type _returnType;
+        private readonly MethodInfo _methodInfoOriginal;
+        private readonly Type[] _declaringTypeParameters;
+        private readonly MethodInfo _methodInfoDeclaration;
+        private readonly bool _hasDeclaringTypes;
 
         public DynamicMethod(MethodInfo methodInfoOriginal, MethodInfo methodInfoDeclaration, Type declaringType, Type returnType, Type[] declaringTypeParameters, bool hasDeclaringTypes)
         {
-            this.methodInfoOriginal = methodInfoOriginal;
-            this.methodInfoDeclaration = methodInfoDeclaration;
-            this.declaringType = declaringType;
-            this.returnType = returnType;
-            this.declaringTypeParameters = declaringTypeParameters;
-            this.hasDeclaringTypes = hasDeclaringTypes;
+            _methodInfoOriginal = methodInfoOriginal;
+            _methodInfoDeclaration = methodInfoDeclaration;
+            _declaringType = declaringType;
+            _returnType = returnType;
+            _declaringTypeParameters = declaringTypeParameters;
+            _hasDeclaringTypes = hasDeclaringTypes;
         }
 
         public DynamicMethod(MethodInfo methodInfoOriginal, Type declaringType, Type returnType, Type[] declaringTypeParameters, bool hasDeclaringTypes) : this(methodInfoOriginal, methodInfoOriginal, declaringType, returnType, declaringTypeParameters, hasDeclaringTypes)
         {
         }
 
-        public MethodInfo RuntimeMethod => methodInfoDeclaration;
+        public MethodInfo RuntimeMethod => _methodInfoDeclaration;
 
-        public override string Name => methodInfoOriginal.Name;
+        public override string Name => _methodInfoOriginal.Name;
 
-        public override Type DeclaringType => declaringType;
+        public override Type DeclaringType => _declaringType;
 
-        public override Type ReflectedType => methodInfoOriginal.ReflectedType;
+        public override Type ReflectedType => _methodInfoOriginal.ReflectedType;
 
-        public override ParameterInfo ReturnParameter => methodInfoOriginal.ReturnParameter;
+        public override ParameterInfo ReturnParameter => _methodInfoOriginal.ReturnParameter;
 
-        public override Type ReturnType => returnType;
+        public override Type ReturnType => _returnType;
 
-        public override MethodInfo GetBaseDefinition() => methodInfoOriginal;
+        public override MethodInfo GetBaseDefinition() => _methodInfoOriginal;
 
-        public override ParameterInfo[] GetParameters() => methodInfoOriginal.GetParameters();
-
-#if NET45_OR_GREATER
-        public override Delegate CreateDelegate(Type delegateType) => methodInfoDeclaration.CreateDelegate(delegateType);
-
-        public override Delegate CreateDelegate(Type delegateType, object target) => methodInfoDeclaration.CreateDelegate(delegateType, target);
-#endif
-
-        public override Type[] GetGenericArguments() => methodInfoOriginal.GetGenericArguments();
-
-        public override ICustomAttributeProvider ReturnTypeCustomAttributes => methodInfoOriginal.ReturnTypeCustomAttributes;
-
-        public override RuntimeMethodHandle MethodHandle => methodInfoOriginal.MethodHandle;
-
-        public override MethodAttributes Attributes => methodInfoOriginal.Attributes;
-
-        public override CallingConventions CallingConvention => methodInfoOriginal.CallingConvention;
-
-        public override bool ContainsGenericParameters => methodInfoOriginal.ContainsGenericParameters;
+        public override ParameterInfo[] GetParameters() => _methodInfoOriginal.GetParameters();
 
 #if NET45_OR_GREATER
-        public override IEnumerable<CustomAttributeData> CustomAttributes => methodInfoOriginal.CustomAttributes;
+        public override Delegate CreateDelegate(Type delegateType) => _methodInfoDeclaration.CreateDelegate(delegateType);
+
+        public override Delegate CreateDelegate(Type delegateType, object target) => _methodInfoDeclaration.CreateDelegate(delegateType, target);
 #endif
 
-        public override bool IsGenericMethod => methodInfoOriginal.IsGenericMethod;
+        public override Type[] GetGenericArguments() => _methodInfoOriginal.GetGenericArguments();
+
+        public override ICustomAttributeProvider ReturnTypeCustomAttributes => _methodInfoOriginal.ReturnTypeCustomAttributes;
+
+        public override RuntimeMethodHandle MethodHandle => _methodInfoOriginal.MethodHandle;
+
+        public override MethodAttributes Attributes => _methodInfoOriginal.Attributes;
+
+        public override CallingConventions CallingConvention => _methodInfoOriginal.CallingConvention;
+
+        public override bool ContainsGenericParameters => _methodInfoOriginal.ContainsGenericParameters;
+
+#if NET45_OR_GREATER
+        public override IEnumerable<CustomAttributeData> CustomAttributes => _methodInfoOriginal.CustomAttributes;
+#endif
+
+        public override bool IsGenericMethod => _methodInfoOriginal.IsGenericMethod;
         public override bool IsGenericMethodDefinition => false;
-        public override bool IsSecurityCritical => methodInfoOriginal.IsSecurityCritical;
-        public override bool IsSecuritySafeCritical => methodInfoOriginal.IsSecuritySafeCritical;
-        public override bool IsSecurityTransparent => methodInfoOriginal.IsSecurityTransparent;
-        public override MemberTypes MemberType => methodInfoOriginal.MemberType;
-        public override int MetadataToken => methodInfoOriginal.MetadataToken;
+        public override bool IsSecurityCritical => _methodInfoOriginal.IsSecurityCritical;
+        public override bool IsSecuritySafeCritical => _methodInfoOriginal.IsSecuritySafeCritical;
+        public override bool IsSecurityTransparent => _methodInfoOriginal.IsSecurityTransparent;
+        public override MemberTypes MemberType => _methodInfoOriginal.MemberType;
+        public override int MetadataToken => _methodInfoOriginal.MetadataToken;
 #if NET45_OR_GREATER
-        public override MethodImplAttributes MethodImplementationFlags => methodInfoOriginal.MethodImplementationFlags;
+        public override MethodImplAttributes MethodImplementationFlags => _methodInfoOriginal.MethodImplementationFlags;
 #endif
-        public override Module Module => methodInfoOriginal.Module;
+        public override Module Module => _methodInfoOriginal.Module;
 
-        public override object[] GetCustomAttributes(bool inherit) => methodInfoOriginal.GetCustomAttributes(inherit);
+        public override object[] GetCustomAttributes(bool inherit) => _methodInfoOriginal.GetCustomAttributes(inherit);
 
-        public override object[] GetCustomAttributes(Type attributeType, bool inherit) => methodInfoOriginal.GetCustomAttributes(attributeType, inherit);
+        public override object[] GetCustomAttributes(Type attributeType, bool inherit) => _methodInfoOriginal.GetCustomAttributes(attributeType, inherit);
 
-        public override MethodImplAttributes GetMethodImplementationFlags() => methodInfoOriginal.GetMethodImplementationFlags();
+        public override MethodImplAttributes GetMethodImplementationFlags() => _methodInfoOriginal.GetMethodImplementationFlags();
 
-        public override object Invoke(object obj, BindingFlags invokeAttr, Binder binder, object[] parameters, CultureInfo culture) => methodInfoDeclaration.Invoke(obj, invokeAttr, binder, parameters, culture);
+        public override object Invoke(object obj, BindingFlags invokeAttr, Binder binder, object[] parameters, CultureInfo culture) => _methodInfoDeclaration.Invoke(obj, invokeAttr, binder, parameters, culture);
 
-        public override bool IsDefined(Type attributeType, bool inherit) => methodInfoOriginal.IsDefined(attributeType, inherit);
+        public override bool IsDefined(Type attributeType, bool inherit) => _methodInfoOriginal.IsDefined(attributeType, inherit);
 
-        public override IList<CustomAttributeData> GetCustomAttributesData() => methodInfoOriginal.GetCustomAttributesData();
+        public override IList<CustomAttributeData> GetCustomAttributesData() => _methodInfoOriginal.GetCustomAttributesData();
 
         public override MethodInfo GetGenericMethodDefinition()
         {
-            var methodInfoDeclaration = methodInfoOriginal.GetGenericMethodDefinition();
+            var methodInfoDeclaration = _methodInfoOriginal.GetGenericMethodDefinition();
 
-            return new DynamicMethod(methodInfoOriginal, methodInfoDeclaration, declaringType, returnType, declaringTypeParameters, hasDeclaringTypes);
+            return new DynamicMethod(_methodInfoOriginal, methodInfoDeclaration, _declaringType, _returnType, _declaringTypeParameters, _hasDeclaringTypes);
         }
 
-        public override bool Equals(object obj) => methodInfoOriginal.Equals(obj);
+        public override bool Equals(object obj) => _methodInfoOriginal.Equals(obj);
 
-        public override int GetHashCode() => methodInfoOriginal.GetHashCode();
+        public override int GetHashCode() => _methodInfoOriginal.GetHashCode();
 
-        public override MethodBody GetMethodBody() => methodInfoOriginal.GetMethodBody();
+        public override MethodBody GetMethodBody() => _methodInfoOriginal.GetMethodBody();
 
         public override MethodInfo MakeGenericMethod(params Type[] typeArguments)
         {
-            var methodInfoDeclaration = methodInfoOriginal.IsGenericMethodDefinition
-                ? methodInfoOriginal.MakeGenericMethod(typeArguments)
-                : methodInfoOriginal.GetGenericMethodDefinition()
+            var methodInfoDeclaration = _methodInfoOriginal.IsGenericMethodDefinition
+                ? _methodInfoOriginal.MakeGenericMethod(typeArguments)
+                : _methodInfoOriginal.GetGenericMethodDefinition()
                     .MakeGenericMethod(typeArguments);
 
-            var returnType = TypeCompiler.GetReturnType(methodInfoDeclaration, typeArguments, declaringTypeParameters);
+            var returnType = TypeCompiler.GetReturnType(methodInfoDeclaration, typeArguments, _declaringTypeParameters);
 
-            return hasDeclaringTypes
-                ? new DynamicMethod(methodInfoOriginal, methodInfoDeclaration, declaringType, MakeGenericParameter(returnType, typeArguments, declaringTypeParameters), declaringTypeParameters, hasDeclaringTypes)
-                : new DynamicMethod(methodInfoOriginal, methodInfoDeclaration, declaringType, returnType, declaringTypeParameters, hasDeclaringTypes);
+            return _hasDeclaringTypes
+                ? new DynamicMethod(_methodInfoOriginal, methodInfoDeclaration, _declaringType, MakeGenericParameter(returnType, typeArguments, _declaringTypeParameters), _declaringTypeParameters, _hasDeclaringTypes)
+                : new DynamicMethod(_methodInfoOriginal, methodInfoDeclaration, _declaringType, returnType, _declaringTypeParameters, _hasDeclaringTypes);
         }
 
-        public override string ToString() => methodInfoOriginal.ToString();
+        public override string ToString() => _methodInfoOriginal.ToString();
 
         private static Type MakeGenericParameter(Type type, Type[] genericArguments, Type[] typeParameterBuilders)
         {

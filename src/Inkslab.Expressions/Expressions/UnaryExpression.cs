@@ -10,13 +10,13 @@ namespace Inkslab.Expressions
     [DebuggerDisplay("{DebuggerView}")]
     public class UnaryExpression : Expression
     {
-        private readonly UnaryExpressionType expressionType;
-        private readonly Expression body;
+        private readonly UnaryExpressionType _expressionType;
+        private readonly Expression _body;
 
         private UnaryExpression(UnaryExpression unaryAst) : base(unaryAst.RuntimeType)
         {
-            expressionType = unaryAst.expressionType - 1;
-            body = unaryAst.body;
+            _expressionType = unaryAst._expressionType - 1;
+            _body = unaryAst._body;
         }
 
         /// <summary>
@@ -26,8 +26,8 @@ namespace Inkslab.Expressions
         /// <param name="body">表达式。</param>
         internal UnaryExpression(Expression body, UnaryExpressionType expressionType) : base(AnalysisType(expressionType, body))
         {
-            this.expressionType = expressionType;
-            this.body = body;
+            _expressionType = expressionType;
+            _body = body;
         }
 
         [DebuggerHidden]
@@ -35,28 +35,28 @@ namespace Inkslab.Expressions
         {
             get
             {
-                switch (expressionType)
+                switch (_expressionType)
                 {
                     case UnaryExpressionType.Increment:
-                        return $"{body} + 1";
+                        return $"{_body} + 1";
                     case UnaryExpressionType.IncrementAssign:
-                        return $"++{body}";
+                        return $"++{_body}";
                     case UnaryExpressionType.Decrement:
-                        return $"{body} - 1";
+                        return $"{_body} - 1";
                     case UnaryExpressionType.DecrementAssign:
-                        return $"--{body}";
+                        return $"--{_body}";
                     case UnaryExpressionType.UnaryPlus:
-                        return $"+{body}";
+                        return $"+{_body}";
                     case UnaryExpressionType.Negate:
-                        return $"-{body}";
+                        return $"-{_body}";
                     case UnaryExpressionType.Not:
                         if (RuntimeType == typeof(bool))
                         {
-                            return $"!{body}";
+                            return $"!{_body}";
                         }
-                        return $"~{body}";
+                        return $"~{_body}";
                     case UnaryExpressionType.IsFalse: 
-                        return $"!{body}";
+                        return $"!{_body}";
                     default:
                         throw new InvalidOperationException();
                 }
@@ -69,16 +69,16 @@ namespace Inkslab.Expressions
         /// <param name="ilg">指令。</param>
         public override void Load(ILGenerator ilg)
         {
-            if (expressionType < UnaryExpressionType.UnaryPlus && (expressionType & UnaryExpressionType.Increment) == 0)
+            if (_expressionType < UnaryExpressionType.UnaryPlus && (_expressionType & UnaryExpressionType.Increment) == 0)
             {
-                Assign(body, new UnaryExpression(this))
+                Assign(_body, new UnaryExpression(this))
                     .Load(ilg);
             }
             else
             {
-                body.Load(ilg);
+                _body.Load(ilg);
 
-                switch (expressionType)
+                switch (_expressionType)
                 {
                     case UnaryExpressionType.UnaryPlus:
                         ilg.Emit(OpCodes.Nop);
@@ -98,11 +98,11 @@ namespace Inkslab.Expressions
                         }
                         break;
                     case UnaryExpressionType.Increment:
-                        TryEmitConstantOne(ilg, body.RuntimeType);
+                        TryEmitConstantOne(ilg, _body.RuntimeType);
                         ilg.Emit(OpCodes.Add);
                         break;
                     case UnaryExpressionType.Decrement:
-                        TryEmitConstantOne(ilg, body.RuntimeType);
+                        TryEmitConstantOne(ilg, _body.RuntimeType);
                         ilg.Emit(OpCodes.Sub);
                         break;
                     case UnaryExpressionType.IsFalse:

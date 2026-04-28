@@ -21,8 +21,8 @@ namespace Inkslab.Expressions
             Unknown,         // need full runtime check
         }
 
-        private readonly Expression body;
-        private readonly Type isType;
+        private readonly Expression _body;
+        private readonly Type _isType;
 
 
         /// <summary>
@@ -32,8 +32,8 @@ namespace Inkslab.Expressions
         /// <param name="isType">类型。</param>
         internal TypeIsExpression(Expression body, Type isType) : base(typeof(bool))
         {
-            this.body = body ?? throw new ArgumentNullException(nameof(body));
-            this.isType = isType ?? throw new ArgumentNullException(nameof(isType));
+            _body = body ?? throw new ArgumentNullException(nameof(body));
+            _isType = isType ?? throw new ArgumentNullException(nameof(isType));
 
             if (body.IsVoid)
             {
@@ -47,12 +47,12 @@ namespace Inkslab.Expressions
         /// <param name="ilg">指令。</param>
         public override void Load(ILGenerator ilg)
         {
-            var type = body.RuntimeType;
+            var type = _body.RuntimeType;
 
-            AnalyzeTypeIsResult result = AnalyzeTypeIs(type, isType);
+            AnalyzeTypeIsResult result = AnalyzeTypeIs(type, _isType);
 
-            if (result == AnalyzeTypeIsResult.KnownTrue ||
-                result == AnalyzeTypeIsResult.KnownFalse)
+            if (result is AnalyzeTypeIsResult.KnownTrue or
+                AnalyzeTypeIsResult.KnownFalse)
             {
                 if (result == AnalyzeTypeIsResult.KnownTrue)
                 {
@@ -70,7 +70,7 @@ namespace Inkslab.Expressions
             {
                 if (IsNullable(type))
                 {
-                    body.Load(ilg);
+                    _body.Load(ilg);
 
                     MethodInfo mi = type.GetMethod("get_HasValue", BindingFlags.Instance | BindingFlags.Public);
 
@@ -79,7 +79,7 @@ namespace Inkslab.Expressions
                     return;
                 }
 
-                body.Load(ilg);
+                _body.Load(ilg);
 
                 ilg.Emit(OpCodes.Ldnull);
                 ilg.Emit(OpCodes.Ceq);
@@ -89,14 +89,14 @@ namespace Inkslab.Expressions
                 return;
             }
 
-            body.Load(ilg);
+            _body.Load(ilg);
 
             if (type.IsValueType)
             {
                 ilg.Emit(OpCodes.Box, type);
             }
 
-            ilg.Emit(OpCodes.Isinst, isType);
+            ilg.Emit(OpCodes.Isinst, _isType);
             ilg.Emit(OpCodes.Ldnull);
             ilg.Emit(OpCodes.Cgt_Un);
         }

@@ -10,8 +10,8 @@ namespace Inkslab.Expressions
     [DebuggerDisplay("if({testExp})\\{ {ifTrue} \\}")]
     public class IfThenExpression : Expression
     {
-        private readonly Expression test;
-        private readonly Expression ifTrue;
+        private readonly Expression _test;
+        private readonly Expression _ifTrue;
 
         /// <summary>
         /// 构造函数。
@@ -20,11 +20,11 @@ namespace Inkslab.Expressions
         /// <param name="ifTrue">为真的代码块。</param>
         internal IfThenExpression(Expression test, Expression ifTrue)
         {
-            this.test = test ?? throw new ArgumentNullException(nameof(test));
+            _test = test ?? throw new ArgumentNullException(nameof(test));
 
             if (test.RuntimeType == typeof(bool))
             {
-                this.ifTrue = ifTrue ?? throw new ArgumentNullException(nameof(ifTrue));
+                _ifTrue = ifTrue ?? throw new ArgumentNullException(nameof(ifTrue));
             }
             else
             {
@@ -40,13 +40,13 @@ namespace Inkslab.Expressions
         {
             var label = ilg.DefineLabel();
 
-            test.Load(ilg);
+            _test.Load(ilg);
 
             ilg.Emit(OpCodes.Brfalse_S, label);
 
-            ifTrue.Load(ilg);
+            _ifTrue.Load(ilg);
 
-            if (ifTrue.RuntimeType != typeof(void))
+            if (_ifTrue.RuntimeType != typeof(void))
             {
                 ilg.Emit(OpCodes.Pop);
             }
@@ -57,12 +57,12 @@ namespace Inkslab.Expressions
         /// <inheritdoc/>
         protected internal override void MarkLabel(Label label)
         {
-            ifTrue.MarkLabel(label);
+            _ifTrue.MarkLabel(label);
         }
         /// <inheritdoc/>
         protected internal override void StoredLocal(VariableExpression variable)
         {
-            ifTrue.StoredLocal(variable);
+            _ifTrue.StoredLocal(variable);
         }
     }
 }

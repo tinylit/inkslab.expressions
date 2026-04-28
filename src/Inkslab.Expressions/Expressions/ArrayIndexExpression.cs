@@ -10,9 +10,9 @@ namespace Inkslab.Expressions
     [DebuggerDisplay("{array}[{index}]")]
     public class ArrayIndexExpression : Expression
     {
-        private readonly Expression array;
-        private readonly int index = -1;
-        private readonly Expression indexExp;
+        private readonly Expression _array;
+        private readonly int _index = -1;
+        private readonly Expression _indexExp;
 
         /// <summary>
         /// 构造函数。
@@ -26,11 +26,11 @@ namespace Inkslab.Expressions
                 throw new ArgumentOutOfRangeException(nameof(index));
             }
 
-            this.array = array ?? throw new ArgumentNullException(nameof(array));
+            _array = array ?? throw new ArgumentNullException(nameof(array));
 
             if (array.RuntimeType.IsArray && EmitUtils.IsAssignableFromSignatureTypes(typeof(Array), array.RuntimeType) && array.RuntimeType.GetArrayRank() == 1)
             {
-                this.index = index;
+                _index = index;
             }
             else
             {
@@ -44,10 +44,10 @@ namespace Inkslab.Expressions
         /// <param name="indexExp">索引。</param>
         internal ArrayIndexExpression(Expression array, Expression indexExp) : base(array.RuntimeType.GetElementType())
         {
-            this.array = array ?? throw new ArgumentNullException(nameof(array));
+            _array = array ?? throw new ArgumentNullException(nameof(array));
             if (array.RuntimeType.IsArray && EmitUtils.IsAssignableFromSignatureTypes(typeof(Array), array.RuntimeType) && array.RuntimeType.GetArrayRank() == 1)
             {
-                this.indexExp = indexExp ?? throw new ArgumentNullException(nameof(indexExp));
+                _indexExp = indexExp ?? throw new ArgumentNullException(nameof(indexExp));
             }
             else
             {
@@ -66,15 +66,15 @@ namespace Inkslab.Expressions
         /// <param name="ilg">指令。</param>
         public override void Load(ILGenerator ilg)
         {
-            array.Load(ilg);
+            _array.Load(ilg);
 
-            if (index == -1)
+            if (_index == -1)
             {
-                indexExp.Load(ilg);
+                _indexExp.Load(ilg);
             }
             else
             {
-                EmitUtils.EmitInt(ilg, index);
+                EmitUtils.EmitInt(ilg, _index);
             }
 
             EmitEnsureArrayIndexLoadedSafely(ilg, RuntimeType);
@@ -87,23 +87,15 @@ namespace Inkslab.Expressions
         /// <param name="value">值。</param>
         protected override void Assign(ILGenerator ilg, Expression value)
         {
-            if (index == -1)
+            _array.Load(ilg);
+
+            if (_index == -1)
             {
-                var local = ilg.DeclareLocal(typeof(int));
-
-                indexExp.Load(ilg);
-
-                ilg.Emit(OpCodes.Stloc, local);
-
-                array.Load(ilg);
-
-                ilg.Emit(OpCodes.Ldc_I4, local);
+                _indexExp.Load(ilg);
             }
             else
             {
-                array.Load(ilg);
-
-                EmitUtils.EmitInt(ilg, index);
+                EmitUtils.EmitInt(ilg, _index);
             }
 
             value.Load(ilg);

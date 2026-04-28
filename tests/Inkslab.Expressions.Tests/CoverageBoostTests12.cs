@@ -64,8 +64,7 @@ namespace Inkslab.Expressions.Tests
         [Fact]
         public void PropertyEmitter_DefaultValue()
         {
-            var prop = new PropertyEmitter("Val", PropertyAttributes.None, typeof(int));
-            prop.DefaultValue = 99;
+            var prop = new PropertyEmitter("Val", PropertyAttributes.None, typeof(int)) { DefaultValue = 99 };
             Assert.Equal(99, prop.DefaultValue);
 
             prop.DefaultValue = null;

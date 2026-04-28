@@ -14,9 +14,9 @@ namespace Inkslab.Expressions
     [DebuggerDisplay("{DebuggerView}")]
     public class MethodCallExpression : Expression
     {
-        private readonly MethodInfo methodInfo;
-        private readonly Expression instanceAst;
-        private readonly Expression[] arguments;
+        private readonly MethodInfo _methodInfo;
+        private readonly Expression _instanceAst;
+        private readonly Expression[] _arguments;
 
         private static Type GetReturnType(Expression instanceAst, MethodInfo methodInfo, Expression[] arguments)
         {
@@ -118,17 +118,17 @@ namespace Inkslab.Expressions
         /// <param name="arguments">参数。</param>
         internal MethodCallExpression(Expression instanceAst, MethodInfo methodInfo, Expression[] arguments) : base(GetReturnType(instanceAst, methodInfo, arguments))
         {
-            this.instanceAst = instanceAst;
-            this.methodInfo = methodInfo;
-            this.arguments = arguments;
+            _instanceAst = instanceAst;
+            _methodInfo = methodInfo;
+            _arguments = arguments;
 
             if (methodInfo.IsStatic || methodInfo.DeclaringType.IsValueType)
             {
-                virtualCall = false;
+                _virtualCall = false;
             }
             else if (instanceAst.IsContext)
             {
-                virtualCall = false;
+                _virtualCall = false;
             }
         }
 
@@ -139,17 +139,17 @@ namespace Inkslab.Expressions
             {
                 var sb = new StringBuilder();
 
-                if (instanceAst is null)
+                if (_instanceAst is null)
                 {
-                    sb.Append(methodInfo.DeclaringType.Name);
+                    sb.Append(_methodInfo.DeclaringType.Name);
                 }
                 else
                 {
-                    sb.Append(instanceAst);
+                    sb.Append(_instanceAst);
                 }
 
                 sb.Append('.')
-                    .Append(methodInfo.Name)
+                    .Append(_methodInfo.Name)
                     .Append('(')
                     .Append("...args");
 
@@ -157,19 +157,19 @@ namespace Inkslab.Expressions
             }
         }
 
-        private bool virtualCall = true;
+        private bool _virtualCall = true;
 
         /// <summary>
         /// 虚拟方法调用。
         /// </summary>
         public bool VirtualCall
         {
-            get => virtualCall;
+            get => _virtualCall;
             set
             {
-                if (virtualCall)
+                if (_virtualCall)
                 {
-                    virtualCall = value;
+                    _virtualCall = value;
                 }
             }
         }
@@ -177,16 +177,16 @@ namespace Inkslab.Expressions
         /// <inheritdoc/>
         public override void Load(ILGenerator ilg)
         {
-            if (!methodInfo.IsStatic)
+            if (!_methodInfo.IsStatic)
             {
-                instanceAst.Load(ilg);
+                _instanceAst.Load(ilg);
             }
 
             LoadArgs(ilg);
 
-            if (methodInfo is DynamicMethod dynamicMethod)
+            if (_methodInfo is DynamicMethod dynamicMethod)
             {
-                if (virtualCall)
+                if (_virtualCall)
                 {
                     ilg.Emit(OpCodes.Callvirt, dynamicMethod.RuntimeMethod);
                 }
@@ -197,20 +197,20 @@ namespace Inkslab.Expressions
             }
             else
             {
-                if (virtualCall)
+                if (_virtualCall)
                 {
-                    ilg.Emit(OpCodes.Callvirt, methodInfo);
+                    ilg.Emit(OpCodes.Callvirt, _methodInfo);
                 }
                 else
                 {
-                    ilg.Emit(OpCodes.Call, methodInfo);
+                    ilg.Emit(OpCodes.Call, _methodInfo);
                 }
             }
         }
 
         private void LoadArgs(ILGenerator ilg)
         {
-            foreach (var item in arguments)
+            foreach (var item in _arguments)
             {
                 if (item is ParameterExpression parameterAst && parameterAst.IsByRef) //? 仅加载参数位置。
                 {

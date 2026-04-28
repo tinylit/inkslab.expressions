@@ -699,7 +699,11 @@ namespace Inkslab.Expressions.Tests
         {
             var te = _emitter.DefineType($"MP_{Guid.NewGuid():N}", TypeAttributes.Public | TypeAttributes.Class);
             var me = te.DefineMethod("TP", MethodAttributes.Public | MethodAttributes.Static, typeof(string));
-            foreach (var p in typeof(string).GetMethod(nameof(string.Substring), new[] { typeof(int), typeof(int) }).GetParameters()) me.DefineParameter(p);
+            foreach (var p in typeof(string).GetMethod(nameof(string.Substring), new[] { typeof(int), typeof(int) }).GetParameters())
+            {
+                me.DefineParameter(p);
+            }
+
             me.Append(Expression.Constant("t"));
             Assert.Equal("t", te.CreateType().GetMethod("TP").Invoke(null, new object[] { 0, 0 }));
         }

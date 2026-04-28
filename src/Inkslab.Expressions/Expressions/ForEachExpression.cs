@@ -47,27 +47,27 @@ namespace Inkslab.Expressions
         }
 
         // 静态缓存：跨实例复用，避免每次构造都反射查找。
-        private static readonly MethodInfo NonGenericGetEnumerator = typeof(IEnumerable).GetMethod(nameof(IEnumerable.GetEnumerator));
-        private static readonly MethodInfo NonGenericCurrentGetter = typeof(IEnumerator).GetProperty(nameof(IEnumerator.Current)).GetGetMethod();
-        private static readonly MethodInfo MoveNextMethod = typeof(IEnumerator).GetMethod(nameof(IEnumerator.MoveNext));
-        private static readonly MethodInfo DisposeMethod = typeof(IDisposable).GetMethod(nameof(IDisposable.Dispose));
+        private static readonly MethodInfo _nonGenericGetEnumerator = typeof(IEnumerable).GetMethod(nameof(IEnumerable.GetEnumerator));
+        private static readonly MethodInfo _nonGenericCurrentGetter = typeof(IEnumerator).GetProperty(nameof(IEnumerator.Current)).GetGetMethod();
+        private static readonly MethodInfo _moveNextMethod = typeof(IEnumerator).GetMethod(nameof(IEnumerator.MoveNext));
+        private static readonly MethodInfo _disposeMethod = typeof(IDisposable).GetMethod(nameof(IDisposable.Dispose));
 
         private const BindingFlags PublicInstance = BindingFlags.Public | BindingFlags.Instance;
 
-        private readonly VariableExpression item;
-        private readonly Expression source;
+        private readonly VariableExpression _item;
+        private readonly Expression _source;
 
-        private readonly Strategy strategy;
-        private readonly Type elementType;
+        private readonly Strategy _strategy;
+        private readonly Type _elementType;
 
         // Indexer 分支
-        private readonly PropertyInfo lengthProperty;
-        private readonly MethodInfo indexerGetter;
+        private readonly PropertyInfo _lengthProperty;
+        private readonly MethodInfo _indexerGetter;
 
         // Enumerable 分支
-        private readonly Type enumeratorType;
-        private readonly MethodInfo getEnumeratorMethod;
-        private readonly MethodInfo getCurrentMethod;
+        private readonly Type _enumeratorType;
+        private readonly MethodInfo _getEnumeratorMethod;
+        private readonly MethodInfo _getCurrentMethod;
 
         /// <summary>
         /// 构造函数。
@@ -76,8 +76,8 @@ namespace Inkslab.Expressions
         /// <param name="source">迭代源表达式。</param>
         internal ForEachExpression(VariableExpression item, Expression source)
         {
-            this.item = item ?? throw new ArgumentNullException(nameof(item));
-            this.source = source ?? throw new ArgumentNullException(nameof(source));
+            _item = item ?? throw new ArgumentNullException(nameof(item));
+            _source = source ?? throw new ArgumentNullException(nameof(source));
 
             var sourceType = source.RuntimeType;
             var itemType = item.RuntimeType;
@@ -97,8 +97,8 @@ namespace Inkslab.Expressions
                     throw new AstException($"循环变量类型“{itemType}”与数组元素类型“{arrayElementType}”不一致！");
                 }
 
-                strategy = Strategy.Array;
-                elementType = arrayElementType;
+                _strategy = Strategy.Array;
+                _elementType = arrayElementType;
                 return;
             }
 
@@ -106,10 +106,10 @@ namespace Inkslab.Expressions
             var interfaces = sourceType.GetInterfaces();
 
             // 2) for —— 非数组：具备 int Count/Length 属性 + this[int] 且类型完全一致。
-            if (TryResolveIndexer(sourceType, interfaces, itemType, out lengthProperty, out indexerGetter))
+            if (TryResolveIndexer(sourceType, interfaces, itemType, out _lengthProperty, out _indexerGetter))
             {
-                strategy = Strategy.Indexer;
-                elementType = itemType;
+                _strategy = Strategy.Indexer;
+                _elementType = itemType;
                 return;
             }
 
@@ -119,11 +119,11 @@ namespace Inkslab.Expressions
 
             if (matched is not null)
             {
-                elementType = itemType;
-                enumeratorType = typeof(IEnumerator<>).MakeGenericType(itemType);
-                getEnumeratorMethod = matched.GetMethod(nameof(IEnumerable<int>.GetEnumerator));
-                getCurrentMethod = enumeratorType.GetProperty(nameof(IEnumerator<int>.Current)).GetGetMethod();
-                strategy = Strategy.GenericEnumerable;
+                _elementType = itemType;
+                _enumeratorType = typeof(IEnumerator<>).MakeGenericType(itemType);
+                _getEnumeratorMethod = matched.GetMethod(nameof(IEnumerable<int>.GetEnumerator));
+                _getCurrentMethod = _enumeratorType.GetProperty(nameof(IEnumerator<int>.Current)).GetGetMethod();
+                _strategy = Strategy.GenericEnumerable;
                 return;
             }
 
@@ -136,11 +136,11 @@ namespace Inkslab.Expressions
             // 5) foreach —— 仅有非泛型 IEnumerable，每轮迭代对 Current 强转。
             if (typeof(IEnumerable).IsAssignableFrom(sourceType))
             {
-                elementType = typeof(object);
-                enumeratorType = typeof(IEnumerator);
-                getEnumeratorMethod = NonGenericGetEnumerator;
-                getCurrentMethod = NonGenericCurrentGetter;
-                strategy = Strategy.NonGenericEnumerable;
+                _elementType = typeof(object);
+                _enumeratorType = typeof(IEnumerator);
+                _getEnumeratorMethod = _nonGenericGetEnumerator;
+                _getCurrentMethod = _nonGenericCurrentGetter;
+                _strategy = Strategy.NonGenericEnumerable;
                 return;
             }
 
@@ -150,7 +150,7 @@ namespace Inkslab.Expressions
         /// <summary>
         /// 循环变量。
         /// </summary>
-        public VariableExpression Item => item;
+        public VariableExpression Item => _item;
 
         /// <summary>
         /// 在 <paramref name="sourceType"/> 自身及其接口中查找 <c>int Count</c> 或 <c>int Length</c> 属性，以及
@@ -168,15 +168,9 @@ namespace Inkslab.Expressions
             {
                 foreach (var iface in interfaces)
                 {
-                    if (lengthProperty is null)
-                    {
-                        lengthProperty = FindIntProperty(iface, "Count") ?? FindIntProperty(iface, "Length");
-                    }
+                    lengthProperty ??= FindIntProperty(iface, "Count") ?? FindIntProperty(iface, "Length");
 
-                    if (indexerGetter is null)
-                    {
-                        indexerGetter = FindIntIndexerGetter(iface);
-                    }
+                    indexerGetter ??= FindIntIndexerGetter(iface);
 
                     if (lengthProperty is not null && indexerGetter is not null)
                     {
@@ -272,7 +266,7 @@ namespace Inkslab.Expressions
             base.MarkLabel(breakLabel);
             base.MarkLabel(continueLabel);
 
-            switch (strategy)
+            switch (_strategy)
             {
                 case Strategy.Array:
                     EmitArrayLoop(ilg, breakLabel, continueLabel);
@@ -292,8 +286,8 @@ namespace Inkslab.Expressions
         private void EmitArrayLoop(ILGenerator ilg, Label breakLabel, Label continueLabel)
         {
             // 缓存数组到本地变量，避免重复求值。
-            var arrayLocal = ilg.DeclareLocal(source.RuntimeType);
-            source.Load(ilg);
+            var arrayLocal = ilg.DeclareLocal(_source.RuntimeType);
+            _source.Load(ilg);
             ilg.Emit(OpCodes.Stloc, arrayLocal);
 
             // index = 0
@@ -310,8 +304,8 @@ namespace Inkslab.Expressions
 
             ilg.Emit(OpCodes.Ldloc, arrayLocal);
             ilg.Emit(OpCodes.Ldloc, indexLocal);
-            EmitLdelem(ilg, elementType);
-            item.Storage(ilg);
+            EmitLdelem(ilg, _elementType);
+            _item.Storage(ilg);
 
             // 循环体
             base.Load(ilg);
@@ -339,14 +333,14 @@ namespace Inkslab.Expressions
         private void EmitIndexerLoop(ILGenerator ilg, Label breakLabel, Label continueLabel)
         {
             // 缓存源到本地变量，避免重复求值。
-            var sourceLocal = ilg.DeclareLocal(source.RuntimeType);
-            source.Load(ilg);
+            var sourceLocal = ilg.DeclareLocal(_source.RuntimeType);
+            _source.Load(ilg);
             ilg.Emit(OpCodes.Stloc, sourceLocal);
 
             // length = source.Count / source.Length
             var lengthLocal = ilg.DeclareLocal(typeof(int));
             LoadSourceForCall(ilg, sourceLocal);
-            EmitCall(ilg, lengthProperty.GetGetMethod());
+            EmitCall(ilg, _lengthProperty.GetGetMethod());
             ilg.Emit(OpCodes.Stloc, lengthLocal);
 
             // index = 0
@@ -363,8 +357,8 @@ namespace Inkslab.Expressions
 
             LoadSourceForCall(ilg, sourceLocal);
             ilg.Emit(OpCodes.Ldloc, indexLocal);
-            EmitCall(ilg, indexerGetter);
-            item.Storage(ilg);
+            EmitCall(ilg, _indexerGetter);
+            _item.Storage(ilg);
 
             // 循环体
             base.Load(ilg);
@@ -389,17 +383,17 @@ namespace Inkslab.Expressions
 
         private void EmitEnumeratorLoop(ILGenerator ilg, Label breakLabel, Label continueLabel, bool isGeneric)
         {
-            var enumerator = ilg.DeclareLocal(enumeratorType);
+            var enumerator = ilg.DeclareLocal(_enumeratorType);
 
             // enumerator = source.GetEnumerator();
-            source.Load(ilg);
+            _source.Load(ilg);
 
-            if (source.RuntimeType.IsValueType)
+            if (_source.RuntimeType.IsValueType)
             {
-                ilg.Emit(OpCodes.Box, source.RuntimeType);
+                ilg.Emit(OpCodes.Box, _source.RuntimeType);
             }
 
-            ilg.Emit(OpCodes.Callvirt, getEnumeratorMethod);
+            ilg.Emit(OpCodes.Callvirt, _getEnumeratorMethod);
             ilg.Emit(OpCodes.Stloc, enumerator);
 
             // try { ... } finally { dispose }
@@ -408,7 +402,7 @@ namespace Inkslab.Expressions
             // continue：检查 MoveNext
             continueLabel.MarkLabel(ilg);
             ilg.Emit(OpCodes.Ldloc, enumerator);
-            ilg.Emit(OpCodes.Callvirt, MoveNextMethod);
+            ilg.Emit(OpCodes.Callvirt, _moveNextMethod);
 
             var afterTestLabel = ilg.DefineLabel();
             ilg.Emit(OpCodes.Brtrue, afterTestLabel);
@@ -420,21 +414,21 @@ namespace Inkslab.Expressions
 
             // item = enumerator.Current; （非泛型分支需要从 object 强转到 itemType）
             ilg.Emit(OpCodes.Ldloc, enumerator);
-            ilg.Emit(OpCodes.Callvirt, getCurrentMethod);
+            ilg.Emit(OpCodes.Callvirt, _getCurrentMethod);
 
-            if (!isGeneric && item.RuntimeType != typeof(object))
+            if (!isGeneric && _item.RuntimeType != typeof(object))
             {
-                if (item.RuntimeType.IsValueType)
+                if (_item.RuntimeType.IsValueType)
                 {
-                    ilg.Emit(OpCodes.Unbox_Any, item.RuntimeType);
+                    ilg.Emit(OpCodes.Unbox_Any, _item.RuntimeType);
                 }
                 else
                 {
-                    ilg.Emit(OpCodes.Castclass, item.RuntimeType);
+                    ilg.Emit(OpCodes.Castclass, _item.RuntimeType);
                 }
             }
 
-            item.Storage(ilg);
+            _item.Storage(ilg);
 
             // 循环体
             base.Load(ilg);
@@ -453,7 +447,7 @@ namespace Inkslab.Expressions
             {
                 // IEnumerator<T> 必然实现 IDisposable，直接调用即可。
                 ilg.Emit(OpCodes.Ldloc, enumerator);
-                ilg.Emit(OpCodes.Callvirt, DisposeMethod);
+                ilg.Emit(OpCodes.Callvirt, _disposeMethod);
             }
             else
             {
@@ -466,7 +460,7 @@ namespace Inkslab.Expressions
                 var endFinallyLabel = ilg.DefineLabel();
                 ilg.Emit(OpCodes.Brfalse_S, endFinallyLabel);
                 ilg.Emit(OpCodes.Ldloc, disposable);
-                ilg.Emit(OpCodes.Callvirt, DisposeMethod);
+                ilg.Emit(OpCodes.Callvirt, _disposeMethod);
                 ilg.MarkLabel(endFinallyLabel);
             }
 
@@ -475,11 +469,11 @@ namespace Inkslab.Expressions
 
         private void LoadSourceForCall(ILGenerator ilg, LocalBuilder sourceLocal)
         {
-            if (source.RuntimeType.IsValueType)
+            if (_source.RuntimeType.IsValueType)
             {
                 // 值类型走装箱后 callvirt，简单且与枚举器分支一致。
                 ilg.Emit(OpCodes.Ldloc, sourceLocal);
-                ilg.Emit(OpCodes.Box, source.RuntimeType);
+                ilg.Emit(OpCodes.Box, _source.RuntimeType);
             }
             else
             {

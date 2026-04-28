@@ -10,7 +10,7 @@ namespace Inkslab.Expressions
     [DebuggerDisplay("({RuntimeType.Name}){body}")]
     public class ConvertExpression : Expression
     {
-        private readonly Expression body;
+        private readonly Expression _body;
 
         /// <summary>
         /// 构造函数。
@@ -19,7 +19,7 @@ namespace Inkslab.Expressions
         /// <param name="convertToType">转换类型。</param>
         internal ConvertExpression(Expression body, Type convertToType) : base(convertToType)
         {
-            this.body = body ?? throw new ArgumentNullException(nameof(body));
+            _body = body ?? throw new ArgumentNullException(nameof(body));
 
             if (body.IsVoid)
             {
@@ -38,9 +38,9 @@ namespace Inkslab.Expressions
         /// <param name="ilg">指令。</param>
         public override void Load(ILGenerator ilg)
         {
-            body.Load(ilg);
+            _body.Load(ilg);
 
-            Type typeFrom = body.RuntimeType;
+            Type typeFrom = _body.RuntimeType;
 
             if (typeFrom == RuntimeType)
             {

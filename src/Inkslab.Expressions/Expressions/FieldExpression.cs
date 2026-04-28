@@ -11,14 +11,14 @@ namespace Inkslab.Expressions
     [DebuggerDisplay("{RuntimeType.Name} {field.Name}")]
     public class FieldExpression : MemberExpression
     {
-        private readonly Expression instanceAst;
-        private readonly FieldInfo field;
+        private readonly Expression _instanceAst;
+        private readonly FieldInfo _field;
 
         /// <inheritdoc/>
-        public override bool CanWrite => !field.IsInitOnly;
+        public override bool CanWrite => !_field.IsInitOnly;
 
         /// <inheritdoc/>
-        public override bool IsStatic => field.IsStatic;
+        public override bool IsStatic => _field.IsStatic;
 
         /// <summary>
         /// 构造函数。
@@ -28,7 +28,7 @@ namespace Inkslab.Expressions
         {
             if (field.IsStatic)
             {
-                this.field = field;
+                _field = field;
             }
             else
             {
@@ -47,7 +47,7 @@ namespace Inkslab.Expressions
             {
                 if (instanceAst is null)
                 {
-                    this.field = field;
+                    _field = field;
                 }
                 else
                 {
@@ -60,8 +60,8 @@ namespace Inkslab.Expressions
             }
             else
             {
-                this.field = field;
-                this.instanceAst = instanceAst;
+                _field = field;
+                _instanceAst = instanceAst;
             }
         }
 
@@ -72,15 +72,15 @@ namespace Inkslab.Expressions
         /// <param name="ilg">指令。</param>
         public override void Load(ILGenerator ilg)
         {
-            if (field.IsStatic)
+            if (_field.IsStatic)
             {
-                ilg.Emit(OpCodes.Ldsfld, field);
+                ilg.Emit(OpCodes.Ldsfld, _field);
             }
             else
             {
-                instanceAst.Load(ilg);
+                _instanceAst.Load(ilg);
 
-                ilg.Emit(OpCodes.Ldfld, field);
+                ilg.Emit(OpCodes.Ldfld, _field);
             }
         }
 
@@ -91,19 +91,19 @@ namespace Inkslab.Expressions
         /// <param name="value">值。</param>
         protected override void Assign(ILGenerator ilg, Expression value)
         {
-            if (field.IsStatic)
+            if (_field.IsStatic)
             {
                 value.Load(ilg);
 
-                ilg.Emit(OpCodes.Stsfld, field);
+                ilg.Emit(OpCodes.Stsfld, _field);
             }
             else
             {
-                instanceAst.Load(ilg);
+                _instanceAst.Load(ilg);
 
                 value.Load(ilg);
 
-                ilg.Emit(OpCodes.Stfld, field);
+                ilg.Emit(OpCodes.Stfld, _field);
             }
         }
     }

@@ -354,11 +354,9 @@ namespace Inkslab.Expressions.Tests
     /// </summary>
     public class WriteOnlyTarget
     {
-        private int _val;
-
         /// <summary>
-        /// åªå†™å±æ€§ã€?
+        /// åªåå±æ§ã?
         /// </summary>
-        public int Val { set { _val = value; } }
+        public int Val { set { _ = value; } }
     }
 }

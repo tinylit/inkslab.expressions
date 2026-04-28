@@ -8,7 +8,7 @@ namespace Inkslab.Expressions
     /// </summary>
     public class LabelExpression : Expression
     {
-        private readonly Label label;
+        private readonly Label _label;
 
         /// <summary>
         /// 构造函数。
@@ -16,13 +16,13 @@ namespace Inkslab.Expressions
         /// <param name="label">标签。</param>
         internal LabelExpression(Label label) : base(typeof(void))
         {
-            this.label = label ?? throw new ArgumentNullException(nameof(label));
+            _label = label ?? throw new ArgumentNullException(nameof(label));
         }
 
         /// <summary>
         /// 加载数据。
         /// </summary>
         /// <param name="ilg">指令。</param>
-        public override void Load(ILGenerator ilg) => label.MarkLabel(ilg);
+        public override void Load(ILGenerator ilg) => _label.MarkLabel(ilg);
     }
 }

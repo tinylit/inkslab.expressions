@@ -117,7 +117,11 @@ namespace Inkslab.Intercept.Tests
         public virtual IReadOnlyList<int> MapMany(IEnumerable<string> sources)
         {
             var result = new List<int>();
-            foreach (var s in sources) result.Add(Map(s));
+            foreach (var s in sources)
+            {
+                result.Add(Map(s));
+            }
+
             return result;
         }
     }
@@ -157,7 +161,11 @@ namespace Inkslab.Intercept.Tests
             IEnumerable<string> inputs, Func<string, TResult> selector)
         {
             var result = new List<TResult>();
-            foreach (var s in inputs) result.Add(selector(s));
+            foreach (var s in inputs)
+            {
+                result.Add(selector(s));
+            }
+
             return result;
         }
 
@@ -179,7 +187,11 @@ namespace Inkslab.Intercept.Tests
             IEnumerable<int> inputs, Func<int, TResult> selector)
         {
             var result = new List<TResult>();
-            foreach (var n in inputs) result.Add(selector(n));
+            foreach (var n in inputs)
+            {
+                result.Add(selector(n));
+            }
+
             return result;
         }
 
@@ -223,7 +235,10 @@ namespace Inkslab.Intercept.Tests
         {
             var list = new List<TResult>(count);
             for (int i = 0; i < count; i++)
+            {
                 list.Add(selector(new OrderEntity { Id = i, Name = $"item{i}" }));
+            }
+
             return Task.FromResult<IReadOnlyList<TResult>>(list);
         }
     }
@@ -276,7 +291,11 @@ namespace Inkslab.Intercept.Tests
             IEnumerable<T> inputs, Func<T, TResult> selector)
         {
             var result = new List<TResult>();
-            foreach (var item in inputs) result.Add(selector(item));
+            foreach (var item in inputs)
+            {
+                result.Add(selector(item));
+            }
+
             return result;
         }
 

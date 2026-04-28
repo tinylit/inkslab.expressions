@@ -23,17 +23,17 @@ namespace Inkslab
         /// </summary>
         public static readonly string DEFAULT_ASSEMBLY_NAME = "Inkslab.Override";
 
-        private ModuleBuilder builder;
-        private readonly INamingScope namingScope;
+        private ModuleBuilder _builder;
+        private readonly INamingScope _namingScope;
 
-        private readonly string moduleName;
-        private readonly string assemblyPath;
+        private readonly string _moduleName;
+        private readonly string _assemblyPath;
 
         // Used to lock the module builder creation
-        private readonly object moduleLocker = new object();
+        private readonly object _moduleLocker = new object();
 #if NET461_OR_GREATER
         // Specified whether the generated assemblies are intended to be saved
-        private readonly bool savePhysicalAssembly;
+        private readonly bool _savePhysicalAssembly;
 
         /// <summary>
         /// 构造函数。
@@ -111,11 +111,11 @@ namespace Inkslab
         public ModuleEmitter(bool savePhysicalAssembly, INamingScope namingScope,
                            string moduleName, string assemblyPath)
         {
-            this.namingScope = namingScope ?? throw new ArgumentNullException(nameof(namingScope));
+            _namingScope = namingScope ?? throw new ArgumentNullException(nameof(namingScope));
 
-            this.savePhysicalAssembly = savePhysicalAssembly;
-            this.moduleName = moduleName;
-            this.assemblyPath = assemblyPath;
+            _savePhysicalAssembly = savePhysicalAssembly;
+            _moduleName = moduleName;
+            _assemblyPath = assemblyPath;
         }
 #else
         /// <summary>
@@ -153,9 +153,9 @@ namespace Inkslab
         public ModuleEmitter(INamingScope namingScope,
                            string moduleName, string assemblyPath)
         {
-            this.namingScope = namingScope ?? throw new ArgumentNullException(nameof(namingScope));
-            this.moduleName = moduleName;
-            this.assemblyPath = assemblyPath;
+            _namingScope = namingScope ?? throw new ArgumentNullException(nameof(namingScope));
+            _moduleName = moduleName;
+            _assemblyPath = assemblyPath;
         }
 #endif
 
@@ -164,7 +164,7 @@ namespace Inkslab
         /// </summary>
         public string AssemblyFileName
         {
-            get { return Path.GetFileName(assemblyPath); }
+            get { return Path.GetFileName(_assemblyPath); }
         }
 
 #if NET461_OR_GREATER
@@ -175,7 +175,7 @@ namespace Inkslab
         {
             get
             {
-                var directory = Path.GetDirectoryName(assemblyPath);
+                var directory = Path.GetDirectoryName(_assemblyPath);
                 if (directory == string.Empty)
                 {
                     return null;
@@ -188,12 +188,12 @@ namespace Inkslab
         {
             var assemblyName = new AssemblyName
             {
-                Name = this.moduleName
+                Name = _moduleName
             };
             var moduleName = AssemblyFileName;
 
 #if NET461_OR_GREATER
-            if (savePhysicalAssembly)
+            if (_savePhysicalAssembly)
             {
                 AssemblyBuilder assemblyBuilder = AppDomain.CurrentDomain.DefineDynamicAssembly(
                         assemblyName, AssemblyBuilderAccess.RunAndSave, AssemblyDirectory);
@@ -303,24 +303,24 @@ namespace Inkslab
 
         private ModuleBuilder Complete()
         {
-            if (builder is null)
+            if (_builder is null)
             {
-                lock (moduleLocker)
+                lock (_moduleLocker)
                 {
-                    builder ??= CreateModule();
+                    _builder ??= CreateModule();
                 }
             }
 
-            return builder;
+            return _builder;
         }
 
-        private string GetUniqueName(string name) => namingScope.GetUniqueName(name);
+        private string GetUniqueName(string name) => _namingScope.GetUniqueName(name);
 
         /// <summary>
         /// 开始名称范围。
         /// </summary>
         /// <returns></returns>
-        public INamingScope BeginScope() => namingScope.BeginScope();
+        public INamingScope BeginScope() => _namingScope.BeginScope();
 
         internal static EnumBuilder DefineEnum(ModuleEmitter emitter, string name, TypeAttributes visibility, Type underlyingType) => emitter.Complete().DefineEnum(emitter.GetUniqueName(name), visibility, underlyingType);
         internal static TypeBuilder DefineType(ModuleEmitter emitter, string name) => emitter.Complete().DefineType(emitter.GetUniqueName(name));
@@ -335,22 +335,22 @@ namespace Inkslab
         /// <returns>返回文件地址。</returns>
         public string SaveAssembly()
         {
-            if (builder is null)
+            if (_builder is null)
             {
-                lock (moduleLocker)
+                lock (_moduleLocker)
                 {
-                    builder ??= CreateModule();
+                    _builder ??= CreateModule();
                 }
             }
 
-            if (!savePhysicalAssembly)
+            if (!_savePhysicalAssembly)
             {
                 throw new NotSupportedException("未设置保存为物理文件的支持!");
             }
 
-            var assemblyBuilder = (AssemblyBuilder)builder.Assembly;
+            var assemblyBuilder = (AssemblyBuilder)_builder.Assembly;
             var assemblyFileName = AssemblyFileName;
-            var assemblyFilePath = builder.FullyQualifiedName;
+            var assemblyFilePath = _builder.FullyQualifiedName;
 
             if (File.Exists(assemblyFilePath))
             {

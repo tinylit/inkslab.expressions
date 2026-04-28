@@ -8,7 +8,7 @@ namespace Inkslab.Intercept
     /// </summary>
     public class InterceptAsync
     {
-        private readonly IInvocation invocation;
+        private readonly IInvocation _invocation;
 
         /// <summary>
         /// 构造函数。
@@ -17,7 +17,7 @@ namespace Inkslab.Intercept
         /// <exception cref="ArgumentNullException">参数 <paramref name="invocation"/> 为null。</exception>
         public InterceptAsync(IInvocation invocation)
         {
-            this.invocation = invocation ?? throw new ArgumentNullException(nameof(invocation));
+            _invocation = invocation ?? throw new ArgumentNullException(nameof(invocation));
         }
 
         /// <summary>
@@ -26,7 +26,7 @@ namespace Inkslab.Intercept
         /// <param name="context">上下文。</param>
         public virtual Task RunAsync(InterceptContext context)
         {
-            var returnValue = invocation.Invoke(context.Inputs);
+            var returnValue = _invocation.Invoke(context.Inputs);
 
             if (returnValue is ValueTask valueTask)
             {
@@ -42,7 +42,7 @@ namespace Inkslab.Intercept
     /// </summary>
     public class InterceptAsync<T>
     {
-        private readonly IInvocation invocation;
+        private readonly IInvocation _invocation;
 
         /// <summary>
         /// 构造函数。
@@ -51,7 +51,7 @@ namespace Inkslab.Intercept
         /// <exception cref="ArgumentNullException">参数 <paramref name="invocation"/> 为null。</exception>
         public InterceptAsync(IInvocation invocation)
         {
-            this.invocation = invocation ?? throw new ArgumentNullException(nameof(invocation));
+            _invocation = invocation ?? throw new ArgumentNullException(nameof(invocation));
         }
 
         /// <summary>
@@ -60,7 +60,7 @@ namespace Inkslab.Intercept
         /// <param name="context">上下文。</param>
         public virtual Task<T> RunAsync(InterceptContext context)
         {
-            var returnValue = invocation.Invoke(context.Inputs);
+            var returnValue = _invocation.Invoke(context.Inputs);
 
             if (returnValue is ValueTask<T> valueTask)
             {
