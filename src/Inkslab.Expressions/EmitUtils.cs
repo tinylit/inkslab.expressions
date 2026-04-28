@@ -334,7 +334,7 @@ namespace Inkslab
             }
             else
             {
-                throw new InvalidCastException();
+                throw new InvalidCastException($"无法将类型“{typeFrom}”转换为“{typeTo}”（不受支持的值类型与引用类型组合）。");
             }
         }
 
@@ -1014,7 +1014,7 @@ namespace Inkslab
         {
             if (ci.DeclaringType.ContainsGenericParameters)
             {
-                throw new NotSupportedException();
+                throw new NotSupportedException($"包含未填充泛型参数的类型“{ci.DeclaringType}”不支持 newobj 指令。");
             }
 
             ilg.Emit(OpCodes.Newobj, ci);
@@ -1490,7 +1490,7 @@ namespace Inkslab
                     case Array array:
                         if (!IsSimpleArray(valueType))
                         {
-                            throw new NotSupportedException();
+                            throw new NotSupportedException($"仅支持由简单元素类型组成的数组常量，当前类型为“{valueType}”。");
                         }
 
                         var elementType = valueType.GetElementType();

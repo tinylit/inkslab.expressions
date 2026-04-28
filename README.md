@@ -281,7 +281,7 @@ var b = method.DefineParameter(typeof(int), ParameterAttributes.None, "b");
 method.Append(Expression.Add(a, b)); // Append 最后一条表达式即为返回值
 ```
 
-> 完整的工厂方法签名、节点继承关系、行为约束及二次封装注意事项，请参阅 **[docs/expressions-api.md](docs/expressions-api.md)**。
+> 完整的工厂方法签名、节点继承关系、行为约束及二次封装注意事项，请参阅 **[Inkslab.Expressions.md](Inkslab.Expressions.md)**（同时也是 `Inkslab.Expressions` NuGet 包的 README）。
 
 ---
 
