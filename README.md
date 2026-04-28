@@ -266,7 +266,7 @@ Type colorType = enumEmitter.CreateType();
 | 类别 | 代表方法 |
 |------|---------|
 | 值与变量 | `Constant`、`Default`、`Variable`、`Assign`、`This` |
-| 控制流 | `IfThen`、`IfThenElse`、`Loop`、`Switch`、`Break`、`Continue`、`Return` |
+| 控制流 | `IfThen`、`IfThenElse`、`Loop`、`ForEach`、`Switch`、`Break`、`Continue`、`Return` |
 | 类型操作 | `Convert`、`TypeAs`、`TypeIs`、`Coalesce` |
 | 方法与构造 | `Call`、`DeclaringCall`、`New`、`NewArray`、`ArrayIndex`、`MemberInit`、`Invoke` |
 | 运算符 | `Add`、`Subtract`、`Multiply`、`Divide`、`Equal`、`AndAlso`、`OrElse`、`Not` 等 |
@@ -281,7 +281,7 @@ var b = method.DefineParameter(typeof(int), ParameterAttributes.None, "b");
 method.Append(Expression.Add(a, b)); // Append 最后一条表达式即为返回值
 ```
 
-> 完整的工厂方法签名、节点继承关系、行为约束及二次封装注意事项，请参阅 **[Inkslab.Expressions.md](Inkslab.Expressions.md)**（同时也是 `Inkslab.Expressions` NuGet 包的 README）。
+> 完整的工厂方法签名、节点继承关系、行为约束及二次封装注意事项，请参阅 **[Inkslab.Expressions.md](Inkslab.Expressions.md)**（同时也是 `Inkslab.Expressions` NuGet 包的 README）。其中循环相关能力现包含 `Expression.Loop()` 与统一的 `Expression.ForEach(...)`。
 
 ---
 
