@@ -54,9 +54,9 @@ namespace Inkslab.Emitters
                 throw new ArgumentException("参数不是“System.Object”数组!", nameof(arguments));
             }
 
-            this._instanceAst = instanceAst;
-            this._methodEmitter = methodEmitter;
-            this._arguments = arguments;
+            _instanceAst = instanceAst;
+            _methodEmitter = methodEmitter;
+            _arguments = arguments;
         }
         /// <summary>
         /// 加载数据。

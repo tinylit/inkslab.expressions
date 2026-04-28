@@ -27,7 +27,7 @@ namespace Inkslab.Intercept
         /// <exception cref="ArgumentNullException">参数 <paramref name="target"/> 或 <paramref name="methodInfo"/> 为 null。</exception>
         public ImplementInvocation(object target, MethodInfo methodInfo)
         {
-            this._target = target ?? throw new ArgumentNullException(nameof(target));
+            _target = target ?? throw new ArgumentNullException(nameof(target));
             if (methodInfo is null)
             {
                 throw new ArgumentNullException(nameof(methodInfo));

@@ -19,7 +19,7 @@ namespace Inkslab.Expressions
         /// <param name="convertToType">转换类型。</param>
         internal ConvertExpression(Expression body, Type convertToType) : base(convertToType)
         {
-            this._body = body ?? throw new ArgumentNullException(nameof(body));
+            _body = body ?? throw new ArgumentNullException(nameof(body));
 
             if (body.IsVoid)
             {

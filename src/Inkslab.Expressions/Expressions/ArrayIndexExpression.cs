@@ -26,11 +26,11 @@ namespace Inkslab.Expressions
                 throw new ArgumentOutOfRangeException(nameof(index));
             }
 
-            this._array = array ?? throw new ArgumentNullException(nameof(array));
+            _array = array ?? throw new ArgumentNullException(nameof(array));
 
             if (array.RuntimeType.IsArray && EmitUtils.IsAssignableFromSignatureTypes(typeof(Array), array.RuntimeType) && array.RuntimeType.GetArrayRank() == 1)
             {
-                this._index = index;
+                _index = index;
             }
             else
             {
@@ -44,10 +44,10 @@ namespace Inkslab.Expressions
         /// <param name="indexExp">索引。</param>
         internal ArrayIndexExpression(Expression array, Expression indexExp) : base(array.RuntimeType.GetElementType())
         {
-            this._array = array ?? throw new ArgumentNullException(nameof(array));
+            _array = array ?? throw new ArgumentNullException(nameof(array));
             if (array.RuntimeType.IsArray && EmitUtils.IsAssignableFromSignatureTypes(typeof(Array), array.RuntimeType) && array.RuntimeType.GetArrayRank() == 1)
             {
-                this._indexExp = indexExp ?? throw new ArgumentNullException(nameof(indexExp));
+                _indexExp = indexExp ?? throw new ArgumentNullException(nameof(indexExp));
             }
             else
             {

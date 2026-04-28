@@ -46,8 +46,8 @@ namespace Inkslab.Expressions
                 throw new AstException($"表达式元素不能转换为数组元素类型!");
             }
 
-            this._expressions = expressions;
-            this._elementType = elementType;
+            _expressions = expressions;
+            _elementType = elementType;
         }
 
         /// <summary>

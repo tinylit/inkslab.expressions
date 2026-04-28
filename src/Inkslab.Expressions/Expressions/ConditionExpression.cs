@@ -34,12 +34,12 @@ namespace Inkslab.Expressions
         /// <param name="returnType">结果类型。</param>
         public ConditionExpression(Expression test, Expression ifTrue, Expression ifFalse, Type returnType) : base(returnType)
         {
-            this._test = test ?? throw new ArgumentNullException(nameof(test));
+            _test = test ?? throw new ArgumentNullException(nameof(test));
 
             if (test.RuntimeType == typeof(bool))
             {
-                this._ifTrue = ifTrue ?? throw new ArgumentNullException(nameof(ifTrue));
-                this._ifFalse = ifFalse ?? throw new ArgumentNullException(nameof(ifFalse));
+                _ifTrue = ifTrue ?? throw new ArgumentNullException(nameof(ifTrue));
+                _ifFalse = ifFalse ?? throw new ArgumentNullException(nameof(ifFalse));
             }
             else
             {
@@ -57,7 +57,7 @@ namespace Inkslab.Expressions
             }
             else if (EmitUtils.IsAssignableFromSignatureTypes(returnType, ifTrue.RuntimeType))
             {
-                this._ifTrue = new ConvertExpression(ifTrue, returnType);
+                _ifTrue = new ConvertExpression(ifTrue, returnType);
             }
             else
             {
@@ -70,7 +70,7 @@ namespace Inkslab.Expressions
             }
             else if (EmitUtils.IsAssignableFromSignatureTypes(returnType, ifFalse.RuntimeType))
             {
-                this._ifFalse = new ConvertExpression(ifFalse, returnType);
+                _ifFalse = new ConvertExpression(ifFalse, returnType);
             }
             else
             {

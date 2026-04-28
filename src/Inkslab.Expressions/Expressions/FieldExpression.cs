@@ -28,7 +28,7 @@ namespace Inkslab.Expressions
         {
             if (field.IsStatic)
             {
-                this._field = field;
+                _field = field;
             }
             else
             {
@@ -47,7 +47,7 @@ namespace Inkslab.Expressions
             {
                 if (instanceAst is null)
                 {
-                    this._field = field;
+                    _field = field;
                 }
                 else
                 {
@@ -60,8 +60,8 @@ namespace Inkslab.Expressions
             }
             else
             {
-                this._field = field;
-                this._instanceAst = instanceAst;
+                _field = field;
+                _instanceAst = instanceAst;
             }
         }
 

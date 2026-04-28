@@ -12,7 +12,7 @@ namespace Inkslab.Expressions
 
         internal GotoExpression(Label label)
         {
-            this._label = label ?? throw new ArgumentNullException(nameof(label));
+            _label = label ?? throw new ArgumentNullException(nameof(label));
         }
 
         /// <summary>

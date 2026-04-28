@@ -20,11 +20,11 @@ namespace Inkslab.Expressions
         /// <param name="ifTrue">为真的代码块。</param>
         internal IfThenExpression(Expression test, Expression ifTrue)
         {
-            this._test = test ?? throw new ArgumentNullException(nameof(test));
+            _test = test ?? throw new ArgumentNullException(nameof(test));
 
             if (test.RuntimeType == typeof(bool))
             {
-                this._ifTrue = ifTrue ?? throw new ArgumentNullException(nameof(ifTrue));
+                _ifTrue = ifTrue ?? throw new ArgumentNullException(nameof(ifTrue));
             }
             else
             {

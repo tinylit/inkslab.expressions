@@ -107,7 +107,7 @@ namespace Inkslab.Expressions
 
             public MyVariableExpression(LocalBuilder local) : base(local.LocalType)
             {
-                this._local = local;
+                _local = local;
             }
 
             public override void Load(ILGenerator ilg)
@@ -138,7 +138,7 @@ namespace Inkslab.Expressions
 
             public SwitchCaseArithmeticExpression(ConstantExpression constant)
             {
-                this._constant = constant;
+                _constant = constant;
             }
 
             public override void EmitEqual(ILGenerator ilg) => _constant.Load(ilg);
@@ -162,7 +162,7 @@ namespace Inkslab.Expressions
 
             public SwitchCaseRuntimeTypeExpression(VariableExpression variableAst)
             {
-                this._variableAst = variableAst;
+                _variableAst = variableAst;
             }
 
             public override void EmitEqual(ILGenerator ilg)
@@ -205,8 +205,8 @@ namespace Inkslab.Expressions
 
             public SwitchCaseEqualityAst(ConstantExpression constant, MethodInfo comparison)
             {
-                this._constant = constant;
-                this._comparison = comparison;
+                _constant = constant;
+                _comparison = comparison;
             }
 
             public override void EmitEqual(ILGenerator ilg)
@@ -255,7 +255,7 @@ namespace Inkslab.Expressions
 
             _switchCases = new List<SwitchCaseExpression>();
 
-            this._switchValue = switchValue;
+            _switchValue = switchValue;
         }
 
         /// <summary>
@@ -263,7 +263,7 @@ namespace Inkslab.Expressions
         /// </summary>
         internal SwitchExpression(Expression switchValue, Expression defaultAst) : this(switchValue)
         {
-            this._defaultAst = defaultAst ?? throw new ArgumentNullException(nameof(defaultAst));
+            _defaultAst = defaultAst ?? throw new ArgumentNullException(nameof(defaultAst));
         }
 
         /// <inheritdoc/>

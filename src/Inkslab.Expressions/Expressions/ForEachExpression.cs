@@ -76,8 +76,8 @@ namespace Inkslab.Expressions
         /// <param name="source">迭代源表达式。</param>
         internal ForEachExpression(VariableExpression item, Expression source)
         {
-            this._item = item ?? throw new ArgumentNullException(nameof(item));
-            this._source = source ?? throw new ArgumentNullException(nameof(source));
+            _item = item ?? throw new ArgumentNullException(nameof(item));
+            _source = source ?? throw new ArgumentNullException(nameof(source));
 
             var sourceType = source.RuntimeType;
             var itemType = item.RuntimeType;

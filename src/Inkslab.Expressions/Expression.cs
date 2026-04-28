@@ -245,8 +245,8 @@ namespace Inkslab
             {
                 AssignChecked(left, right);
 
-                this._left = left ?? throw new ArgumentNullException(nameof(left));
-                this._right = right ?? throw new ArgumentNullException(nameof(right));
+                _left = left ?? throw new ArgumentNullException(nameof(left));
+                _right = right ?? throw new ArgumentNullException(nameof(right));
             }
 
             /// <summary>

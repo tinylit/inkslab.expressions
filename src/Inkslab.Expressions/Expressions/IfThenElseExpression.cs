@@ -7,7 +7,7 @@ namespace Inkslab.Expressions
     /// <summary>
     /// 判断。
     /// </summary>
-    [DebuggerDisplay("if({test})\\{ {ifTrue} \\} else \\{ {ifFalse} \\}")]
+    [DebuggerDisplay("if({_test})\\{ {_ifTrue} \\} else \\{ {_ifFalse} \\}")]
     public class IfThenElseExpression : Expression
     {
         private readonly Expression _test;
@@ -22,12 +22,12 @@ namespace Inkslab.Expressions
         /// <param name="ifFalse">为假的代码块。</param>
         internal IfThenElseExpression(Expression test, Expression ifTrue, Expression ifFalse)
         {
-            this._test = test ?? throw new ArgumentNullException(nameof(test));
+            _test = test ?? throw new ArgumentNullException(nameof(test));
 
             if (test.RuntimeType == typeof(bool))
             {
-                this._ifTrue = ifTrue ?? throw new ArgumentNullException(nameof(ifTrue));
-                this._ifFalse = ifFalse ?? throw new ArgumentNullException(nameof(ifFalse));
+                _ifTrue = ifTrue ?? throw new ArgumentNullException(nameof(ifTrue));
+                _ifFalse = ifFalse ?? throw new ArgumentNullException(nameof(ifFalse));
             }
             else
             {
@@ -81,6 +81,12 @@ namespace Inkslab.Expressions
         {
             _ifTrue.StoredLocal(variable);
             _ifFalse.StoredLocal(variable);
+        }
+
+        /// <inheritdoc/>
+        protected internal override bool DetectionResult(Type returnType)
+        {
+            return _ifTrue.DetectionResult(returnType) && _ifFalse.DetectionResult(returnType);
         }
     }
 }

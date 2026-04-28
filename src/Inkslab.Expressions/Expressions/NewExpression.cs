@@ -32,8 +32,8 @@ namespace Inkslab.Expressions
         {
             ArgumentsCheck(constructorInfo, parameters);
 
-            this._constructorInfo = constructorInfo;
-            this._parameters = parameters;
+            _constructorInfo = constructorInfo;
+            _parameters = parameters;
         }
 
         private static void ArgumentsCheck(ConstructorInfo constructorInfo, Expression[] parameters)

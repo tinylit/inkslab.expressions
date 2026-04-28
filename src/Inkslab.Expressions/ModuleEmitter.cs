@@ -111,11 +111,11 @@ namespace Inkslab
         public ModuleEmitter(bool savePhysicalAssembly, INamingScope namingScope,
                            string moduleName, string assemblyPath)
         {
-            this._namingScope = namingScope ?? throw new ArgumentNullException(nameof(namingScope));
+            _namingScope = namingScope ?? throw new ArgumentNullException(nameof(namingScope));
 
-            this._savePhysicalAssembly = savePhysicalAssembly;
-            this._moduleName = moduleName;
-            this._assemblyPath = assemblyPath;
+            _savePhysicalAssembly = savePhysicalAssembly;
+            _moduleName = moduleName;
+            _assemblyPath = assemblyPath;
         }
 #else
         /// <summary>
@@ -153,9 +153,9 @@ namespace Inkslab
         public ModuleEmitter(INamingScope namingScope,
                            string moduleName, string assemblyPath)
         {
-            this._namingScope = namingScope ?? throw new ArgumentNullException(nameof(namingScope));
-            this._moduleName = moduleName;
-            this._assemblyPath = assemblyPath;
+            _namingScope = namingScope ?? throw new ArgumentNullException(nameof(namingScope));
+            _moduleName = moduleName;
+            _assemblyPath = assemblyPath;
         }
 #endif
 
@@ -188,7 +188,7 @@ namespace Inkslab
         {
             var assemblyName = new AssemblyName
             {
-                Name = this._moduleName
+                Name = _moduleName
             };
             var moduleName = AssemblyFileName;
 

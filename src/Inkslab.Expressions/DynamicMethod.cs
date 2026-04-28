@@ -16,12 +16,12 @@ namespace Inkslab
 
         public DynamicMethod(MethodInfo methodInfoOriginal, MethodInfo methodInfoDeclaration, Type declaringType, Type returnType, Type[] declaringTypeParameters, bool hasDeclaringTypes)
         {
-            this._methodInfoOriginal = methodInfoOriginal;
-            this._methodInfoDeclaration = methodInfoDeclaration;
-            this._declaringType = declaringType;
-            this._returnType = returnType;
-            this._declaringTypeParameters = declaringTypeParameters;
-            this._hasDeclaringTypes = hasDeclaringTypes;
+            _methodInfoOriginal = methodInfoOriginal;
+            _methodInfoDeclaration = methodInfoDeclaration;
+            _declaringType = declaringType;
+            _returnType = returnType;
+            _declaringTypeParameters = declaringTypeParameters;
+            _hasDeclaringTypes = hasDeclaringTypes;
         }
 
         public DynamicMethod(MethodInfo methodInfoOriginal, Type declaringType, Type returnType, Type[] declaringTypeParameters, bool hasDeclaringTypes) : this(methodInfoOriginal, methodInfoOriginal, declaringType, returnType, declaringTypeParameters, hasDeclaringTypes)

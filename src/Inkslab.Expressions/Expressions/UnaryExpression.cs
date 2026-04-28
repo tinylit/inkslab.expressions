@@ -26,8 +26,8 @@ namespace Inkslab.Expressions
         /// <param name="body">表达式。</param>
         internal UnaryExpression(Expression body, UnaryExpressionType expressionType) : base(AnalysisType(expressionType, body))
         {
-            this._expressionType = expressionType;
-            this._body = body;
+            _expressionType = expressionType;
+            _body = body;
         }
 
         [DebuggerHidden]

@@ -118,9 +118,9 @@ namespace Inkslab.Expressions
         /// <param name="arguments">参数。</param>
         internal MethodCallExpression(Expression instanceAst, MethodInfo methodInfo, Expression[] arguments) : base(GetReturnType(instanceAst, methodInfo, arguments))
         {
-            this._instanceAst = instanceAst;
-            this._methodInfo = methodInfo;
-            this._arguments = arguments;
+            _instanceAst = instanceAst;
+            _methodInfo = methodInfo;
+            _arguments = arguments;
 
             if (methodInfo.IsStatic || methodInfo.DeclaringType.IsValueType)
             {

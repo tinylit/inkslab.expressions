@@ -31,7 +31,7 @@ namespace Inkslab.Expressions
 
             if (_isStatic = methodInfo.IsStatic)
             {
-                this._property = property;
+                _property = property;
             }
             else
             {
@@ -55,7 +55,7 @@ namespace Inkslab.Expressions
             {
                 if (instanceAst is null)
                 {
-                    this._property = property;
+                    _property = property;
                 }
                 else
                 {
@@ -68,8 +68,8 @@ namespace Inkslab.Expressions
             }
             else
             {
-                this._instanceAst = instanceAst;
-                this._property = property;
+                _instanceAst = instanceAst;
+                _property = property;
             }
         }
 

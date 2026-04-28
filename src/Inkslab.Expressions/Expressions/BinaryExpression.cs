@@ -31,10 +31,10 @@ namespace Inkslab.Expressions
         /// <param name="right">右表达式。</param>
         internal BinaryExpression(Expression left, BinaryExpressionType expressionType, Expression right) : base(AnalysisType(left, expressionType, right, out MethodInfo operatorMethod))
         {
-            this._left = left;
-            this._expressionType = expressionType;
-            this._right = right;
-            this._operatorMethod = operatorMethod;
+            _left = left;
+            _expressionType = expressionType;
+            _right = right;
+            _operatorMethod = operatorMethod;
         }
 
         private static Type AnalysisType(Expression left, BinaryExpressionType expressionType, Expression right, out MethodInfo operatorMethod)

@@ -26,13 +26,13 @@ namespace Inkslab.Emitters
 
             public ConstructorExpression(ConstructorInfo constructor) : base(constructor.DeclaringType)
             {
-                this._constructor = constructor ?? throw new ArgumentNullException(nameof(constructor));
+                _constructor = constructor ?? throw new ArgumentNullException(nameof(constructor));
             }
             public ConstructorExpression(ConstructorInfo constructor, Expression[] parameters) : this(constructor)
             {
                 ArgumentsCheck(constructor, parameters);
 
-                this._parameters = parameters;
+                _parameters = parameters;
             }
 
             private static void ArgumentsCheck(ConstructorInfo constructorInfo, Expression[] arguments)
@@ -74,8 +74,8 @@ namespace Inkslab.Emitters
 
             public InitConstructorEmitter(ConstructorEmitter constructorEmitter, Type[] typeArguments) : base(constructorEmitter._typeBuilder, constructorEmitter.Attributes, constructorEmitter.Conventions)
             {
-                this._constructorEmitter = constructorEmitter;
-                this._typeArguments = typeArguments;
+                _constructorEmitter = constructorEmitter;
+                _typeArguments = typeArguments;
             }
 
             internal override ConstructorInfo Value
@@ -140,7 +140,7 @@ namespace Inkslab.Emitters
         /// <param name="conventions">调用约定。</param>
         public ConstructorEmitter(TypeBuilder typeBuilder, MethodAttributes attributes, CallingConventions conventions) : base(typeBuilder)
         {
-            this._typeBuilder = typeBuilder;
+            _typeBuilder = typeBuilder;
             Attributes = attributes;
             Conventions = conventions;
         }
@@ -309,7 +309,7 @@ namespace Inkslab.Emitters
                 throw new ArgumentNullException(nameof(constructorBuilder));
             }
 
-            this._constructorBuilder = constructorBuilder;
+            _constructorBuilder = constructorBuilder;
 
             var attributes = constructorBuilder.MethodImplementationFlags;
 

@@ -28,8 +28,8 @@ namespace Inkslab.Expressions
         /// <param name="elementType">数组元素类型。</param>
         internal NewArrayExpression(int size, Type elementType) : base(elementType.MakeArrayType())
         {
-            this._size = size;
-            this._elementType = elementType;
+            _size = size;
+            _elementType = elementType;
         }
 
         /// <summary>

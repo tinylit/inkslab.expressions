@@ -18,7 +18,7 @@ namespace Inkslab.Expressions
         /// <param name="array"></param>
         internal ArrayLengthExpression(Expression array) : base(typeof(int))
         {
-            this._array = array ?? throw new ArgumentNullException(nameof(array));
+            _array = array ?? throw new ArgumentNullException(nameof(array));
 
             if (!array.RuntimeType.IsArray || !EmitUtils.IsAssignableFromSignatureTypes(typeof(Array), array.RuntimeType) || array.RuntimeType.GetArrayRank() > 1)
             {

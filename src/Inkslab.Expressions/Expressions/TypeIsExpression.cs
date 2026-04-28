@@ -32,8 +32,8 @@ namespace Inkslab.Expressions
         /// <param name="isType">类型。</param>
         internal TypeIsExpression(Expression body, Type isType) : base(typeof(bool))
         {
-            this._body = body ?? throw new ArgumentNullException(nameof(body));
-            this._isType = isType ?? throw new ArgumentNullException(nameof(isType));
+            _body = body ?? throw new ArgumentNullException(nameof(body));
+            _isType = isType ?? throw new ArgumentNullException(nameof(isType));
 
             if (body.IsVoid)
             {

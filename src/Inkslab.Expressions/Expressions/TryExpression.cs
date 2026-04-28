@@ -85,7 +85,7 @@ namespace Inkslab.Expressions
 
                 if (exceptionType == typeof(Exception) || exceptionType.IsAssignableFrom(typeof(Exception)))
                 {
-                    this._exceptionType = exceptionType;
+                    _exceptionType = exceptionType;
                 }
                 else
                 {
@@ -104,7 +104,7 @@ namespace Inkslab.Expressions
 
                 if (_exceptionType == typeof(Exception) || _exceptionType.IsAssignableFrom(typeof(Exception)))
                 {
-                    this._variable = variable;
+                    _variable = variable;
                 }
                 else
                 {
@@ -176,7 +176,7 @@ namespace Inkslab.Expressions
         /// <param name="finallyAst">一定会执行的代码。</param>
         internal TryExpression(Expression finallyAst)
         {
-            this._finallyAst = finallyAst ?? throw new ArgumentNullException(nameof(finallyAst));
+            _finallyAst = finallyAst ?? throw new ArgumentNullException(nameof(finallyAst));
 
             _catchAsts = new List<CatchExpression>();
         }

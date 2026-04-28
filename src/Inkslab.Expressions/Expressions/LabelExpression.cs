@@ -16,7 +16,7 @@ namespace Inkslab.Expressions
         /// <param name="label">标签。</param>
         internal LabelExpression(Label label) : base(typeof(void))
         {
-            this._label = label ?? throw new ArgumentNullException(nameof(label));
+            _label = label ?? throw new ArgumentNullException(nameof(label));
         }
 
         /// <summary>

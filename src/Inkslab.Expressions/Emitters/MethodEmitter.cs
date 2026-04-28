@@ -27,8 +27,8 @@ namespace Inkslab.Emitters
 
             public InitMethodEmitter(MethodEmitter methodEmitter, Type[] typeArguments) : base(methodEmitter.DeclaringType, methodEmitter.Name, methodEmitter.Attributes, methodEmitter.RuntimeType)
             {
-                this._methodEmitter = methodEmitter;
-                this._typeArguments = typeArguments;
+                _methodEmitter = methodEmitter;
+                _typeArguments = typeArguments;
             }
 
             internal override MethodInfo Value => _methodEmitter.Value.MakeGenericMethod(_typeArguments);
@@ -90,7 +90,7 @@ namespace Inkslab.Emitters
             DeclaringType = declaringType;
             Name = methodBuilder.Name;
             Attributes = methodBuilder.Attributes;
-            this._methodBuilder = methodBuilder;
+            _methodBuilder = methodBuilder;
         }
 
         [DebuggerHidden]
@@ -314,7 +314,7 @@ namespace Inkslab.Emitters
         /// <param name="methodBuilder">方法。</param>
         protected virtual void Emit(MethodBuilder methodBuilder)
         {
-            this._methodBuilder = methodBuilder ?? throw new ArgumentNullException(nameof(methodBuilder));
+            _methodBuilder = methodBuilder ?? throw new ArgumentNullException(nameof(methodBuilder));
 
             foreach (var parameter in _parameters)
             {

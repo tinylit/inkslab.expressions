@@ -30,8 +30,8 @@ namespace Inkslab.Emitters
         {
             ArgumentsCheck(constructorEmitter, parameters);
 
-            this._constructorEmitter = constructorEmitter;
-            this._parameters = parameters;
+            _constructorEmitter = constructorEmitter;
+            _parameters = parameters;
         }
 
         private static void ArgumentsCheck(ConstructorEmitter constructorEmitter, Expression[] parameters)

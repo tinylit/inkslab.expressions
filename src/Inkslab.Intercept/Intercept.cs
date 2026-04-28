@@ -16,7 +16,7 @@ namespace Inkslab.Intercept
         /// <exception cref="ArgumentNullException">参数 <paramref name="invocation"/> 为null。</exception>
         public Intercept(IInvocation invocation)
         {
-            this._invocation = invocation ?? throw new ArgumentNullException(nameof(invocation));
+            _invocation = invocation ?? throw new ArgumentNullException(nameof(invocation));
         }
 
         /// <summary>
@@ -40,7 +40,7 @@ namespace Inkslab.Intercept
         /// <exception cref="ArgumentNullException">参数 <paramref name="invocation"/> 为null。</exception>
         public Intercept(IInvocation invocation)
         {
-            this._invocation = invocation ?? throw new ArgumentNullException(nameof(invocation));
+            _invocation = invocation ?? throw new ArgumentNullException(nameof(invocation));
         }
 
         /// <summary>

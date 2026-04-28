@@ -442,5 +442,124 @@ namespace Inkslab.Expressions.Tests
         }
 
         #endregion
+
+        #region IfThenElse 所有分支都有 Return 时方法应正确编译
+
+        /// <summary>
+        /// 修复：IfThenElseExpression 未重写 DetectionResult，导致两个分支都有
+        /// Return 的方法体发射失败（抛 NotSupportedException）。
+        /// </summary>
+        [Fact]
+        public void IfThenElse_BothBranchesReturn_ShouldCompileAndRun()
+        {
+            // 等价 C#：
+            // public static int Choose(bool flag)
+            // {
+            //     if (flag) return 1; else return 2;
+            // }
+            var typeEmitter = _emitter.DefineType($"IfElseRet_{Guid.NewGuid():N}", TypeAttributes.Public | TypeAttributes.Class);
+            var method = typeEmitter.DefineMethod("Choose", MethodAttributes.Public | MethodAttributes.Static, typeof(int));
+            var flag = method.DefineParameter(typeof(bool), "flag");
+
+            var ifTrue = Expression.Block();
+            ifTrue.Append(Expression.Return(Expression.Constant(1)));
+
+            var ifFalse = Expression.Block();
+            ifFalse.Append(Expression.Return(Expression.Constant(2)));
+
+            method.Append(Expression.IfThenElse(flag, ifTrue, ifFalse));
+
+            var type = typeEmitter.CreateType();
+            var mi = type.GetMethod("Choose");
+
+            Assert.Equal(1, mi.Invoke(null, new object[] { true }));
+            Assert.Equal(2, mi.Invoke(null, new object[] { false }));
+        }
+
+        /// <summary>
+        /// 修复验证：嵌套 IfThenElse，多级分支都有 Return。
+        /// </summary>
+        [Fact]
+        public void IfThenElse_NestedBothBranchesReturn_ShouldCompileAndRun()
+        {
+            // 等价 C#：
+            // public static int Classify(int v)
+            // {
+            //     if (v > 0)
+            //         return 1;
+            //     else if (v < 0)
+            //         return -1;
+            //     else
+            //         return 0;
+            // }
+            var typeEmitter = _emitter.DefineType($"IfElseNest_{Guid.NewGuid():N}", TypeAttributes.Public | TypeAttributes.Class);
+            var method = typeEmitter.DefineMethod("Classify", MethodAttributes.Public | MethodAttributes.Static, typeof(int));
+            var v = method.DefineParameter(typeof(int), "v");
+
+            var positiveBlock = Expression.Block();
+            positiveBlock.Append(Expression.Return(Expression.Constant(1)));
+
+            var zeroBlock = Expression.Block();
+            zeroBlock.Append(Expression.Return(Expression.Constant(0)));
+
+            var negativeBlock = Expression.Block();
+            negativeBlock.Append(Expression.Return(Expression.Constant(-1)));
+
+            var innerElse = Expression.IfThenElse(
+                Expression.LessThan(v, Expression.Constant(0)),
+                negativeBlock,
+                zeroBlock);
+
+            var innerElseBlock = Expression.Block();
+            innerElseBlock.Append(innerElse);
+
+            method.Append(Expression.IfThenElse(
+                Expression.GreaterThan(v, Expression.Constant(0)),
+                positiveBlock,
+                innerElseBlock));
+
+            var type = typeEmitter.CreateType();
+            var mi = type.GetMethod("Classify");
+
+            Assert.Equal(1, mi.Invoke(null, new object[] { 5 }));
+            Assert.Equal(-1, mi.Invoke(null, new object[] { -3 }));
+            Assert.Equal(0, mi.Invoke(null, new object[] { 0 }));
+        }
+
+        /// <summary>
+        /// 验证：Return 后的代码在运行时不会被执行（Leave 指令无条件跳转）。
+        /// </summary>
+        [Fact]
+        public void Return_TerminatesExecution_SubsequentCodeNotReached()
+        {
+            // 等价 C#：
+            // static int _field = 0;
+            // public static int Test()
+            // {
+            //     _field = 10;
+            //     return _field;
+            //     _field = 99; // unreachable
+            // }
+            var typeEmitter = _emitter.DefineType($"RetTerm_{Guid.NewGuid():N}", TypeAttributes.Public | TypeAttributes.Class);
+            var field = typeEmitter.DefineField("_field", typeof(int), FieldAttributes.Public | FieldAttributes.Static);
+            var method = typeEmitter.DefineMethod("Test", MethodAttributes.Public | MethodAttributes.Static, typeof(int));
+
+            method.Append(Expression.Assign(field, Expression.Constant(10)));
+            method.Append(Expression.Return(field));
+            // 下面这行代码不可达，但 Append 允许添加 — 运行时不应执行
+            method.Append(Expression.Assign(field, Expression.Constant(99)));
+
+            var type = typeEmitter.CreateType();
+            var mi = type.GetMethod("Test");
+            var fi = type.GetField("_field");
+
+            fi.SetValue(null, 0);
+            var result = mi.Invoke(null, null);
+
+            Assert.Equal(10, result);
+            Assert.Equal(10, fi.GetValue(null)); // 如果 99 被执行，这里会是 99
+        }
+
+        #endregion
     }
 }

@@ -33,7 +33,7 @@ namespace Inkslab.Expressions
 
             if (label.Kind == LabelKind.Continue)
             {
-                this._label = label;
+                _label = label;
             }
         }
     }

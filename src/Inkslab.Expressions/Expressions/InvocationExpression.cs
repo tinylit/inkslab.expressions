@@ -82,9 +82,9 @@ namespace Inkslab.Expressions
                 throw new ArgumentException("参数不是“System.Object”数组!", nameof(arguments));
             }
 
-            this._instanceAst = instanceAst;
-            this._methodAst = Constant(methodInfo, typeof(MethodInfo));
-            this._arguments = arguments;
+            _instanceAst = instanceAst;
+            _methodAst = Constant(methodInfo, typeof(MethodInfo));
+            _arguments = arguments;
         }
 
         /// <summary>
@@ -126,9 +126,9 @@ namespace Inkslab.Expressions
 
             if (methodAst.RuntimeType == typeof(MethodInfo) || EmitUtils.IsAssignableFromSignatureTypes(typeof(MethodInfo), methodAst.RuntimeType))
             {
-                this._instanceAst = instanceAst;
-                this._methodAst = methodAst is MethodEmitter ? Constant(methodAst, typeof(MethodInfo)) : methodAst;
-                this._arguments = arguments;
+                _instanceAst = instanceAst;
+                _methodAst = methodAst is MethodEmitter ? Constant(methodAst, typeof(MethodInfo)) : methodAst;
+                _arguments = arguments;
             }
             else
             {

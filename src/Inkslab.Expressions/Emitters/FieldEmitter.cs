@@ -147,7 +147,7 @@ namespace Inkslab.Emitters
         /// <param name="builder">属性构造器。</param>
         public void Emit(FieldBuilder builder)
         {
-            this._builder = builder ?? throw new ArgumentNullException(nameof(builder));
+            _builder = builder ?? throw new ArgumentNullException(nameof(builder));
 
             if (Attributes.HasFlag(FieldAttributes.HasDefault) && !Attributes.HasFlag(FieldAttributes.Literal))
             {

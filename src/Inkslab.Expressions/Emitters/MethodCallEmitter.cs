@@ -57,8 +57,8 @@ namespace Inkslab.Emitters
 
         internal MethodCallEmitter(MethodEmitter methodEmitter, Expression[] arguments) : base(GetReturnType(methodEmitter, arguments))
         {
-            this._methodEmitter = methodEmitter ?? throw new ArgumentNullException(nameof(methodEmitter));
-            this._arguments = arguments ?? throw new ArgumentNullException(nameof(arguments));
+            _methodEmitter = methodEmitter ?? throw new ArgumentNullException(nameof(methodEmitter));
+            _arguments = arguments ?? throw new ArgumentNullException(nameof(arguments));
         }
 
         [DebuggerHidden]

@@ -20,7 +20,7 @@ namespace Inkslab.Expressions
                 throw new AstException("表达式“void”无效！");
             }
 
-            this._body = body;
+            _body = body;
         }
 
         /// <summary>
@@ -61,7 +61,7 @@ namespace Inkslab.Expressions
 
             if (label.Kind == LabelKind.Return)
             {
-                this._label = label;
+                _label = label;
             }
         }
 
@@ -73,7 +73,7 @@ namespace Inkslab.Expressions
                 throw new NotSupportedException();
             }
 
-            this._variable = variable ?? throw new ArgumentNullException(nameof(variable));
+            _variable = variable ?? throw new ArgumentNullException(nameof(variable));
         }
 
         /// <inheritdoc/>

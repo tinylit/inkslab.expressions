@@ -64,7 +64,7 @@ namespace Inkslab.Emitters
 
             _hasDefaultValue = true;
 
-            this._defaultValue = EmitUtils.SetConstantOfType(defaultValue, RuntimeType);
+            _defaultValue = EmitUtils.SetConstantOfType(defaultValue, RuntimeType);
         }
 
         /// <summary>

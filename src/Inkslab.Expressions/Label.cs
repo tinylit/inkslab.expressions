@@ -43,7 +43,7 @@ namespace Inkslab
         /// </summary>
         internal Label(LabelKind labelKind)
         {
-            this._labelKind = labelKind;
+            _labelKind = labelKind;
         }
 
         /// <summary>

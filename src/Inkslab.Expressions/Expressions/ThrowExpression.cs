@@ -36,7 +36,7 @@ namespace Inkslab.Expressions
         /// <param name="exception">异常。</param>
         internal ThrowExpression(Expression exception) : base(exception.RuntimeType)
         {
-            this._exception = exception ?? throw new ArgumentNullException(nameof(exception));
+            _exception = exception ?? throw new ArgumentNullException(nameof(exception));
 
             if (!exception.RuntimeType.IsSubclassOf(typeof(Exception)))
             {

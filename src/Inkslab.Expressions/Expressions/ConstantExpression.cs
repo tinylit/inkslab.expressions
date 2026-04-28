@@ -34,11 +34,11 @@ namespace Inkslab.Expressions
                     throw new NotSupportedException($"常量null，不能对值类型({type})进行转换!");
                 }
 
-                this._value = value;
+                _value = value;
             }
             else if ((value is Type or AbstractTypeEmitter) ? type == typeof(Type) : value is MethodEmitter ? type == typeof(MethodInfo) : EmitUtils.IsAssignableFromSignatureTypes(type, value.GetType()))
             {
-                this._value = value;
+                _value = value;
             }
             else
             {

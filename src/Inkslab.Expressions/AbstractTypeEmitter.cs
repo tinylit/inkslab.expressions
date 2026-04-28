@@ -77,9 +77,9 @@ namespace Inkslab
 
             public MethodOverrideEmitter(AbstractTypeEmitter declaringType, MethodBuilder methodBuilder, MethodInfo methodInfoDeclaration, Type returnType) : base(declaringType, methodBuilder, returnType)
             {
-                this._methodBuilder = methodBuilder;
-                this._methodInfoDeclaration = methodInfoDeclaration;
-                this._isVirtualMethod = methodInfoDeclaration.IsVirtual && !methodInfoDeclaration.IsFinal;
+                _methodBuilder = methodBuilder;
+                _methodInfoDeclaration = methodInfoDeclaration;
+                _isVirtualMethod = methodInfoDeclaration.IsVirtual && !methodInfoDeclaration.IsFinal;
             }
 
             public override bool IsGenericMethod => _methodInfoDeclaration.IsGenericMethod;
@@ -191,7 +191,7 @@ namespace Inkslab
                     {
                         AnalyzeGenericParameters(ref interfaces);
 
-                        this._interfaces = interfaces;
+                        _interfaces = interfaces;
 
                         _typeBuilder = ModuleEmitter.DefineType(moduleEmitter, name, attributes, typeof(object));
                     }
@@ -207,11 +207,11 @@ namespace Inkslab
             }
             else if (baseType.IsGenericTypeDefinition)
             {
-                this._baseType = baseType;
+                _baseType = baseType;
 
                 AnalyzeGenericParameters(baseType, ref interfaces);
 
-                this._interfaces = interfaces;
+                _interfaces = interfaces;
 
                 _typeBuilder = ModuleEmitter.DefineType(moduleEmitter, name, attributes);
             }
@@ -221,7 +221,7 @@ namespace Inkslab
                 {
                     AnalyzeGenericParameters(baseType, ref interfaces);
 
-                    this._interfaces = interfaces;
+                    _interfaces = interfaces;
 
                     _typeBuilder = ModuleEmitter.DefineType(moduleEmitter, name, attributes, baseType);
                 }
@@ -298,7 +298,7 @@ namespace Inkslab
                     {
                         AnalyzeGenericParameters(ref interfaces);
 
-                        this._interfaces = interfaces;
+                        _interfaces = interfaces;
 
                         _typeBuilder = DefineType(typeEmitter, name, attributes, typeof(object));
                     }
@@ -314,11 +314,11 @@ namespace Inkslab
             }
             else if (baseType.IsGenericTypeDefinition)
             {
-                this._baseType = baseType;
+                _baseType = baseType;
 
                 AnalyzeGenericParameters(baseType, ref interfaces);
 
-                this._interfaces = interfaces;
+                _interfaces = interfaces;
 
                 _typeBuilder = DefineType(typeEmitter, name, attributes);
             }
@@ -328,7 +328,7 @@ namespace Inkslab
                 {
                     AnalyzeGenericParameters(baseType, ref interfaces);
 
-                    this._interfaces = interfaces;
+                    _interfaces = interfaces;
 
                     _typeBuilder = DefineType(typeEmitter, name, attributes, baseType);
                 }
