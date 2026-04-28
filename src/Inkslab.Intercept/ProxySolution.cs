@@ -6,6 +6,7 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
+using System.Threading;
 
 namespace Inkslab.Intercept
 {
@@ -19,14 +20,13 @@ namespace Inkslab.Intercept
         private readonly ModuleEmitter _moduleEmitter;
 
         /// <summary>
-        /// 代理类型缓存：键为 (serviceType, implType)，值为 <see cref="ProxyItem"/>。
-        /// 使用 <see cref="ConcurrentDictionary{TKey,TValue}"/> 支持多线程读，
-        /// 配合 <see cref="_proxyCreationLock"/> 双重检查锁保证代理类型只生成一次。
+        /// 代理类型缓存：键为 (serviceType, implType)，值为 <see cref="Lazy{T}"/> 包裹的 <see cref="ProxyItem"/>。
+        /// 使用 per-key <see cref="Lazy{T}"/> 替代全局互斥锁：
+        /// 不同 (serviceType, implType) 的代理生成可并行进行，仅相同键的并发请求才会等待，
+        /// 显著提升大量服务一次性注册时的吞吐。
         /// </summary>
-        private readonly ConcurrentDictionary<Tuple<Type, Type>, ProxyItem> proxyCachings = new ConcurrentDictionary<Tuple<Type, Type>, ProxyItem>();
-
-        /// <summary>用于保护代理类型生成阶段的互斥锁。</summary>
-        private readonly object _proxyCreationLock = new object();
+        private readonly ConcurrentDictionary<Tuple<Type, Type>, Lazy<ProxyItem>> proxyCachings
+            = new ConcurrentDictionary<Tuple<Type, Type>, Lazy<ProxyItem>>();
 
         /// <summary>
         /// 已代理工厂的包装器。将此类实例作为委托的 Target，可在重复调用时通过
@@ -35,20 +35,27 @@ namespace Inkslab.Intercept
         /// </summary>
         private sealed class WrappedProxyFactory
         {
+            // 代理类型的构造器委托缓存，避免每次服务解析都走 Activator.CreateInstance 反射路径。
+            private static readonly ConcurrentDictionary<Type, Func<IServiceProvider, object, object>> _ctorCache
+                = new ConcurrentDictionary<Type, Func<IServiceProvider, object, object>>();
+
             private readonly Type _proxyType;
             private readonly Func<IServiceProvider, object> _innerFactory;
             private readonly object _innerInstance;
+            private readonly Func<IServiceProvider, object, object> _factory;
 
             public WrappedProxyFactory(Type proxyType, Func<IServiceProvider, object> innerFactory)
             {
                 _proxyType = proxyType;
                 _innerFactory = innerFactory;
+                _factory = _ctorCache.GetOrAdd(proxyType, BuildCtorInvoker);
             }
 
             public WrappedProxyFactory(Type proxyType, object innerInstance)
             {
                 _proxyType = proxyType;
                 _innerInstance = innerInstance;
+                _factory = _ctorCache.GetOrAdd(proxyType, BuildCtorInvoker);
             }
 
             public object Invoke(IServiceProvider serviceProvider)
@@ -57,7 +64,58 @@ namespace Inkslab.Intercept
                     ? _innerFactory.Invoke(serviceProvider)
                     : _innerInstance;
 
-                return Activator.CreateInstance(_proxyType, serviceProvider, instance);
+                return _factory(serviceProvider, instance);
+            }
+
+            /// <summary>
+            /// 为 (IServiceProvider, object) 双参构造器生成强类型委托。
+            /// 生成失败时回退到 <see cref="Activator.CreateInstance(Type, object[])"/>。
+            /// </summary>
+            private static Func<IServiceProvider, object, object> BuildCtorInvoker(Type proxyType)
+            {
+                try
+                {
+                    var ctor = proxyType.GetConstructor(
+                        BindingFlags.Public | BindingFlags.Instance | BindingFlags.NonPublic,
+                        binder: null,
+                        types: new[] { typeof(IServiceProvider), typeof(object) },
+                        modifiers: null);
+
+                    if (ctor is null)
+                    {
+                        // 代理类中的 instance 字段为 serviceType，需查找匹配的构造函数。
+                        var ctors = proxyType.GetConstructors(BindingFlags.Public | BindingFlags.Instance | BindingFlags.NonPublic);
+                        ctor = System.Array.Find(ctors, c =>
+                        {
+                            var ps = c.GetParameters();
+                            return ps.Length == 2 && ps[0].ParameterType == typeof(IServiceProvider);
+                        });
+                    }
+
+                    if (ctor is null)
+                    {
+                        return (sp, instance) => Activator.CreateInstance(proxyType, sp, instance);
+                    }
+
+                    var spParam = System.Linq.Expressions.Expression.Parameter(typeof(IServiceProvider), "sp");
+                    var instanceParam = System.Linq.Expressions.Expression.Parameter(typeof(object), "instance");
+
+                    var ctorParams = ctor.GetParameters();
+                    var convertedInstance = ctorParams[1].ParameterType == typeof(object)
+                        ? (System.Linq.Expressions.Expression)instanceParam
+                        : System.Linq.Expressions.Expression.Convert(instanceParam, ctorParams[1].ParameterType);
+
+                    var newExpr = System.Linq.Expressions.Expression.New(ctor, spParam, convertedInstance);
+                    var body = System.Linq.Expressions.Expression.Convert(newExpr, typeof(object));
+
+                    return System.Linq.Expressions.Expression
+                        .Lambda<Func<IServiceProvider, object, object>>(body, spParam, instanceParam)
+                        .Compile();
+                }
+                catch
+                {
+                    return (sp, instance) => Activator.CreateInstance(proxyType, sp, instance);
+                }
             }
         }
 
@@ -144,7 +202,24 @@ namespace Inkslab.Intercept
                 return true;
             }
 
-            public int GetHashCode(MethodInfo obj) => obj is null ? 0 : obj.Name.GetHashCode();
+            public int GetHashCode(MethodInfo obj)
+            {
+                if (obj is null)
+                {
+                    return 0;
+                }
+
+                // 仅按 Name 哈希会让重载方法大量碰撞，进而退化为 O(n) 的 Equals 比较。
+                // 加入参数个数和泛型标志可显著降低碰撞，且与 Equals 的判定一致。
+                unchecked
+                {
+                    int hash = 17;
+                    hash = hash * 31 + obj.Name.GetHashCode();
+                    hash = hash * 31 + obj.GetParameters().Length;
+                    hash = hash * 31 + (obj.IsGenericMethod ? 1 : 0);
+                    return hash;
+                }
+            }
 
             public static MethodInfoEqualityComparer Instance => _lazy.Value;
         }
@@ -186,23 +261,20 @@ namespace Inkslab.Intercept
 
             var tuple = Tuple.Create(descriptor.ServiceType, descriptor.ImplementationType);
 
-            if (!proxyCachings.TryGetValue(tuple, out ProxyItem proxyItem))
-            {
-                // 双重检查锁：快速路径（无锁读）未命中时，加锁后再次检查，
-                // 保证代理类型只生成一次，避免并发场景下重复分析和重复创建动态类型。
-                lock (_proxyCreationLock)
+            // GetOrAdd 配合 LazyThreadSafetyMode.ExecutionAndPublication：
+            // 同一键的代理生成只发生一次；不同键之间不互相阻塞。
+            var lazyItem = proxyCachings.GetOrAdd(tuple, key => new Lazy<ProxyItem>(
+                () =>
                 {
-                    if (!proxyCachings.TryGetValue(tuple, out proxyItem))
-                    {
-                        var implementationType = descriptor.ImplementationType is null
-                            ? ProxyArgument(descriptor.ServiceType)
-                            : ProxyImplementation(descriptor.ServiceType, descriptor.ImplementationType);
+                    var implementationType = key.Item2 is null
+                        ? ProxyArgument(key.Item1)
+                        : ProxyImplementation(key.Item1, key.Item2);
 
-                        proxyItem = new ProxyItem(implementationType, implementationType == (tuple.Item2 ?? tuple.Item1));
-                        proxyCachings.TryAdd(tuple, proxyItem);
-                    }
-                }
-            }
+                    return new ProxyItem(implementationType, implementationType == (key.Item2 ?? key.Item1));
+                },
+                LazyThreadSafetyMode.ExecutionAndPublication));
+
+            ProxyItem proxyItem = lazyItem.Value;
 
             if (proxyItem.Primitive)
             {
@@ -320,25 +392,11 @@ namespace Inkslab.Intercept
 
             var propertyInfos = serviceType.GetProperties(InstanceFlags);
 
-            foreach (var constructorInfo in implementationType.GetConstructors(BindingFlags.Public | BindingFlags.Instance | BindingFlags.NonPublic))
-            {
-                var constructorEmitter = classEmitter.DefineConstructor(constructorInfo.Attributes);
-
-                var servicesEmitter = constructorEmitter.DefineParameter(typeof(IServiceProvider), ParameterAttributes.None, "____services__");
-
-                var parameterInfos = constructorInfo.GetParameters();
-
-                var parameterEmiters = new Expression[parameterInfos.Length];
-
-                for (int i = 0; i < parameterInfos.Length; i++)
-                {
-                    parameterEmiters[i] = constructorEmitter.DefineParameter(parameterInfos[i]);
-                }
-
-                constructorEmitter.Append(Assign(servicesAst, servicesEmitter));
-
-                constructorEmitter.InvokeBaseConstructor(constructorInfo, parameterEmiters);
-            }
+            ReplicateImplementationConstructors(
+                classEmitter,
+                implementationType,
+                servicesAst,
+                (ctor, ctorInfo, args) => ctor.InvokeBaseConstructor(ctorInfo, args));
 
             return ProxyAlways(classEmitter, servicesAst, This(classEmitter), propertyInfos, proxyMethods);
         }
@@ -370,24 +428,11 @@ namespace Inkslab.Intercept
 
             var instanceAst = classEmitter.DefineField("____instance__", serviceType, FieldAttributes.Private | FieldAttributes.InitOnly | FieldAttributes.NotSerialized);
 
-            foreach (var constructorInfo in implementationType.GetConstructors(BindingFlags.Public | BindingFlags.Instance | BindingFlags.NonPublic))
-            {
-                var constructorEmitter = classEmitter.DefineConstructor(constructorInfo.Attributes);
-
-                var servicesEmitter = constructorEmitter.DefineParameter(typeof(IServiceProvider), ParameterAttributes.None, "____services__");
-
-                var parameterInfos = constructorInfo.GetParameters();
-
-                var parameterEmiters = new Expression[parameterInfos.Length];
-
-                for (int i = 0; i < parameterInfos.Length; i++)
-                {
-                    parameterEmiters[i] = constructorEmitter.DefineParameter(parameterInfos[i]);
-                }
-
-                constructorEmitter.Append(Assign(servicesAst, servicesEmitter));
-                constructorEmitter.Append(Assign(instanceAst, Convert(New(constructorInfo, parameterEmiters), serviceType)));
-            }
+            ReplicateImplementationConstructors(
+                classEmitter,
+                implementationType,
+                servicesAst,
+                (ctor, ctorInfo, args) => ctor.Append(Assign(instanceAst, Convert(New(ctorInfo, args), serviceType))));
 
             var propertyInfos = serviceType.GetProperties(InstanceFlags);
 
@@ -422,6 +467,31 @@ namespace Inkslab.Intercept
 
             var propertyInfos = serviceType.GetProperties(InstanceFlags);
 
+            ReplicateImplementationConstructors(
+                classEmitter,
+                implementationType,
+                servicesAst,
+                (ctor, ctorInfo, args) =>
+                {
+                    ctor.Append(Assign(instanceAst, Convert(New(ctorInfo, args), serviceType)));
+                    ctor.InvokeBaseConstructor(baseConstructor);
+                });
+
+            return serviceType.IsAbstract
+                ? ProxyAlways(classEmitter, servicesAst, instanceAst, propertyInfos, proxyMethods)
+                : Proxy(classEmitter, servicesAst, instanceAst, propertyInfos, proxyMethods);
+        }
+
+        /// <summary>
+        /// 复制实现类型的所有构造函数到代理类，并赋值 <paramref name="servicesAst"/>。
+        /// <paramref name="emitBody"/> 负责发出不同代理场景下的个性化逻辑（如赋值 instance 字段、调用 base 构造函数等）。
+        /// </summary>
+        private static void ReplicateImplementationConstructors(
+            ClassEmitter classEmitter,
+            Type implementationType,
+            FieldEmitter servicesAst,
+            Action<ConstructorEmitter, ConstructorInfo, Expression[]> emitBody)
+        {
             foreach (var constructorInfo in implementationType.GetConstructors(BindingFlags.Public | BindingFlags.Instance | BindingFlags.NonPublic))
             {
                 var constructorEmitter = classEmitter.DefineConstructor(constructorInfo.Attributes);
@@ -438,14 +508,9 @@ namespace Inkslab.Intercept
                 }
 
                 constructorEmitter.Append(Assign(servicesAst, servicesEmitter));
-                constructorEmitter.Append(Assign(instanceAst, Convert(New(constructorInfo, parameterEmiters), serviceType)));
 
-                constructorEmitter.InvokeBaseConstructor(baseConstructor);
+                emitBody(constructorEmitter, constructorInfo, parameterEmiters);
             }
-
-            return serviceType.IsAbstract
-                ? ProxyAlways(classEmitter, servicesAst, instanceAst, propertyInfos, proxyMethods)
-                : Proxy(classEmitter, servicesAst, instanceAst, propertyInfos, proxyMethods);
         }
 
         /// <summary>

@@ -146,6 +146,13 @@ label_continue:
 
             foreach (var fieldInfo in implementationType.GetFields(bindingFlags))
             {
+                // 必须同时匹配字段名和字段类型，否则当类型存在多个同类型字段时
+                // 会错误地返回第一个，造成静默 bug。
+                if (!string.Equals(fieldInfo.Name, referenceInfo.Name, StringComparison.Ordinal))
+                {
+                    continue;
+                }
+
                 if (EmitUtils.EqualSignatureTypes(fieldInfo.FieldType, referenceInfo.FieldType))
                 {
                     return fieldInfo;

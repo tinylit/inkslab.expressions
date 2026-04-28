@@ -1,7 +1,7 @@
 <Project>
 	<PropertyGroup>
 		<!-- 版本 -->
-		<Version>1.2.11</Version>
+		<Version>1.2.12</Version>
 		<!-- C#语法版本-->
 		<LangVersion>9.0</LangVersion>
 
@@ -44,13 +44,6 @@
 	</ItemGroup>
 
 	<ItemGroup>
-		<None Include="..\..\README.md">
-			<Pack>True</Pack>
-			<PackagePath>\</PackagePath>
-		</None>
-	</ItemGroup>
-	
-	<ItemGroup>
 		<None Include="..\..\inkslab-mini.jpg">
 			<Pack>True</Pack>
 			<PackagePath>\</PackagePath>
@@ -64,6 +57,11 @@
 				<AssemblyName>Inkslab.Expressions</AssemblyName>
 				<Description>A type generator based on the Emit implementation that encapsulates an expression-like syntax.</Description>
 			</PropertyGroup>
+
+			<!-- 将根目录的 Inkslab.Expressions.md 作为 NuGet 包的 README.md 打包 -->
+			<ItemGroup>
+				<None Include="..\..\Inkslab.Expressions.md" Pack="True" PackagePath="\README.md" />
+			</ItemGroup>
 		</When>
 	</Choose>
 	
@@ -74,6 +72,12 @@
 				<AssemblyName>Inkslab.Intercept</AssemblyName>
 				<Description>AOP framework based on method return types.</Description>
 			</PropertyGroup>
+
+			<!-- Intercept 包：仓库根 README.md 作为包 README，附带 Inkslab.Expressions.md 提供完整的表达式 API 参考 -->
+			<ItemGroup>
+				<None Include="..\..\README.md" Pack="True" PackagePath="\" />
+				<None Include="..\..\Inkslab.Expressions.md" Pack="True" PackagePath="\" />
+			</ItemGroup>
 
 			<ItemGroup>
 				<ProjectReference Include="..\Inkslab.Expressions\Inkslab.Expressions.csproj" />
