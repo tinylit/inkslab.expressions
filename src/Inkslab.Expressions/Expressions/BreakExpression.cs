@@ -8,19 +8,19 @@ namespace Inkslab.Expressions
     /// </summary>
     public class BreakExpression : Expression
     {
-        private Label label;
+        private Label _label;
 
         internal BreakExpression() { }
 
         /// <inheritdoc/>
         public override void Load(ILGenerator ilg)
         {
-            if (label is null)
+            if (_label is null)
             {
                 throw new AstException("没有要中断的封闭式循环！");
             }
 
-            label.Goto(ilg);
+            _label.Goto(ilg);
         }
 
         /// <inheritdoc/>
@@ -33,7 +33,7 @@ namespace Inkslab.Expressions
 
             if (label.Kind == LabelKind.Break)
             {
-                this.label = label;
+                this._label = label;
             }
         }
     }

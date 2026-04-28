@@ -13,12 +13,12 @@ namespace Inkslab.Expressions
     [DebuggerDisplay("{DebuggerView}")]
     public class SwitchExpression : Expression
     {
-        private readonly Expression defaultAst;
-        private readonly Expression switchValue;
-        private readonly List<SwitchCaseExpression> switchCases;
+        private readonly Expression _defaultAst;
+        private readonly Expression _switchValue;
+        private readonly List<SwitchCaseExpression> _switchCases;
 
-        private readonly Type switchValueType;
-        private readonly MySwitchValueKind switchValueKind;
+        private readonly Type _switchValueType;
+        private readonly MySwitchValueKind _switchValueKind;
 
         private enum MySwitchValueKind
         {
@@ -35,37 +35,37 @@ namespace Inkslab.Expressions
                 var sb = new StringBuilder();
 
                 sb.Append("switch(")
-                    .Append(switchValue)
+                    .Append(_switchValue)
                     .Append(')')
                     .Append('{');
 
-                if (switchValueKind == MySwitchValueKind.Equality)
+                if (_switchValueKind == MySwitchValueKind.Equality)
                 {
                     sb.AppendLine()
                         .Append("case condition: /*TODO:somethings...*/");
                 }
                 else
                 {
-                    foreach (var caseHandler in switchCases)
+                    foreach (var caseHandler in _switchCases)
                     {
                         sb.AppendLine()
                             .Append(caseHandler);
                     }
                 }
 
-                if (defaultAst is not null)
+                if (_defaultAst is not null)
                 {
                     sb.AppendLine()
                         .Append("default:");
 
                     if (IsVoid)
                     {
-                        sb.Append(defaultAst)
+                        sb.Append(_defaultAst)
                             .Append("; break;");
                     }
                     else
                     {
-                        sb.Append("return ").Append(defaultAst);
+                        sb.Append("return ").Append(_defaultAst);
                     }
                 }
 
@@ -103,16 +103,16 @@ namespace Inkslab.Expressions
 
         private class MyVariableExpression : Expression
         {
-            private readonly LocalBuilder local;
+            private readonly LocalBuilder _local;
 
             public MyVariableExpression(LocalBuilder local) : base(local.LocalType)
             {
-                this.local = local;
+                this._local = local;
             }
 
             public override void Load(ILGenerator ilg)
             {
-                ilg.Emit(OpCodes.Ldloc, local);
+                ilg.Emit(OpCodes.Ldloc, _local);
             }
         }
 
@@ -134,14 +134,14 @@ namespace Inkslab.Expressions
 
         private class SwitchCaseArithmeticExpression : SwitchCaseExpression
         {
-            private readonly ConstantExpression constant;
+            private readonly ConstantExpression _constant;
 
             public SwitchCaseArithmeticExpression(ConstantExpression constant)
             {
-                this.constant = constant;
+                this._constant = constant;
             }
 
-            public override void EmitEqual(ILGenerator ilg) => constant.Load(ilg);
+            public override void EmitEqual(ILGenerator ilg) => _constant.Load(ilg);
 
             public override OpCode Equal_S => OpCodes.Beq_S;
 
@@ -149,39 +149,39 @@ namespace Inkslab.Expressions
             {
                 if (IsVoid)
                 {
-                    return $"case {constant}: /*TODO:somethings...*/ break;";
+                    return $"case {_constant}: /*TODO:somethings...*/ break;";
                 }
 
-                return $"case {constant}: return /*TODO:somethings...*/;";
+                return $"case {_constant}: return /*TODO:somethings...*/;";
             }
         }
 
         private class SwitchCaseRuntimeTypeExpression : SwitchCaseExpression
         {
-            private readonly VariableExpression variableAst;
+            private readonly VariableExpression _variableAst;
 
             public SwitchCaseRuntimeTypeExpression(VariableExpression variableAst)
             {
-                this.variableAst = variableAst;
+                this._variableAst = variableAst;
             }
 
             public override void EmitEqual(ILGenerator ilg)
             {
-                if (variableAst.RuntimeType.IsNullable())
+                if (_variableAst.RuntimeType.IsNullable())
                 {
-                    ilg.Emit(OpCodes.Isinst, Nullable.GetUnderlyingType(variableAst.RuntimeType));
+                    ilg.Emit(OpCodes.Isinst, Nullable.GetUnderlyingType(_variableAst.RuntimeType));
                 }
                 else
                 {
-                    ilg.Emit(OpCodes.Isinst, variableAst.RuntimeType);
+                    ilg.Emit(OpCodes.Isinst, _variableAst.RuntimeType);
                 }
             }
 
-            public override OpCode Equal_S => variableAst.RuntimeType.IsValueType ? OpCodes.Brfalse_S : OpCodes.Brtrue_S;
+            public override OpCode Equal_S => _variableAst.RuntimeType.IsValueType ? OpCodes.Brfalse_S : OpCodes.Brtrue_S;
 
             public override void Emit(ILGenerator ilg, MyVariableExpression variable)
             {
-                Assign(variableAst, Convert(variable, variableAst.RuntimeType))
+                Assign(_variableAst, Convert(variable, _variableAst.RuntimeType))
                     .Load(ilg);
 
                 Load(ilg);
@@ -191,35 +191,35 @@ namespace Inkslab.Expressions
             {
                 if (IsVoid)
                 {
-                    return $"case {variableAst}: /*TODO:somethings...*/ break;";
+                    return $"case {_variableAst}: /*TODO:somethings...*/ break;";
                 }
 
-                return $"case {variableAst}: return /*TODO:somethings...*/;";
+                return $"case {_variableAst}: return /*TODO:somethings...*/;";
             }
         }
 
         private class SwitchCaseEqualityAst : SwitchCaseExpression
         {
-            private readonly ConstantExpression constant;
-            private readonly MethodInfo comparison;
+            private readonly ConstantExpression _constant;
+            private readonly MethodInfo _comparison;
 
             public SwitchCaseEqualityAst(ConstantExpression constant, MethodInfo comparison)
             {
-                this.constant = constant;
-                this.comparison = comparison;
+                this._constant = constant;
+                this._comparison = comparison;
             }
 
             public override void EmitEqual(ILGenerator ilg)
             {
-                constant.Load(ilg);
+                _constant.Load(ilg);
 
-                if (comparison.IsStatic || comparison.DeclaringType.IsValueType)
+                if (_comparison.IsStatic || _comparison.DeclaringType.IsValueType)
                 {
-                    ilg.Emit(OpCodes.Call, comparison);
+                    ilg.Emit(OpCodes.Call, _comparison);
                 }
                 else
                 {
-                    ilg.Emit(OpCodes.Callvirt, comparison);
+                    ilg.Emit(OpCodes.Callvirt, _comparison);
                 }
             }
 
@@ -236,26 +236,26 @@ namespace Inkslab.Expressions
                 throw new ArgumentNullException(nameof(switchValue));
             }
 
-            switchValueType = switchValue.RuntimeType;
+            _switchValueType = switchValue.RuntimeType;
 
-            if (switchValueType == typeof(object))
+            if (_switchValueType == typeof(object))
             {
-                switchValueType = typeof(Type);
+                _switchValueType = typeof(Type);
 
-                switchValueKind = MySwitchValueKind.RuntimeType;
+                _switchValueKind = MySwitchValueKind.RuntimeType;
             }
-            else if (IsArithmetic(switchValueType))
+            else if (IsArithmetic(_switchValueType))
             {
-                switchValueKind = MySwitchValueKind.Arithmetic;
+                _switchValueKind = MySwitchValueKind.Arithmetic;
             }
             else
             {
-                switchValueKind = MySwitchValueKind.Equality;
+                _switchValueKind = MySwitchValueKind.Equality;
             }
 
-            switchCases = new List<SwitchCaseExpression>();
+            _switchCases = new List<SwitchCaseExpression>();
 
-            this.switchValue = switchValue;
+            this._switchValue = switchValue;
         }
 
         /// <summary>
@@ -263,7 +263,7 @@ namespace Inkslab.Expressions
         /// </summary>
         internal SwitchExpression(Expression switchValue, Expression defaultAst) : this(switchValue)
         {
-            this.defaultAst = defaultAst ?? throw new ArgumentNullException(nameof(defaultAst));
+            this._defaultAst = defaultAst ?? throw new ArgumentNullException(nameof(defaultAst));
         }
 
         /// <inheritdoc/>
@@ -274,16 +274,16 @@ namespace Inkslab.Expressions
                 throw new ArgumentNullException(nameof(label));
             }
 
-            switchValue.MarkLabel(label);
+            _switchValue.MarkLabel(label);
 
             if (label.Kind != LabelKind.Break)
             {
-                foreach (var item in switchCases)
+                foreach (var item in _switchCases)
                 {
                     item.MarkLabel(label);
                 }
 
-                defaultAst?.MarkLabel(label);
+                _defaultAst?.MarkLabel(label);
             }
         }
         /// <inheritdoc/>
@@ -294,19 +294,19 @@ namespace Inkslab.Expressions
                 throw new ArgumentNullException(nameof(variable));
             }
 
-            switchValue.StoredLocal(variable);
+            _switchValue.StoredLocal(variable);
 
-            foreach (var switchCase in switchCases)
+            foreach (var switchCase in _switchCases)
             {
                 switchCase.StoredLocal(variable);
             }
 
-            defaultAst?.StoredLocal(variable);
+            _defaultAst?.StoredLocal(variable);
         }
         /// <inheritdoc/>
         protected internal override bool DetectionResult(Type returnType)
         {
-            foreach (var switchCase in switchCases)
+            foreach (var switchCase in _switchCases)
             {
                 if (!switchCase.DetectionResult(returnType))
                 {
@@ -314,7 +314,7 @@ namespace Inkslab.Expressions
                 }
             }
 
-            return defaultAst is null || defaultAst.DetectionResult(returnType);
+            return _defaultAst is null || _defaultAst.DetectionResult(returnType);
         }
 
         /// <summary>
@@ -330,7 +330,7 @@ namespace Inkslab.Expressions
 
             SwitchCaseExpression switchCase;
 
-            switch (switchValueKind)
+            switch (_switchValueKind)
             {
                 case MySwitchValueKind.Arithmetic when IsArithmetic(constant.RuntimeType):
                     switchCase = new SwitchCaseArithmeticExpression(constant);
@@ -338,13 +338,13 @@ namespace Inkslab.Expressions
                 case MySwitchValueKind.RuntimeType:
                     throw new AstException("当前流程控制为类型转换，请使用“{Case(VariableAst variable)}”方法处理！");
                 case MySwitchValueKind.Equality:
-                    var types = new Type[2] { switchValueType, constant.RuntimeType };
+                    var types = new Type[2] { _switchValueType, constant.RuntimeType };
 
-                    MethodInfo comparison = switchValueType.GetMethod("op_Equality", BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic, null, types, null);
+                    MethodInfo comparison = _switchValueType.GetMethod("op_Equality", BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic, null, types, null);
 
                     if (comparison is null)
                     {
-                        if (EmitUtils.AreEquivalent(switchValueType, constant.RuntimeType))
+                        if (EmitUtils.AreEquivalent(_switchValueType, constant.RuntimeType))
                         {
                             goto label_equals;
                         }
@@ -361,16 +361,16 @@ namespace Inkslab.Expressions
                         goto label_break;
 
 label_equals:
-                        if (switchValueType.IsAssignableFrom(typeof(IEquatable<>).MakeGenericType(constant.RuntimeType)))
+                        if (_switchValueType.IsAssignableFrom(typeof(IEquatable<>).MakeGenericType(constant.RuntimeType)))
                         {
-                            comparison = switchValueType.GetMethod("Equals", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic, null, new Type[] { constant.RuntimeType }, null);
+                            comparison = _switchValueType.GetMethod("Equals", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic, null, new Type[] { constant.RuntimeType }, null);
                         }
                     }
 
 label_break:
                     if (comparison is null)
                     {
-                        throw new InvalidOperationException($"未找到“{constant.RuntimeType}”和“{switchValueType}”有效的比较函数!");
+                        throw new InvalidOperationException($"未找到“{constant.RuntimeType}”和“{_switchValueType}”有效的比较函数!");
                     }
 
                     switchCase = new SwitchCaseEqualityAst(constant, comparison);
@@ -380,7 +380,7 @@ label_break:
                     throw new NotSupportedException();
             }
 
-            switchCases.Add(switchCase);
+            _switchCases.Add(switchCase);
 
             return switchCase;
         }
@@ -396,13 +396,13 @@ label_break:
                 throw new ArgumentNullException(nameof(variable));
             }
 
-            SwitchCaseExpression switchCase = switchValueKind switch
+            SwitchCaseExpression switchCase = _switchValueKind switch
             {
                 MySwitchValueKind.RuntimeType => new SwitchCaseRuntimeTypeExpression(variable),
                 MySwitchValueKind.Arithmetic or MySwitchValueKind.Equality => throw new AstException("当前流程控制为值比较转换，请使用“{Case(ConstantAst constant)}”方法处理！"),
                 _ => throw new NotSupportedException(),
             };
-            switchCases.Add(switchCase);
+            _switchCases.Add(switchCase);
 
             return switchCase;
         }
@@ -413,25 +413,25 @@ label_break:
         /// <param name="ilg">指令。</param>
         public override void Load(ILGenerator ilg)
         {
-            if (switchCases.Count == 0)
+            if (_switchCases.Count == 0)
             {
-                if (defaultAst is null)
+                if (_defaultAst is null)
                 {
                     throw new AstException("表达式残缺，未设置“case”代码块和“default”代码块至少设置其一！");
                 }
 
-                defaultAst.Load(ilg);
+                _defaultAst.Load(ilg);
             }
             else
             {
                 var label = new Label(LabelKind.Break);
 
-                foreach (var item in switchCases)
+                foreach (var item in _switchCases)
                 {
                     item.MarkLabel(label);
                 }
 
-                defaultAst?.MarkLabel(label);
+                _defaultAst?.MarkLabel(label);
 
                 Emit(ilg);
 
@@ -447,13 +447,13 @@ label_break:
         /// <param name="ilg">指令。</param>
         protected virtual void Emit(ILGenerator ilg)
         {
-            LocalBuilder variable = ilg.DeclareLocal(switchValue.RuntimeType);
+            LocalBuilder variable = ilg.DeclareLocal(_switchValue.RuntimeType);
 
-            switchValue.Load(ilg);
+            _switchValue.Load(ilg);
 
             ilg.Emit(OpCodes.Stloc, variable);
 
-            int i = 0, len = switchCases.Count;
+            int i = 0, len = _switchCases.Count;
 
             var labels = new System.Reflection.Emit.Label[len];
 
@@ -464,7 +464,7 @@ label_break:
 
             for (i = 0; i < len; i++)
             {
-                var switchCase = switchCases[i];
+                var switchCase = _switchCases[i];
 
                 ilg.Emit(OpCodes.Ldloc, variable);
 

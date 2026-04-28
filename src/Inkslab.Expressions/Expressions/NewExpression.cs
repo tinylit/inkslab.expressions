@@ -12,8 +12,8 @@ namespace Inkslab.Expressions
     [DebuggerDisplay("new {RuntimeType.Name}(...args)")]
     public class NewExpression : Expression
     {
-        private readonly ConstructorInfo constructorInfo;
-        private readonly Expression[] parameters;
+        private readonly ConstructorInfo _constructorInfo;
+        private readonly Expression[] _parameters;
 
         /// <summary>
         /// 构造函数。
@@ -32,8 +32,8 @@ namespace Inkslab.Expressions
         {
             ArgumentsCheck(constructorInfo, parameters);
 
-            this.constructorInfo = constructorInfo;
-            this.parameters = parameters;
+            this._constructorInfo = constructorInfo;
+            this._parameters = parameters;
         }
 
         private static void ArgumentsCheck(ConstructorInfo constructorInfo, Expression[] parameters)
@@ -74,15 +74,15 @@ namespace Inkslab.Expressions
         /// <param name="ilg">指令。</param>
         public override void Load(ILGenerator ilg)
         {
-            if (parameters?.Length > 0)
+            if (_parameters?.Length > 0)
             {
-                foreach (var parameter in parameters)
+                foreach (var parameter in _parameters)
                 {
                     parameter.Load(ilg);
                 }
             }
 
-            ilg.Emit(OpCodes.Newobj, constructorInfo);
+            ilg.Emit(OpCodes.Newobj, _constructorInfo);
         }
     }
 }

@@ -23,7 +23,10 @@ namespace Inkslab.Expressions.Tests
         /// <exception cref="ArgumentNullException"><paramref name="array"/> 为 null 时抛出。</exception>
         public static void Sort<T>(T[] array) where T : IComparable<T>
         {
-            if (array == null) throw new ArgumentNullException(nameof(array));
+            if (array == null)
+            {
+                throw new ArgumentNullException(nameof(array));
+            }
 
             int n = array.Length;
             for (int i = 0; i < n - 1; i++)
@@ -40,7 +43,10 @@ namespace Inkslab.Expressions.Tests
                     }
                 }
 
-                if (!swapped) break;
+                if (!swapped)
+                {
+                    break;
+                }
             }
         }
     }

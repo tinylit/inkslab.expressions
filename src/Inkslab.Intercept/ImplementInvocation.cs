@@ -16,9 +16,8 @@ namespace Inkslab.Intercept
         private static readonly ConcurrentDictionary<MethodInfo, Func<object, object[], object>> _invokerCache
             = new ConcurrentDictionary<MethodInfo, Func<object, object[], object>>();
 
-        private readonly object target;
-        private readonly MethodInfo methodInfo;
-        private readonly Func<object, object[], object> invoker;
+        private readonly object _target;
+        private readonly Func<object, object[], object> _invoker;
 
         /// <summary>
         /// 构造函数。
@@ -28,14 +27,17 @@ namespace Inkslab.Intercept
         /// <exception cref="ArgumentNullException">参数 <paramref name="target"/> 或 <paramref name="methodInfo"/> 为 null。</exception>
         public ImplementInvocation(object target, MethodInfo methodInfo)
         {
-            this.target = target ?? throw new ArgumentNullException(nameof(target));
-            this.methodInfo = methodInfo ?? throw new ArgumentNullException(nameof(methodInfo));
+            this._target = target ?? throw new ArgumentNullException(nameof(target));
+            if (methodInfo is null)
+            {
+                throw new ArgumentNullException(nameof(methodInfo));
+            }
 
-            invoker = _invokerCache.GetOrAdd(methodInfo, BuildInvoker);
+            _invoker = _invokerCache.GetOrAdd(methodInfo, BuildInvoker);
         }
 
         /// <inheritdoc/>
-        public object Invoke(object[] parameters) => invoker.Invoke(target, parameters);
+        public object Invoke(object[] parameters) => _invoker.Invoke(_target, parameters);
 
         /// <summary>
         /// 为 <paramref name="method"/> 构建签名为 <c>(object target, object[] args) =&gt; object</c> 的强类型委托。

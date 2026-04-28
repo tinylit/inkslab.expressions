@@ -9,8 +9,8 @@ namespace Inkslab.Expressions
 	[DebuggerDisplay("{left} ?? {right}")]
     public class CoalesceExpression : Expression
     {
-        private readonly Expression left;
-        private readonly Expression right;
+        private readonly Expression _left;
+        private readonly Expression _right;
 
         /// <summary>
         /// 构造函数。
@@ -19,8 +19,8 @@ namespace Inkslab.Expressions
         /// <param name="right">右表达式。</param>
         internal CoalesceExpression(Expression left, Expression right) : base(left.RuntimeType)
         {
-            this.left = left ?? throw new System.ArgumentNullException(nameof(left));
-            this.right = right ?? throw new System.ArgumentNullException(nameof(right));
+            this._left = left ?? throw new System.ArgumentNullException(nameof(left));
+            this._right = right ?? throw new System.ArgumentNullException(nameof(right));
         }
 
         /// <summary>
@@ -29,12 +29,12 @@ namespace Inkslab.Expressions
         /// <param name="ilg">指令。</param>
         public override void Load(ILGenerator ilg)
         {
-            left.Load(ilg);
+            _left.Load(ilg);
             ilg.Emit(OpCodes.Dup);
             var label = ilg.DefineLabel();
             ilg.Emit(OpCodes.Brtrue_S, label);
             ilg.Emit(OpCodes.Pop);
-            right.Load(ilg);
+            _right.Load(ilg);
             ilg.MarkLabel(label);
         }
     }

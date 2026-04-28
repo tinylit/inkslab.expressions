@@ -12,11 +12,11 @@ namespace Inkslab.Expressions
     [DebuggerDisplay("Invoke({methodAst},...args)")]
     public class InvocationExpression : Expression
     {
-        private readonly Expression instanceAst;
-        private readonly Expression methodAst;
-        private readonly Expression arguments;
+        private readonly Expression _instanceAst;
+        private readonly Expression _methodAst;
+        private readonly Expression _arguments;
 
-        private static readonly MethodInfo InvokeMethod = typeof(MethodBase).GetMethod(nameof(MethodBase.Invoke), new Type[2] { typeof(object), typeof(object[]) });
+        private static readonly MethodInfo _invokeMethod = typeof(MethodBase).GetMethod(nameof(MethodBase.Invoke), new Type[2] { typeof(object), typeof(object[]) });
 
         /// <summary>
         /// 静态方法调用。
@@ -82,9 +82,9 @@ namespace Inkslab.Expressions
                 throw new ArgumentException("参数不是“System.Object”数组!", nameof(arguments));
             }
 
-            this.instanceAst = instanceAst;
-            this.methodAst = Constant(methodInfo, typeof(MethodInfo));
-            this.arguments = arguments;
+            this._instanceAst = instanceAst;
+            this._methodAst = Constant(methodInfo, typeof(MethodInfo));
+            this._arguments = arguments;
         }
 
         /// <summary>
@@ -126,9 +126,9 @@ namespace Inkslab.Expressions
 
             if (methodAst.RuntimeType == typeof(MethodInfo) || EmitUtils.IsAssignableFromSignatureTypes(typeof(MethodInfo), methodAst.RuntimeType))
             {
-                this.instanceAst = instanceAst;
-                this.methodAst = methodAst is MethodEmitter ? Constant(methodAst, typeof(MethodInfo)) : methodAst;
-                this.arguments = arguments;
+                this._instanceAst = instanceAst;
+                this._methodAst = methodAst is MethodEmitter ? Constant(methodAst, typeof(MethodInfo)) : methodAst;
+                this._arguments = arguments;
             }
             else
             {
@@ -142,20 +142,20 @@ namespace Inkslab.Expressions
         /// <param name="ilg">指令。</param>
         public override void Load(ILGenerator ilg)
         {
-            methodAst.Load(ilg);
+            _methodAst.Load(ilg);
 
-            if (instanceAst is null)
+            if (_instanceAst is null)
             {
                 ilg.Emit(OpCodes.Ldnull);
             }
             else
             {
-                instanceAst.Load(ilg);
+                _instanceAst.Load(ilg);
             }
 
-            arguments.Load(ilg);
+            _arguments.Load(ilg);
 
-            ilg.Emit(OpCodes.Call, InvokeMethod);
+            ilg.Emit(OpCodes.Call, _invokeMethod);
 
             if (RuntimeType != typeof(object))
             {

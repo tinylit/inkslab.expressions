@@ -8,19 +8,19 @@ namespace Inkslab.Expressions
     /// </summary>
     public class ContinueExpression : Expression
     {
-        private Label label;
+        private Label _label;
 
         internal ContinueExpression() { }
 
         /// <inheritdoc/>
         public override void Load(ILGenerator ilg)
         {
-            if (label is null)
+            if (_label is null)
             {
                 throw new AstException("没有要继续的封闭式循环！");
             }
 
-            label.Goto(ilg);
+            _label.Goto(ilg);
         }
 
         /// <inheritdoc/>
@@ -33,7 +33,7 @@ namespace Inkslab.Expressions
 
             if (label.Kind == LabelKind.Continue)
             {
-                this.label = label;
+                this._label = label;
             }
         }
     }

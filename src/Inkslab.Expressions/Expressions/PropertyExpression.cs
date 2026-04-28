@@ -12,11 +12,11 @@ namespace Inkslab.Expressions
     [DebuggerDisplay("{DebuggerView}")]
     public class PropertyExpression : MemberExpression
     {
-        private readonly bool isStatic;
-        private readonly Expression instanceAst;
-        private readonly PropertyInfo property;
-        private readonly MethodInfo getter;
-        private readonly MethodInfo setter;
+        private readonly bool _isStatic;
+        private readonly Expression _instanceAst;
+        private readonly PropertyInfo _property;
+        private readonly MethodInfo _getter;
+        private readonly MethodInfo _setter;
 
         /// <summary>
         /// 构造函数。
@@ -24,14 +24,14 @@ namespace Inkslab.Expressions
         /// <param name="property">属性。</param>
         internal PropertyExpression(PropertyInfo property) : base(property.PropertyType)
         {
-            getter = property.GetMethod ?? property.GetGetMethod(true);
-            setter = property.SetMethod ?? property.GetSetMethod(true);
+            _getter = property.GetMethod ?? property.GetGetMethod(true);
+            _setter = property.SetMethod ?? property.GetSetMethod(true);
 
-            MethodInfo methodInfo = getter ?? setter;
+            MethodInfo methodInfo = _getter ?? _setter;
 
-            if (isStatic = methodInfo.IsStatic)
+            if (_isStatic = methodInfo.IsStatic)
             {
-                this.property = property;
+                this._property = property;
             }
             else
             {
@@ -46,16 +46,16 @@ namespace Inkslab.Expressions
         /// <param name="property">属性。</param>
         internal PropertyExpression(Expression instanceAst, PropertyInfo property) : base(property.PropertyType)
         {
-            getter = property.GetMethod ?? property.GetGetMethod(true);
-            setter = property.SetMethod ?? property.GetSetMethod(true);
+            _getter = property.GetMethod ?? property.GetGetMethod(true);
+            _setter = property.SetMethod ?? property.GetSetMethod(true);
 
-            MethodInfo methodInfo = getter ?? setter;
+            MethodInfo methodInfo = _getter ?? _setter;
 
-            if (isStatic = methodInfo.IsStatic)
+            if (_isStatic = methodInfo.IsStatic)
             {
                 if (instanceAst is null)
                 {
-                    this.property = property;
+                    this._property = property;
                 }
                 else
                 {
@@ -68,8 +68,8 @@ namespace Inkslab.Expressions
             }
             else
             {
-                this.instanceAst = instanceAst;
-                this.property = property;
+                this._instanceAst = instanceAst;
+                this._property = property;
             }
         }
 
@@ -82,15 +82,15 @@ namespace Inkslab.Expressions
 
                 sb.Append(RuntimeType.Name)
                     .Append(" ")
-                    .Append(property.Name)
+                    .Append(_property.Name)
                     .Append("{ ");
 
-                if (property.CanRead)
+                if (_property.CanRead)
                 {
                     sb.Append("get; ");
                 }
 
-                if (property.CanWrite)
+                if (_property.CanWrite)
                 {
                     sb.Append("set; ");
                 }
@@ -101,38 +101,38 @@ namespace Inkslab.Expressions
 
 
         /// <inheritdoc/>
-        public override bool CanWrite => property.CanWrite;
+        public override bool CanWrite => _property.CanWrite;
 
 
         /// <inheritdoc/>
-        public override bool CanRead => property.CanRead;
+        public override bool CanRead => _property.CanRead;
 
         /// <inheritdoc/>
-        public override bool IsStatic => isStatic;
+        public override bool IsStatic => _isStatic;
 
         /// <inheritdoc/>
         public override void Load(ILGenerator ilg)
         {
-            if (!property.CanRead)
+            if (!_property.CanRead)
             {
-                throw new AstException($"{property.Name}不可读!");
+                throw new AstException($"{_property.Name}不可读!");
             }
 
-            if (isStatic)
+            if (_isStatic)
             {
-                ilg.Emit(OpCodes.Call, getter);
+                ilg.Emit(OpCodes.Call, _getter);
             }
             else
             {
-                instanceAst.Load(ilg);
+                _instanceAst.Load(ilg);
 
-                if (getter.DeclaringType.IsValueType)
+                if (_getter.DeclaringType.IsValueType)
                 {
-                    ilg.Emit(OpCodes.Call, getter);
+                    ilg.Emit(OpCodes.Call, _getter);
                 }
                 else
                 {
-                    ilg.Emit(OpCodes.Callvirt, getter);
+                    ilg.Emit(OpCodes.Callvirt, _getter);
                 }
             }
         }
@@ -140,20 +140,20 @@ namespace Inkslab.Expressions
         /// <inheritdoc/>
         protected override void Assign(ILGenerator ilg, Expression value)
         {
-            if (!isStatic)
+            if (!_isStatic)
             {
-                instanceAst.Load(ilg);
+                _instanceAst.Load(ilg);
             }
 
             value.Load(ilg);
 
-            if (isStatic || setter.DeclaringType.IsValueType)
+            if (_isStatic || _setter.DeclaringType.IsValueType)
             {
-                ilg.Emit(OpCodes.Call, setter);
+                ilg.Emit(OpCodes.Call, _setter);
             }
             else
             {
-                ilg.Emit(OpCodes.Callvirt, setter);
+                ilg.Emit(OpCodes.Callvirt, _setter);
             }
         }
     }

@@ -14,9 +14,9 @@ namespace Inkslab.Emitters
     [DebuggerDisplay("{RuntimeType.Name} {ParameterName}")]
     public class ParameterEmitter : ParameterExpression
     {
-        private object defaultValue;
-        private bool hasDefaultValue = false;
-        private readonly List<CustomAttributeBuilder> customAttributes = new List<CustomAttributeBuilder>();
+        private object _defaultValue;
+        private bool _hasDefaultValue = false;
+        private readonly List<CustomAttributeBuilder> _customAttributes = new List<CustomAttributeBuilder>();
 
         /// <summary>
         /// 获取一个值，该值指示 System.Type 是否由引用传递。
@@ -62,9 +62,9 @@ namespace Inkslab.Emitters
                 return;
             }
 
-            hasDefaultValue = true;
+            _hasDefaultValue = true;
 
-            this.defaultValue = EmitUtils.SetConstantOfType(defaultValue, RuntimeType);
+            this._defaultValue = EmitUtils.SetConstantOfType(defaultValue, RuntimeType);
         }
 
         /// <summary>
@@ -84,7 +84,7 @@ namespace Inkslab.Emitters
                 throw new ArgumentNullException(nameof(attributeData));
             }
 
-            customAttributes.Add(EmitUtils.CreateCustomAttribute(attributeData));
+            _customAttributes.Add(EmitUtils.CreateCustomAttribute(attributeData));
         }
 
         /// <summary>
@@ -98,7 +98,7 @@ namespace Inkslab.Emitters
                 throw new ArgumentNullException(nameof(customBuilder));
             }
 
-            customAttributes.Add(customBuilder);
+            _customAttributes.Add(customBuilder);
         }
 
         /// <summary>
@@ -107,18 +107,18 @@ namespace Inkslab.Emitters
         /// <param name="builder">构造器。</param>
         public virtual void Emit(ParameterBuilder builder)
         {
-            if (hasDefaultValue)
+            if (_hasDefaultValue)
             {
                 try
                 {
-                    builder.SetConstant(defaultValue);
+                    builder.SetConstant(_defaultValue);
                 }
                 catch (ArgumentException)
                 {
                     var parameterType = RuntimeType;
                     var parameterNonNullableType = parameterType;
 
-                    if (defaultValue == null)
+                    if (_defaultValue == null)
                     {
                         if (parameterType.IsValueType)
                         {
@@ -129,7 +129,7 @@ namespace Inkslab.Emitters
                     {
                         parameterNonNullableType = parameterType.GetGenericArguments()[0];
 
-                        if (parameterNonNullableType.IsEnum || parameterNonNullableType.IsAssignableFrom(defaultValue.GetType()))
+                        if (parameterNonNullableType.IsEnum || parameterNonNullableType.IsAssignableFrom(_defaultValue.GetType()))
                         {
                             goto label_core;
                         }
@@ -137,7 +137,7 @@ namespace Inkslab.Emitters
 
                     try
                     {
-                        builder.SetConstant(System.Convert.ChangeType(defaultValue, parameterNonNullableType, CultureInfo.InvariantCulture));
+                        builder.SetConstant(System.Convert.ChangeType(_defaultValue, parameterNonNullableType, CultureInfo.InvariantCulture));
 
                         goto label_core;
                     }
@@ -152,7 +152,7 @@ namespace Inkslab.Emitters
 
 label_core:
 
-            foreach (var item in customAttributes)
+            foreach (var item in _customAttributes)
             {
                 builder.SetCustomAttribute(item);
             }

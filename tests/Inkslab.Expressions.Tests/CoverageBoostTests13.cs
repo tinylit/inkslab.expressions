@@ -30,16 +30,6 @@ namespace Inkslab.Expressions.Tests
             return cls.CreateType();
         }
 
-        private Type BuildStaticP2(string name, Type ret, Type p1, Type p2, Action<MethodEmitter, ParameterExpression, ParameterExpression> body)
-        {
-            var cls = _mod.DefineType($"C13P2_{name}", TypeAttributes.Public);
-            var me = cls.DefineMethod("Run", MethodAttributes.Public | MethodAttributes.Static, ret);
-            var a = me.DefineParameter(p1, ParameterAttributes.None, "a");
-            var b = me.DefineParameter(p2, ParameterAttributes.None, "b");
-            body(me, a, b);
-            return cls.CreateType();
-        }
-
         private object Invoke(Type t, params object[] args) => t.GetMethod("Run").Invoke(null, args);
 
         // ===== TryExpression: catch + finally combined =====

@@ -8,7 +8,7 @@ namespace Inkslab.Expressions
     /// </summary>
     public class VariableExpression : Expression
     {
-        private LocalBuilder local;
+        private LocalBuilder _local;
 
         /// <summary>
         /// 构造函数。
@@ -29,9 +29,9 @@ namespace Inkslab.Expressions
         /// <param name="ilg">指令。</param>
         public override void Load(ILGenerator ilg)
         {
-            local ??= ilg.DeclareLocal(RuntimeType);
+            _local ??= ilg.DeclareLocal(RuntimeType);
 
-            ilg.Emit(OpCodes.Ldloc, local);
+            ilg.Emit(OpCodes.Ldloc, _local);
         }
 
         /// <summary>
@@ -41,11 +41,11 @@ namespace Inkslab.Expressions
         /// <param name="value">值。</param>
         protected override void Assign(ILGenerator ilg, Expression value)
         {
-            local ??= ilg.DeclareLocal(RuntimeType);
+            _local ??= ilg.DeclareLocal(RuntimeType);
 
             value.Load(ilg);
 
-            ilg.Emit(OpCodes.Stloc, local);
+            ilg.Emit(OpCodes.Stloc, _local);
         }
 
         /// <summary>
@@ -54,9 +54,9 @@ namespace Inkslab.Expressions
         /// <param name="ilg">指令。</param>
         public virtual void Storage(ILGenerator ilg)
         {
-            local ??= ilg.DeclareLocal(RuntimeType);
+            _local ??= ilg.DeclareLocal(RuntimeType);
 
-            ilg.Emit(OpCodes.Stloc, local);
+            ilg.Emit(OpCodes.Stloc, _local);
         }
 
         /// <summary>

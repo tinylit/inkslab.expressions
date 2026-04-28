@@ -9,7 +9,7 @@ namespace Inkslab
     {
         // 使用 ConcurrentDictionary 保证多线程并发调用 GetUniqueName 时
         // 不会发生 Dictionary 内部状态损坏或唯一性丢失。
-        private readonly ConcurrentDictionary<string, int> names = new ConcurrentDictionary<string, int>();
+        private readonly ConcurrentDictionary<string, int> _names = new ConcurrentDictionary<string, int>();
 
         /// <summary>
         /// 子命名范围。
@@ -26,7 +26,7 @@ namespace Inkslab
         {
             // AddOrUpdate 在并发下保证原子性：首次返回 0（即原始名称），
             // 后续每次返回单调递增的后缀编号，永不重复。
-            int counter = names.AddOrUpdate(displayName, 0, (_, current) => current + 1);
+            int counter = _names.AddOrUpdate(displayName, 0, (_, current) => current + 1);
 
             if (counter == 0)
             {

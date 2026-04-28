@@ -25,7 +25,7 @@ namespace Inkslab.Intercept
         /// 不同 (serviceType, implType) 的代理生成可并行进行，仅相同键的并发请求才会等待，
         /// 显著提升大量服务一次性注册时的吞吐。
         /// </summary>
-        private readonly ConcurrentDictionary<Tuple<Type, Type>, Lazy<ProxyItem>> proxyCachings
+        private readonly ConcurrentDictionary<Tuple<Type, Type>, Lazy<ProxyItem>> _proxyCachings
             = new ConcurrentDictionary<Tuple<Type, Type>, Lazy<ProxyItem>>();
 
         /// <summary>
@@ -39,21 +39,18 @@ namespace Inkslab.Intercept
             private static readonly ConcurrentDictionary<Type, Func<IServiceProvider, object, object>> _ctorCache
                 = new ConcurrentDictionary<Type, Func<IServiceProvider, object, object>>();
 
-            private readonly Type _proxyType;
             private readonly Func<IServiceProvider, object> _innerFactory;
             private readonly object _innerInstance;
             private readonly Func<IServiceProvider, object, object> _factory;
 
             public WrappedProxyFactory(Type proxyType, Func<IServiceProvider, object> innerFactory)
             {
-                _proxyType = proxyType;
                 _innerFactory = innerFactory;
                 _factory = _ctorCache.GetOrAdd(proxyType, BuildCtorInvoker);
             }
 
             public WrappedProxyFactory(Type proxyType, object innerInstance)
             {
-                _proxyType = proxyType;
                 _innerInstance = innerInstance;
                 _factory = _ctorCache.GetOrAdd(proxyType, BuildCtorInvoker);
             }
@@ -263,7 +260,7 @@ namespace Inkslab.Intercept
 
             // GetOrAdd 配合 LazyThreadSafetyMode.ExecutionAndPublication：
             // 同一键的代理生成只发生一次；不同键之间不互相阻塞。
-            var lazyItem = proxyCachings.GetOrAdd(tuple, key => new Lazy<ProxyItem>(
+            var lazyItem = _proxyCachings.GetOrAdd(tuple, key => new Lazy<ProxyItem>(
                 () =>
                 {
                     var implementationType = key.Item2 is null

@@ -13,7 +13,7 @@ namespace Inkslab.Expressions
     [DebuggerDisplay("{RuntimeType.Name} ({position})")]
     public class ParameterExpression : VariableExpression
     {
-        private readonly bool canWrite = true;
+        private readonly bool _canWrite = true;
 
         /// <summary>
         /// 参数位置。
@@ -23,7 +23,7 @@ namespace Inkslab.Expressions
         /// <summary>
         /// 可写。
         /// </summary>
-        public override bool CanWrite => canWrite;
+        public override bool CanWrite => _canWrite;
 
         /// <summary>
         /// 获取一个值，该值指示 System.Type 是否由引用传递。
@@ -51,7 +51,7 @@ namespace Inkslab.Expressions
         /// <param name="parameter">参数。</param>
         internal ParameterExpression(ParameterInfo parameter) : this(parameter.ParameterType, parameter.Position + 1)
         {
-            canWrite = !IsReadOnly(parameter);
+            _canWrite = !IsReadOnly(parameter);
         }
 
         private static bool IsReadOnly(ParameterInfo parameter)

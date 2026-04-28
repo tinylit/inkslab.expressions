@@ -13,8 +13,8 @@ namespace Inkslab.Emitters
     [DebuggerDisplay("{DebuggerView}")]
     public class MethodCallEmitter : Expression
     {
-        private readonly MethodEmitter methodEmitter;
-        private readonly Expression[] arguments;
+        private readonly MethodEmitter _methodEmitter;
+        private readonly Expression[] _arguments;
 
         private static Type GetReturnType(MethodEmitter methodEmitter, Expression[] arguments)
         {
@@ -57,8 +57,8 @@ namespace Inkslab.Emitters
 
         internal MethodCallEmitter(MethodEmitter methodEmitter, Expression[] arguments) : base(GetReturnType(methodEmitter, arguments))
         {
-            this.methodEmitter = methodEmitter ?? throw new ArgumentNullException(nameof(methodEmitter));
-            this.arguments = arguments ?? throw new ArgumentNullException(nameof(arguments));
+            this._methodEmitter = methodEmitter ?? throw new ArgumentNullException(nameof(methodEmitter));
+            this._arguments = arguments ?? throw new ArgumentNullException(nameof(arguments));
         }
 
         [DebuggerHidden]
@@ -68,12 +68,12 @@ namespace Inkslab.Emitters
             {
                 var sb = new StringBuilder();
 
-                if (!methodEmitter.IsStatic)
+                if (!_methodEmitter.IsStatic)
                 {
                     sb.Append("this.");
                 }
 
-                sb.Append(methodEmitter.Name)
+                sb.Append(_methodEmitter.Name)
                     .Append('(')
                     .Append("...args");
 
@@ -84,11 +84,11 @@ namespace Inkslab.Emitters
         /// <inheritdoc/>
         public override void Load(ILGenerator ilg)
         {
-            if (methodEmitter.IsStatic)
+            if (_methodEmitter.IsStatic)
             {
                 LoadArgs(ilg);
 
-                ilg.Emit(OpCodes.Call, methodEmitter.Value);
+                ilg.Emit(OpCodes.Call, _methodEmitter.Value);
             }
             else
             {
@@ -96,13 +96,13 @@ namespace Inkslab.Emitters
 
                 LoadArgs(ilg);
 
-                ilg.Emit(OpCodes.Callvirt, methodEmitter.Value);
+                ilg.Emit(OpCodes.Callvirt, _methodEmitter.Value);
             }
         }
 
         private void LoadArgs(ILGenerator ilg)
         {
-            foreach (var item in arguments)
+            foreach (var item in _arguments)
             {
                 if (item is ParameterExpression parameterAst && parameterAst.IsByRef) //? 仅加载参数位置。
                 {

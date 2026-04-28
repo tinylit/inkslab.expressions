@@ -7,9 +7,9 @@ namespace Inkslab.Expressions
     /// </summary>
     public class ReturnExpression : Expression
     {
-        private Label label;
-        private VariableExpression variable;
-        private readonly Expression body;
+        private Label _label;
+        private VariableExpression _variable;
+        private readonly Expression _body;
 
         internal ReturnExpression() { }
 
@@ -20,7 +20,7 @@ namespace Inkslab.Expressions
                 throw new AstException("表达式“void”无效！");
             }
 
-            this.body = body;
+            this._body = body;
         }
 
         /// <summary>
@@ -29,26 +29,26 @@ namespace Inkslab.Expressions
         /// <param name="ilg">指令。</param>
         public override void Load(System.Reflection.Emit.ILGenerator ilg)
         {
-            if (label is null)
+            if (_label is null)
             {
-                throw new NullReferenceException(nameof(label));
+                throw new NullReferenceException(nameof(_label));
             }
 
-            if (body is null)
+            if (_body is null)
             {
 
             }
-            else if (variable is null)
+            else if (_variable is null)
             {
                 throw new AstException("由于代码块是无返回值，返回表达式必须也是无返回值类型！");
             }
             else
             {
-                Assign(variable, body)
+                Assign(_variable, _body)
                     .Load(ilg);
             }
 
-            label.Goto(ilg);
+            _label.Goto(ilg);
         }
 
         /// <inheritdoc/>
@@ -61,19 +61,19 @@ namespace Inkslab.Expressions
 
             if (label.Kind == LabelKind.Return)
             {
-                this.label = label;
+                this._label = label;
             }
         }
 
         /// <inheritdoc/>
         protected internal override void StoredLocal(VariableExpression variable)
         {
-            if (body is null)
+            if (_body is null)
             {
                 throw new NotSupportedException();
             }
 
-            this.variable = variable ?? throw new ArgumentNullException(nameof(variable));
+            this._variable = variable ?? throw new ArgumentNullException(nameof(variable));
         }
 
         /// <inheritdoc/>

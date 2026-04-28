@@ -10,7 +10,7 @@ namespace Inkslab.Expressions
     [DebuggerDisplay("{array}.Length")]
     public class ArrayLengthExpression : Expression
     {
-        private readonly Expression array;
+        private readonly Expression _array;
 
         /// <summary>
         /// 构造函数。
@@ -18,7 +18,7 @@ namespace Inkslab.Expressions
         /// <param name="array"></param>
         internal ArrayLengthExpression(Expression array) : base(typeof(int))
         {
-            this.array = array ?? throw new ArgumentNullException(nameof(array));
+            this._array = array ?? throw new ArgumentNullException(nameof(array));
 
             if (!array.RuntimeType.IsArray || !EmitUtils.IsAssignableFromSignatureTypes(typeof(Array), array.RuntimeType) || array.RuntimeType.GetArrayRank() > 1)
             {
@@ -32,7 +32,7 @@ namespace Inkslab.Expressions
         /// <param name="ilg">指令。</param>
         public override void Load(ILGenerator ilg)
         {
-            array.Load(ilg);
+            _array.Load(ilg);
 
             ilg.Emit(OpCodes.Ldlen);
         }

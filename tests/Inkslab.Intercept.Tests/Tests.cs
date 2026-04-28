@@ -186,19 +186,19 @@ namespace Inkslab.Intercept.Tests
     /// </summary>
     public class ImplementationWithArgumentType
     {
-        private readonly ServiceType serviceType;
+        private readonly ServiceType _serviceType;
 
         /// <inheritdoc/>
         public ImplementationWithArgumentType(ServiceType serviceType)
         {
-            this.serviceType = serviceType;
+            _serviceType = serviceType;
         }
 
         /// <summary>
         /// 记录。
         /// </summary>
         [ServiceTypeIntercept]
-        public virtual void Records() => serviceType.Records();
+        public virtual void Records() => _serviceType.Records();
     }
 
     /// <summary>
@@ -231,12 +231,12 @@ namespace Inkslab.Intercept.Tests
         private class ServiceGenericMethodTypeOverride_Get<T> : IInvocation where T : new()
         {
             [NonSerialized]
-            private readonly ServiceGenericMethodType invocation;
+            private readonly ServiceGenericMethodType _invocation;
 
             public ServiceGenericMethodTypeOverride_Get(ServiceGenericMethodType invocation)
             {
                 //Error decoding local variables: Signature type sequence must have at least one element.
-                this.invocation = invocation;
+                _invocation = invocation;
             }
 
             public object Invoke(object[] parameters)
@@ -246,7 +246,7 @@ namespace Inkslab.Intercept.Tests
 
             public virtual T Get()
             {
-                return invocation.Get<T>();
+                return _invocation.Get<T>();
             }
 
         }
@@ -429,7 +429,6 @@ namespace Inkslab.Intercept.Tests
     /// </summary>
     public class PropertyTestServiceType
     {
-        private int _writeOnlyValue;
 
         /// <summary>
         /// 只读属性测试。
@@ -442,7 +441,7 @@ namespace Inkslab.Intercept.Tests
         public virtual int WriteOnlyProperty 
         { 
             [ServiceTypeIntercept] 
-            set => _writeOnlyValue = value; 
+            set => _ = value; 
         }
 
         /// <summary>
@@ -2052,8 +2051,15 @@ namespace Inkslab.Intercept.Tests
                 });
             }
 
-            foreach (var t in threads) t.Start();
-            foreach (var t in threads) t.Join();
+            foreach (var t in threads)
+            {
+                t.Start();
+            }
+
+            foreach (var t in threads)
+            {
+                t.Join();
+            }
 
             // 所有线程得到的代理类型必须一致
             for (int i = 1; i < threadCount; i++)

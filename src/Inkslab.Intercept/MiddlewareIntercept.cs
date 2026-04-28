@@ -5,8 +5,8 @@
     /// </summary>
     public class MiddlewareIntercept : Intercept
     {
-        private int interceptCount = -1;
-        private readonly InterceptAttribute[] interceptAttributes;
+        private int _interceptCount = -1;
+        private readonly InterceptAttribute[] _interceptAttributes;
 
         /// <summary>
         /// 构造函数。
@@ -15,7 +15,7 @@
         /// <param name="interceptAttributes">拦截标记。</param>
         public MiddlewareIntercept(IInvocation invocation, InterceptAttribute[] interceptAttributes) : base(invocation)
         {
-            this.interceptAttributes = interceptAttributes;
+            _interceptAttributes = interceptAttributes;
         }
 
         /// <inheritdoc/>
@@ -23,20 +23,20 @@
         {
             try
             {
-                interceptCount++;
+                _interceptCount++;
 
-                if (interceptAttributes.Length == interceptCount)
+                if (_interceptAttributes.Length == _interceptCount)
                 {
                     base.Run(context);
                 }
                 else
                 {
-                    interceptAttributes[interceptCount].Run(context, this);
+                    _interceptAttributes[_interceptCount].Run(context, this);
                 }
             }
             finally
             {
-                interceptCount--;
+                _interceptCount--;
             }
         }
     }
@@ -46,8 +46,8 @@
     /// </summary>
     public class MiddlewareIntercept<T> : Intercept<T>
     {
-        private int interceptCount = -1;
-        private readonly ReturnValueInterceptAttribute[] interceptAttributes;
+        private int _interceptCount = -1;
+        private readonly ReturnValueInterceptAttribute[] _interceptAttributes;
 
         /// <summary>
         /// 构造函数。
@@ -56,7 +56,7 @@
         /// <param name="interceptAttributes">拦截标记。</param>
         public MiddlewareIntercept(IInvocation invocation, ReturnValueInterceptAttribute[] interceptAttributes) : base(invocation)
         {
-            this.interceptAttributes = interceptAttributes;
+            _interceptAttributes = interceptAttributes;
         }
 
         /// <inheritdoc/>
@@ -64,20 +64,20 @@
         {
             try
             {
-                interceptCount++;
+                _interceptCount++;
 
-                if (interceptAttributes.Length == interceptCount)
+                if (_interceptAttributes.Length == _interceptCount)
                 {
                     return base.Run(context);
                 }
                 else
                 {
-                    return interceptAttributes[interceptCount].Run(context, this);
+                    return _interceptAttributes[_interceptCount].Run(context, this);
                 }
             }
             finally
             {
-                interceptCount--;
+                _interceptCount--;
             }
         }
     }

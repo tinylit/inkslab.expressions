@@ -7,8 +7,8 @@ namespace Inkslab.Intercept
     /// </summary>
     public class MiddlewareInterceptAsync : InterceptAsync
     {
-        private int interceptCount = -1;
-        private readonly InterceptAsyncAttribute[] interceptAttributes;
+        private int _interceptCount = -1;
+        private readonly InterceptAsyncAttribute[] _interceptAttributes;
 
         /// <summary>
         /// 构造函数。
@@ -17,7 +17,7 @@ namespace Inkslab.Intercept
         /// <param name="interceptAttributes">拦截标记。</param>
         public MiddlewareInterceptAsync(IInvocation invocation, InterceptAsyncAttribute[] interceptAttributes) : base(invocation)
         {
-            this.interceptAttributes = interceptAttributes;
+            _interceptAttributes = interceptAttributes;
         }
 
         /// <inheritdoc/>
@@ -25,20 +25,20 @@ namespace Inkslab.Intercept
         {
             try
             {
-                interceptCount++;
+                _interceptCount++;
 
-                if (interceptAttributes.Length == interceptCount)
+                if (_interceptAttributes.Length == _interceptCount)
                 {
                     await base.RunAsync(context);
                 }
                 else
                 {
-                    await interceptAttributes[interceptCount].RunAsync(context, this);
+                    await _interceptAttributes[_interceptCount].RunAsync(context, this);
                 }
             }
             finally
             {
-                interceptCount--;
+                _interceptCount--;
             }
         }
     }
@@ -48,8 +48,8 @@ namespace Inkslab.Intercept
     /// </summary>
     public class MiddlewareInterceptAsync<T> : InterceptAsync<T>
     {
-        private int interceptCount = -1;
-        private readonly ReturnValueInterceptAsyncAttribute[] interceptAttributes;
+        private int _interceptCount = -1;
+        private readonly ReturnValueInterceptAsyncAttribute[] _interceptAttributes;
 
         /// <summary>
         /// 构造函数。
@@ -58,7 +58,7 @@ namespace Inkslab.Intercept
         /// <param name="interceptAttributes">拦截标记。</param>
         public MiddlewareInterceptAsync(IInvocation invocation, ReturnValueInterceptAsyncAttribute[] interceptAttributes) : base(invocation)
         {
-            this.interceptAttributes = interceptAttributes;
+            _interceptAttributes = interceptAttributes;
         }
 
         /// <inheritdoc/>
@@ -66,18 +66,18 @@ namespace Inkslab.Intercept
         {
             try
             {
-                interceptCount++;
+                _interceptCount++;
 
-                if (interceptAttributes.Length == interceptCount)
+                if (_interceptAttributes.Length == _interceptCount)
                 {
                     return await base.RunAsync(context);
                 }
 
-                return await interceptAttributes[interceptCount].RunAsync(context, this);
+                return await _interceptAttributes[_interceptCount].RunAsync(context, this);
             }
             finally
             {
-                interceptCount--;
+                _interceptCount--;
             }
         }
     }

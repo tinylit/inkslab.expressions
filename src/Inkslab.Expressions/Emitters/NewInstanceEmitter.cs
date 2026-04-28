@@ -10,8 +10,8 @@ namespace Inkslab.Emitters
     [DebuggerDisplay("new {RuntimeType.Name}(...args)")]
     public class NewInstanceEmitter : Expression
     {
-        private readonly ConstructorEmitter constructorEmitter;
-        private readonly Expression[] parameters;
+        private readonly ConstructorEmitter _constructorEmitter;
+        private readonly Expression[] _parameters;
 
         /// <summary>
         /// 构造函数。
@@ -30,8 +30,8 @@ namespace Inkslab.Emitters
         {
             ArgumentsCheck(constructorEmitter, parameters);
 
-            this.constructorEmitter = constructorEmitter;
-            this.parameters = parameters;
+            this._constructorEmitter = constructorEmitter;
+            this._parameters = parameters;
         }
 
         private static void ArgumentsCheck(ConstructorEmitter constructorEmitter, Expression[] parameters)
@@ -59,15 +59,15 @@ namespace Inkslab.Emitters
         /// <param name="ilg">指令。</param>
         public override void Load(ILGenerator ilg)
         {
-            if (parameters?.Length > 0)
+            if (_parameters?.Length > 0)
             {
-                foreach (var parameter in parameters)
+                foreach (var parameter in _parameters)
                 {
                     parameter.Load(ilg);
                 }
             }
 
-            ilg.Emit(OpCodes.Newobj, constructorEmitter.Value);
+            ilg.Emit(OpCodes.Newobj, _constructorEmitter.Value);
         }
     }
 }

@@ -11,11 +11,11 @@ namespace Inkslab.Emitters
     [DebuggerDisplay("Invoke({methodAst},...args)")]
     public class InvocationEmitter : Expression
     {
-        private readonly Expression instanceAst;
-        private readonly MethodEmitter methodEmitter;
-        private readonly Expression arguments;
+        private readonly Expression _instanceAst;
+        private readonly MethodEmitter _methodEmitter;
+        private readonly Expression _arguments;
 
-        private static readonly MethodInfo InvokeMethod = typeof(MethodBase).GetMethod(nameof(MethodBase.Invoke), new Type[2] { typeof(object), typeof(object[]) });
+        private static readonly MethodInfo _invokeMethod = typeof(MethodBase).GetMethod(nameof(MethodBase.Invoke), new Type[2] { typeof(object), typeof(object[]) });
 
         /// <summary>
         /// 静态方法调用。
@@ -54,9 +54,9 @@ namespace Inkslab.Emitters
                 throw new ArgumentException("参数不是“System.Object”数组!", nameof(arguments));
             }
 
-            this.instanceAst = instanceAst;
-            this.methodEmitter = methodEmitter;
-            this.arguments = arguments;
+            this._instanceAst = instanceAst;
+            this._methodEmitter = methodEmitter;
+            this._arguments = arguments;
         }
         /// <summary>
         /// 加载数据。
@@ -64,20 +64,20 @@ namespace Inkslab.Emitters
         /// <param name="ilg">指令。</param>
         public override void Load(ILGenerator ilg)
         {
-            EmitUtils.EmitConstantOfType(ilg, methodEmitter, typeof(MethodInfo));
+            EmitUtils.EmitConstantOfType(ilg, _methodEmitter, typeof(MethodInfo));
 
-            if (methodEmitter.IsStatic)
+            if (_methodEmitter.IsStatic)
             {
                 ilg.Emit(OpCodes.Ldnull);
             }
             else
             {
-                instanceAst.Load(ilg);
+                _instanceAst.Load(ilg);
             }
 
-            arguments.Load(ilg);
+            _arguments.Load(ilg);
 
-            ilg.Emit(OpCodes.Call, InvokeMethod);
+            ilg.Emit(OpCodes.Call, _invokeMethod);
 
             if (RuntimeType != typeof(object))
             {

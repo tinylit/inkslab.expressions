@@ -11,8 +11,8 @@ namespace Inkslab.Expressions
     [DebuggerDisplay("{elementType.Name}[]")]
     public class ArrayExpression : Expression
     {
-        private readonly Type elementType;
-        private readonly Expression[] expressions;
+        private readonly Type _elementType;
+        private readonly Expression[] _expressions;
 
         private static bool IsValid(Expression[] expressions, Type elementType)
         {
@@ -46,8 +46,8 @@ namespace Inkslab.Expressions
                 throw new AstException($"表达式元素不能转换为数组元素类型!");
             }
 
-            this.expressions = expressions;
-            this.elementType = elementType;
+            this._expressions = expressions;
+            this._elementType = elementType;
         }
 
         /// <summary>
@@ -56,15 +56,15 @@ namespace Inkslab.Expressions
         /// <param name="ilg">指令。</param>
         public override void Load(ILGenerator ilg)
         {
-            bool isObjectElememt = elementType == typeof(object);
+            bool isObjectElememt = _elementType == typeof(object);
 
-            EmitUtils.EmitInt(ilg, expressions.Length);
+            EmitUtils.EmitInt(ilg, _expressions.Length);
 
-            ilg.Emit(OpCodes.Newarr, elementType);
+            ilg.Emit(OpCodes.Newarr, _elementType);
 
-            for (int i = 0; i < expressions.Length; i++)
+            for (int i = 0; i < _expressions.Length; i++)
             {
-                var expressionAst = expressions[i];
+                var expressionAst = _expressions[i];
 
                 ilg.Emit(OpCodes.Dup);
 

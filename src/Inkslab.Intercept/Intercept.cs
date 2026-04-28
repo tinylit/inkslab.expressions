@@ -7,7 +7,7 @@ namespace Inkslab.Intercept
     /// </summary>
     public class Intercept
     {
-        private readonly IInvocation invocation;
+        private readonly IInvocation _invocation;
 
         /// <summary>
         /// 构造函数。
@@ -16,14 +16,14 @@ namespace Inkslab.Intercept
         /// <exception cref="ArgumentNullException">参数 <paramref name="invocation"/> 为null。</exception>
         public Intercept(IInvocation invocation)
         {
-            this.invocation = invocation ?? throw new ArgumentNullException(nameof(invocation));
+            this._invocation = invocation ?? throw new ArgumentNullException(nameof(invocation));
         }
 
         /// <summary>
         /// 调用方法。
         /// </summary>
         /// <param name="context">上下文。</param>
-        public virtual void Run(InterceptContext context) => invocation.Invoke(context.Inputs);
+        public virtual void Run(InterceptContext context) => _invocation.Invoke(context.Inputs);
     }
 
     /// <summary>
@@ -31,7 +31,7 @@ namespace Inkslab.Intercept
     /// </summary>
     public class Intercept<T>
     {
-        private readonly IInvocation invocation;
+        private readonly IInvocation _invocation;
 
         /// <summary>
         /// 构造函数。
@@ -40,13 +40,13 @@ namespace Inkslab.Intercept
         /// <exception cref="ArgumentNullException">参数 <paramref name="invocation"/> 为null。</exception>
         public Intercept(IInvocation invocation)
         {
-            this.invocation = invocation ?? throw new ArgumentNullException(nameof(invocation));
+            this._invocation = invocation ?? throw new ArgumentNullException(nameof(invocation));
         }
 
         /// <summary>
         /// 调用方法。
         /// </summary>
         /// <param name="context">上下文。</param>
-        public virtual T Run(InterceptContext context) => (T)invocation.Invoke(context.Inputs);
+        public virtual T Run(InterceptContext context) => (T)_invocation.Invoke(context.Inputs);
     }
 }

@@ -10,7 +10,7 @@ namespace Inkslab.Expressions
     [DebuggerDisplay("{body} as {RuntimeType.Name}")]
     public class TypeAsExpression : Expression
     {
-        private readonly Expression body;
+        private readonly Expression _body;
 
 
         /// <summary>
@@ -20,7 +20,7 @@ namespace Inkslab.Expressions
         /// <param name="type">类型。</param>
         internal TypeAsExpression(Expression body, Type type) : base(type)
         {
-            this.body = body ?? throw new ArgumentNullException(nameof(body));
+            this._body = body ?? throw new ArgumentNullException(nameof(body));
 
             if (body.IsVoid)
             {
@@ -34,9 +34,9 @@ namespace Inkslab.Expressions
         /// <param name="ilg">指令。</param>
         public override void Load(ILGenerator ilg)
         {
-            if (body.RuntimeType == RuntimeType)
+            if (_body.RuntimeType == RuntimeType)
             {
-                body.Load(ilg);
+                _body.Load(ilg);
             }
             else if (RuntimeType.IsValueType)
             {
@@ -48,22 +48,22 @@ namespace Inkslab.Expressions
                     ? Nullable.GetUnderlyingType(RuntimeType)
                     : RuntimeType;
 
-                body.Load(ilg);
+                _body.Load(ilg);
 
-                if (body.RuntimeType.IsValueType)
+                if (_body.RuntimeType.IsValueType)
                 {
-                    ilg.Emit(OpCodes.Box, body.RuntimeType);
+                    ilg.Emit(OpCodes.Box, _body.RuntimeType);
                 }
 
                 ilg.Emit(OpCodes.Isinst, underlyingType);
 
                 ilg.Emit(OpCodes.Brfalse_S, label);
 
-                body.Load(ilg);
+                _body.Load(ilg);
 
-                if (body.RuntimeType.IsValueType)
+                if (_body.RuntimeType.IsValueType)
                 {
-                    ilg.Emit(OpCodes.Box, body.RuntimeType);
+                    ilg.Emit(OpCodes.Box, _body.RuntimeType);
                 }
 
                 ilg.Emit(OpCodes.Unbox_Any, RuntimeType);
@@ -76,11 +76,11 @@ namespace Inkslab.Expressions
             }
             else
             {
-                body.Load(ilg);
+                _body.Load(ilg);
 
-                if (body.RuntimeType.IsValueType)
+                if (_body.RuntimeType.IsValueType)
                 {
-                    ilg.Emit(OpCodes.Box, body.RuntimeType);
+                    ilg.Emit(OpCodes.Box, _body.RuntimeType);
                 }
 
                 ilg.Emit(OpCodes.Isinst, RuntimeType);

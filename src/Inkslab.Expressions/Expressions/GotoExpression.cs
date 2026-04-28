@@ -8,17 +8,17 @@ namespace Inkslab.Expressions
     /// </summary>
     public class GotoExpression : Expression
     {
-        private readonly Label label;
+        private readonly Label _label;
 
         internal GotoExpression(Label label)
         {
-            this.label = label ?? throw new ArgumentNullException(nameof(label));
+            this._label = label ?? throw new ArgumentNullException(nameof(label));
         }
 
         /// <summary>
         /// 生成。
         /// </summary>
         /// <param name="ilg">指令。</param>
-        public override void Load(ILGenerator ilg) => label.Goto(ilg);
+        public override void Load(ILGenerator ilg) => _label.Goto(ilg);
     }
 }

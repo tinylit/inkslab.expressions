@@ -12,13 +12,13 @@ namespace Inkslab.Emitters
     /// </summary>
     public class EnumEmitter
     {
-        private bool isCreated = false;
+        private bool _isCreated = false;
 
-        private readonly INamingScope namingScope;
+        private readonly INamingScope _namingScope;
 
-        private readonly EnumBuilder enumBuilder;
+        private readonly EnumBuilder _enumBuilder;
 
-        private readonly Dictionary<string, FieldEmitter> fields = new Dictionary<string, FieldEmitter>(StringComparer.OrdinalIgnoreCase);
+        private readonly Dictionary<string, FieldEmitter> _fields = new Dictionary<string, FieldEmitter>(StringComparer.OrdinalIgnoreCase);
 
         /// <summary>
         /// 在给定类型名称、类型特性和已定义类型扩展的类型的情况下，构造 TypeBuilder。
@@ -34,8 +34,8 @@ namespace Inkslab.Emitters
                 throw new ArgumentException($"'{nameof(name)}' cannot be null or empty.", nameof(name));
             }
 
-            namingScope = moduleEmitter.BeginScope();
-            enumBuilder = ModuleEmitter.DefineEnum(moduleEmitter, name, attributes, underlyingType);
+            _namingScope = moduleEmitter.BeginScope();
+            _enumBuilder = ModuleEmitter.DefineEnum(moduleEmitter, name, attributes, underlyingType);
         }
 
         /// <summary>
@@ -44,7 +44,7 @@ namespace Inkslab.Emitters
         [ComVisible(true)]
         public void SetCustomAttribute(ConstructorInfo con, byte[] binaryAttribute)
         {
-            enumBuilder.SetCustomAttribute(con, binaryAttribute);
+            _enumBuilder.SetCustomAttribute(con, binaryAttribute);
         }
 
         /// <summary>
@@ -53,7 +53,7 @@ namespace Inkslab.Emitters
         /// <param name="attribute">标记。</param>
         public void DefineCustomAttribute(CustomAttributeBuilder attribute)
         {
-            enumBuilder.SetCustomAttribute(attribute);
+            _enumBuilder.SetCustomAttribute(attribute);
         }
 
         /// <summary>
@@ -81,14 +81,14 @@ namespace Inkslab.Emitters
                 throw new ArgumentNullException(nameof(value), "枚举字面量类型不允许设置空值。");
             }
 
-            name = namingScope.GetUniqueName(name);
+            name = _namingScope.GetUniqueName(name);
 
-            var fieldEmitter = new FieldEmitter(name, enumBuilder.UnderlyingSystemType, FieldAttributes.Public | FieldAttributes.Static | FieldAttributes.Literal)
+            var fieldEmitter = new FieldEmitter(name, _enumBuilder.UnderlyingSystemType, FieldAttributes.Public | FieldAttributes.Static | FieldAttributes.Literal)
             {
                 DefaultValue = value
             };
 
-            fields.Add(name, fieldEmitter);
+            _fields.Add(name, fieldEmitter);
 
             return fieldEmitter;
         }
@@ -98,24 +98,24 @@ namespace Inkslab.Emitters
         /// </summary>
         public Type CreateType()
         {
-            if (isCreated)
+            if (_isCreated)
             {
                 throw new InvalidOperationException("枚举类型已创建，不能重复创建。");
             }
 
-            isCreated = true;
+            _isCreated = true;
 
-            foreach (FieldEmitter emitter in fields.Values)
+            foreach (FieldEmitter emitter in _fields.Values)
             {
-                var fieldDefinition = enumBuilder.DefineLiteral(emitter.Name, emitter.DefaultValue);
+                var fieldDefinition = _enumBuilder.DefineLiteral(emitter.Name, emitter.DefaultValue);
 
                 emitter.Emit(fieldDefinition);
             }
 
 #if NETSTANDARD2_0_OR_GREATER
-            return enumBuilder.CreateTypeInfo().AsType();
+            return _enumBuilder.CreateTypeInfo().AsType();
 #else
-            return enumBuilder.CreateType();
+            return _enumBuilder.CreateType();
 #endif
         }
 
@@ -123,6 +123,6 @@ namespace Inkslab.Emitters
         /// 是否已创建。
         /// </summary>
         /// <returns></returns>
-        public bool IsCreated() => isCreated;
+        public bool IsCreated() => _isCreated;
     }
 }

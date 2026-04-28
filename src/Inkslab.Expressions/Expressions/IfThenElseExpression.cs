@@ -10,9 +10,9 @@ namespace Inkslab.Expressions
     [DebuggerDisplay("if({test})\\{ {ifTrue} \\} else \\{ {ifFalse} \\}")]
     public class IfThenElseExpression : Expression
     {
-        private readonly Expression test;
-        private readonly Expression ifTrue;
-        private readonly Expression ifFalse;
+        private readonly Expression _test;
+        private readonly Expression _ifTrue;
+        private readonly Expression _ifFalse;
 
         /// <summary>
         /// 构造函数。
@@ -22,12 +22,12 @@ namespace Inkslab.Expressions
         /// <param name="ifFalse">为假的代码块。</param>
         internal IfThenElseExpression(Expression test, Expression ifTrue, Expression ifFalse)
         {
-            this.test = test ?? throw new ArgumentNullException(nameof(test));
+            this._test = test ?? throw new ArgumentNullException(nameof(test));
 
             if (test.RuntimeType == typeof(bool))
             {
-                this.ifTrue = ifTrue ?? throw new ArgumentNullException(nameof(ifTrue));
-                this.ifFalse = ifFalse ?? throw new ArgumentNullException(nameof(ifFalse));
+                this._ifTrue = ifTrue ?? throw new ArgumentNullException(nameof(ifTrue));
+                this._ifFalse = ifFalse ?? throw new ArgumentNullException(nameof(ifFalse));
             }
             else
             {
@@ -44,13 +44,13 @@ namespace Inkslab.Expressions
             var label = ilg.DefineLabel();
             var leave = ilg.DefineLabel();
 
-            test.Load(ilg);
+            _test.Load(ilg);
 
             ilg.Emit(OpCodes.Brfalse_S, label);
 
-            ifTrue.Load(ilg);
+            _ifTrue.Load(ilg);
 
-            if (ifTrue.RuntimeType != typeof(void))
+            if (_ifTrue.RuntimeType != typeof(void))
             {
                 ilg.Emit(OpCodes.Pop);
             }
@@ -59,9 +59,9 @@ namespace Inkslab.Expressions
 
             ilg.MarkLabel(label);
 
-            ifFalse.Load(ilg);
+            _ifFalse.Load(ilg);
 
-            if (ifFalse.RuntimeType != typeof(void))
+            if (_ifFalse.RuntimeType != typeof(void))
             {
                 ilg.Emit(OpCodes.Pop);
             }
@@ -72,15 +72,15 @@ namespace Inkslab.Expressions
         /// <inheritdoc/>
         protected internal override void MarkLabel(Label label)
         {
-            ifTrue.MarkLabel(label);
-            ifFalse.MarkLabel(label);
+            _ifTrue.MarkLabel(label);
+            _ifFalse.MarkLabel(label);
         }
 
         /// <inheritdoc/>
         protected internal override void StoredLocal(VariableExpression variable)
         {
-            ifTrue.StoredLocal(variable);
-            ifFalse.StoredLocal(variable);
+            _ifTrue.StoredLocal(variable);
+            _ifFalse.StoredLocal(variable);
         }
     }
 }

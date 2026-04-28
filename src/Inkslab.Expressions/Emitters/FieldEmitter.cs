@@ -13,9 +13,9 @@ namespace Inkslab.Emitters
     [DebuggerDisplay("{RuntimeType.Name} {Name}")]
     public class FieldEmitter : MemberExpression
     {
-        private FieldBuilder builder;
-        private object defaultValue;
-        private readonly List<CustomAttributeBuilder> customAttributes = new List<CustomAttributeBuilder>();
+        private FieldBuilder _builder;
+        private object _defaultValue;
+        private readonly List<CustomAttributeBuilder> _customAttributes = new List<CustomAttributeBuilder>();
 
         /// <summary>
         /// 字段。
@@ -47,7 +47,7 @@ namespace Inkslab.Emitters
         /// </summary>
         public object DefaultValue
         {
-            get => defaultValue;
+            get => _defaultValue;
             set
             {
                 if (value is null)
@@ -57,13 +57,13 @@ namespace Inkslab.Emitters
                         throw new ArgumentNullException(nameof(value), "枚举字面量类型不允许设置空值。");
                     }
 
-                    defaultValue = null;
+                    _defaultValue = null;
 
                     Attributes &= ~FieldAttributes.HasDefault;
                 }
                 else
                 {
-                    defaultValue = EmitUtils.SetConstantOfType(value, RuntimeType);
+                    _defaultValue = EmitUtils.SetConstantOfType(value, RuntimeType);
 
                     Attributes |= FieldAttributes.HasDefault;
                 }
@@ -90,7 +90,7 @@ namespace Inkslab.Emitters
                 throw new ArgumentNullException(nameof(attributeData));
             }
 
-            customAttributes.Add(EmitUtils.CreateCustomAttribute(attributeData));
+            _customAttributes.Add(EmitUtils.CreateCustomAttribute(attributeData));
         }
 
         /// <summary>
@@ -104,7 +104,7 @@ namespace Inkslab.Emitters
                 throw new ArgumentNullException(nameof(customBuilder));
             }
 
-            customAttributes.Add(customBuilder);
+            _customAttributes.Add(customBuilder);
         }
 
         /// <inheritdoc/>
@@ -112,13 +112,13 @@ namespace Inkslab.Emitters
         {
             if (IsStatic)
             {
-                ilg.Emit(OpCodes.Ldsfld, builder);
+                ilg.Emit(OpCodes.Ldsfld, _builder);
             }
             else
             {
                 ilg.Emit(OpCodes.Ldarg_0);
 
-                ilg.Emit(OpCodes.Ldfld, builder);
+                ilg.Emit(OpCodes.Ldfld, _builder);
             }
         }
 
@@ -129,7 +129,7 @@ namespace Inkslab.Emitters
             {
                 value.Load(ilg);
 
-                ilg.Emit(OpCodes.Stsfld, builder);
+                ilg.Emit(OpCodes.Stsfld, _builder);
             }
             else
             {
@@ -137,7 +137,7 @@ namespace Inkslab.Emitters
 
                 value.Load(ilg);
 
-                ilg.Emit(OpCodes.Stfld, builder);
+                ilg.Emit(OpCodes.Stfld, _builder);
             }
         }
 
@@ -147,14 +147,14 @@ namespace Inkslab.Emitters
         /// <param name="builder">属性构造器。</param>
         public void Emit(FieldBuilder builder)
         {
-            this.builder = builder ?? throw new ArgumentNullException(nameof(builder));
+            this._builder = builder ?? throw new ArgumentNullException(nameof(builder));
 
             if (Attributes.HasFlag(FieldAttributes.HasDefault) && !Attributes.HasFlag(FieldAttributes.Literal))
             {
-                builder.SetConstant(defaultValue);
+                builder.SetConstant(_defaultValue);
             }
 
-            foreach (var item in customAttributes)
+            foreach (var item in _customAttributes)
             {
                 builder.SetCustomAttribute(item);
             }

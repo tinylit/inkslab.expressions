@@ -31,63 +31,63 @@ namespace Inkslab
     /// </summary>
     public sealed class Label
     {
-        private bool initLabel = true;
-        private bool markLabel = true;
+        private bool _initLabel = true;
+        private bool _markLabel = true;
 
-        private readonly LabelKind labelKind;
+        private readonly LabelKind _labelKind;
 
-        private System.Reflection.Emit.Label label;
+        private System.Reflection.Emit.Label _label;
 
         /// <summary>
         /// 构造函数。
         /// </summary>
         internal Label(LabelKind labelKind)
         {
-            this.labelKind = labelKind;
+            this._labelKind = labelKind;
         }
 
         /// <summary>
         /// 标记类型。
         /// </summary>
-        public LabelKind Kind => labelKind;
+        public LabelKind Kind => _labelKind;
         
         internal void Goto(ILGenerator ilg)
         {
-            if (initLabel)
+            if (_initLabel)
             {
-                initLabel = false;
+                _initLabel = false;
 
-                label = ilg.DefineLabel();
+                _label = ilg.DefineLabel();
             }
 
-            switch (labelKind)
+            switch (_labelKind)
             {
                 case LabelKind.Return:
-                    ilg.Emit(OpCodes.Leave, label);
+                    ilg.Emit(OpCodes.Leave, _label);
                     break;
                 case LabelKind.Goto:
                 case LabelKind.Break:
                 case LabelKind.Continue:
                 default:
-                    ilg.Emit(OpCodes.Br, label);
+                    ilg.Emit(OpCodes.Br, _label);
                     break;
             }
         }
 
         internal void MarkLabel(ILGenerator ilg)
         {
-            if (initLabel)
+            if (_initLabel)
             {
-                initLabel = false;
+                _initLabel = false;
 
-                label = ilg.DefineLabel();
+                _label = ilg.DefineLabel();
             }
 
-            if (markLabel)
+            if (_markLabel)
             {
-                markLabel = false;
+                _markLabel = false;
 
-                ilg.MarkLabel(label);
+                ilg.MarkLabel(_label);
             }
             else
             {
