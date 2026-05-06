@@ -41,7 +41,7 @@ namespace Inkslab
                 throw new ArgumentNullException(nameof(typeEmitter));
             }
 
-            var instanceType = typeEmitter.Value;
+            var instanceType = typeEmitter.UncompiledType;
 
             if (instanceType.IsAbstract)
             {

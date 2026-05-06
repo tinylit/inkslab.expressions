@@ -54,10 +54,5 @@ namespace Inkslab.Emitters
         {
 
         }
-
-        /// <summary>
-        /// 未编译类型（仅支持在嵌套类内部使用）。
-        /// </summary>
-        public Type UncompiledType => Value;
     }
 }

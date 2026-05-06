@@ -174,12 +174,12 @@ namespace Inkslab.Emitters
             {
                 if (_methodBuilder is null)
                 {
-                    DefineMethod(DeclaringType.Value);
+                    throw new InvalidOperationException("方法尚未定义！");
                 }
 
                 var declaringType = _methodBuilder.DeclaringType;
 
-                if (declaringType.IsGenericType)
+                if (declaringType!.IsGenericType)
                 {
                     return TypeBuilder.GetMethod(declaringType, _methodBuilder);
                 }
@@ -309,31 +309,6 @@ namespace Inkslab.Emitters
         }
 
         /// <summary>
-        /// 发行方法。
-        /// </summary>
-        /// <param name="methodBuilder">方法。</param>
-        protected virtual void Emit(MethodBuilder methodBuilder)
-        {
-            _methodBuilder = methodBuilder ?? throw new ArgumentNullException(nameof(methodBuilder));
-
-            foreach (var parameter in _parameters)
-            {
-                parameter.Emit(methodBuilder.DefineParameter(parameter.Position, parameter.Attributes, parameter.ParameterName));
-            }
-
-            foreach (var customAttribute in _customAttributes)
-            {
-                methodBuilder.SetCustomAttribute(customAttribute);
-            }
-
-            var ilg = methodBuilder.GetILGenerator();
-
-            Load(methodBuilder.GetILGenerator());
-
-            ilg.Emit(OpCodes.Ret);
-        }
-
-        /// <summary>
         /// 在 <see cref="TypeBuilder"/> 上预定义方法（仅声明签名，不发射方法体）。
         /// </summary>
         /// <remarks>
@@ -342,14 +317,14 @@ namespace Inkslab.Emitters
         /// 通过接收 <see cref="MethodBuilder"/> 的保护构造函数创建的实例会因幂等检查自动跳过。
         /// </remarks>
         /// <param name="builder">类型构造器。</param>
-        public void DefineMethod(TypeBuilder builder)
+        public virtual void DefineMethod(TypeBuilder builder)
         {
             if (builder is null)
             {
                 throw new ArgumentNullException(nameof(builder));
             }
 
-            if (_methodBuilder is not null)
+            if (_methodBuilder != null)
             {
                 return;
             }
@@ -369,17 +344,23 @@ namespace Inkslab.Emitters
         /// <summary>
         /// 发行。
         /// </summary>
-        /// <param name="builder">构造器。</param>
-        public virtual void Emit(TypeBuilder builder)
+        public virtual void Emit()
         {
-            if (builder is null)
+            foreach (var parameter in _parameters)
             {
-                throw new ArgumentNullException(nameof(builder));
+                parameter.Emit(_methodBuilder.DefineParameter(parameter.Position, parameter.Attributes, parameter.ParameterName));
             }
 
-            DefineMethod(builder);
+            foreach (var customAttribute in _customAttributes)
+            {
+                _methodBuilder.SetCustomAttribute(customAttribute);
+            }
 
-            Emit(_methodBuilder);
+            var ilg = _methodBuilder.GetILGenerator();
+
+            Load(_methodBuilder.GetILGenerator());
+
+            ilg.Emit(OpCodes.Ret);
         }
 
         /// <summary>

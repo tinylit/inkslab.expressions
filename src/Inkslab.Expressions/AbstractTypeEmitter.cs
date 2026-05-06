@@ -103,26 +103,17 @@ namespace Inkslab
                 return parameter;
             }
 
-            public override ParameterEmitter DefineParameter(Type parameterType, ParameterAttributes attributes, string name)
-            {
-                throw new AstException("重写方法不支持自定义参数!");
-            }
+            public override ParameterEmitter DefineParameter(Type parameterType, ParameterAttributes attributes, string name) => throw new AstException("重写方法不支持自定义参数!");
 
-            public override void Emit(TypeBuilder builder)
+            public override void DefineMethod(TypeBuilder builder)
             {
-                if (builder != _methodBuilder.DeclaringType)
-                {
-                    throw new ArgumentException("方法声明类型和类型构造器不一致!", nameof(builder));
-                }
-
-                Emit(_methodBuilder);
+                base.DefineMethod(builder);
 
                 // 只有虚方法或接口方法才能使用 DefineMethodOverride
                 if (_isVirtualMethod || _methodInfoDeclaration.DeclaringType.IsInterface)
                 {
                     builder.DefineMethodOverride(_methodBuilder, _methodInfoDeclaration);
                 }
-                // 对于非虚方法，不需要调用 DefineMethodOverride，因为我们使用的是方法隐藏
             }
         }
 
@@ -384,14 +375,14 @@ namespace Inkslab
         private static TypeBuilder DefineType(AbstractTypeEmitter emitter, string name, TypeAttributes? attr = null, Type parent = null, Type[] interfaces = null)
         {
             var uniqueName = emitter.GetUniqueName(name);
-            
+
             if (!attr.HasValue)
             {
                 return emitter._typeBuilder.DefineNestedType(uniqueName);
             }
 
             var attributes = MakeNestedTypeAttributes(attr.Value);
-            
+
             if (interfaces != null)
             {
                 return emitter._typeBuilder.DefineNestedType(uniqueName, attributes, parent, interfaces);
@@ -636,10 +627,9 @@ namespace Inkslab
         public Type[] GetInterfaces() => _interfaces ?? Type.EmptyTypes;
 
         /// <summary>
-        /// 当前类型。
+        /// 未编译类型（请勿直接使用 <see cref="TypeBuilder"/>）。
         /// </summary>
-        [DebuggerHidden]
-        internal TypeBuilder Value => _typeBuilder;
+        public TypeBuilder UncompiledType => _typeBuilder;
 
         private void CheckGenericParameters()
         {
@@ -1274,11 +1264,6 @@ namespace Inkslab
                 DefineDefaultConstructor();
             }
 
-            foreach (var emitter in _abstracts)
-            {
-                emitter.Emit();
-            }
-
             foreach (ConstructorEmitter emitter in _constructors)
             {
                 var parameters = emitter.GetParameters();
@@ -1295,7 +1280,17 @@ namespace Inkslab
 
             foreach (MethodEmitter emitter in _methods)
             {
-                emitter.Emit(_typeBuilder);
+                emitter.DefineMethod(_typeBuilder);
+            }
+
+            foreach (var emitter in _abstracts)
+            {
+                emitter.Emit();
+            }
+
+            foreach (MethodEmitter emitter in _methods)
+            {
+                emitter.Emit();
             }
 
             foreach (PropertyEmitter emitter in _properties.Values)
@@ -1313,7 +1308,7 @@ namespace Inkslab
         }
 
         private static Type AdjustConstraintToNewGenericParameters(
-            Type constraint, 
+            Type constraint,
             GenericTypeParameterBuilder[] newGenericParameters,
             MethodInfo methodToCopyGenericsFrom = null,
             Type[] originalGenericParameters = null)
@@ -1329,7 +1324,7 @@ namespace Inkslab
                 var definition = constraint.IsGenericTypeDefinition ? constraint : constraint.GetGenericTypeDefinition();
                 return definition.MakeGenericType(genericArgumentsOfConstraint);
             }
-            
+
             if (constraint.IsGenericParameter && methodToCopyGenericsFrom != null)
             {
                 if (constraint.DeclaringMethod is null)
@@ -1343,18 +1338,18 @@ namespace Inkslab
                     Trace.Assert(index != -1, "The generic parameter comes from the given type.");
                     return methodToCopyGenericsFrom.DeclaringType.GetGenericArguments()[index];
                 }
-                
+
                 var paramIndex = Array.IndexOf(originalGenericParameters, constraint);
                 Trace.Assert(paramIndex != -1,
                              "When a generic method parameter has a constraint on another method parameter, both parameters must be declared on the same method.");
                 return newGenericParameters[paramIndex];
             }
-            
+
             return constraint;
         }
 
         private static Type[] AdjustGenericConstraints(
-            GenericTypeParameterBuilder[] newGenericParameters, 
+            GenericTypeParameterBuilder[] newGenericParameters,
             Type[] constraints,
             MethodInfo methodInfo = null,
             Type[] originalGenericArguments = null)
@@ -1409,7 +1404,7 @@ namespace Inkslab
         }
 
         private static Type MakeGenericParameter(
-            Type type, 
+            Type type,
             Type[] typeParameterBuilders,
             Type[] genericArguments = null,
             GenericTypeParameterBuilder[] newGenericParameters = null)
