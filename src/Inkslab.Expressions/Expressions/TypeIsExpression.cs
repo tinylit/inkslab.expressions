@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Diagnostics;
-using System.Reflection;
 using System.Reflection.Emit;
 
 namespace Inkslab.Expressions
@@ -11,7 +10,7 @@ namespace Inkslab.Expressions
     [DebuggerDisplay("{body} is {isType.Name}")]
     public class TypeIsExpression : Expression
     {
-        private static bool IsNullable(Type type) => type.IsGenericType && type.GetGenericTypeDefinition() == typeof(Nullable<>);
+        private static bool IsNullable(Type type) => type.IsValueType && type.IsGenericType && type.GetGenericTypeDefinition() == typeof(Nullable<>);
 
         private enum AnalyzeTypeIsResult
         {
@@ -72,9 +71,7 @@ namespace Inkslab.Expressions
                 {
                     _body.Load(ilg);
 
-                    MethodInfo mi = type.GetMethod("get_HasValue", BindingFlags.Instance | BindingFlags.Public);
-
-                    ilg.Emit(OpCodes.Call, mi);
+                    ilg.Emit(OpCodes.Call, EmitUtils.GetHasValueMethod(type));
 
                     return;
                 }

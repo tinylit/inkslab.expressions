@@ -1,4 +1,5 @@
 using Xunit;
+using Inkslab.Emitters;
 using System;
 using System.Reflection;
 
@@ -558,6 +559,171 @@ namespace Inkslab.Expressions.Tests
 
             Assert.Equal(10, result);
             Assert.Equal(10, fi.GetValue(null)); // 如果 99 被执行，这里会是 99
+        }
+
+        #endregion
+
+        #region TypeBuilder 拒绝未创建修复 —— Nullable 转换路径中的 GetMethod/GetConstructor
+
+        /// <summary>
+        /// 修复：Convert 到 Nullable&lt;int&gt; 时 EmitNonNullableToNullableConversion 不应在
+        /// TypeBuilder 上调用 GetConstructor 失败。
+        /// </summary>
+        [Fact]
+        public void Convert_ToNullableInt_ShouldNotThrow()
+        {
+            var typeEmitter = _emitter.DefineType($"Convert_Nullable_{Guid.NewGuid():N}", TypeAttributes.Public | TypeAttributes.Class);
+            var method = typeEmitter.DefineMethod("ToNullable", MethodAttributes.Public | MethodAttributes.Static, typeof(int?));
+            var intParam = method.DefineParameter(typeof(int), "v");
+
+            // int -> int? 走 EmitNonNullableToNullableConversion 路径
+            method.Append(Expression.Return(Expression.Convert(intParam, typeof(int?))));
+
+            var type = typeEmitter.CreateType();
+            var mi = type.GetMethod("ToNullable");
+
+            var result = mi.Invoke(null, new object[] { 42 });
+            Assert.Equal((int?)42, result);
+        }
+
+        /// <summary>
+        /// 修复：int? -> long? 转换时 EmitNullableToNullableConversion 不应在
+        /// TypeBuilder 上调用 GetConstructor 失败。
+        /// </summary>
+        [Fact]
+        public void Convert_NullableToNullable_ShouldNotThrow()
+        {
+            var typeEmitter = _emitter.DefineType($"Convert_N2N_{Guid.NewGuid():N}", TypeAttributes.Public | TypeAttributes.Class);
+            var method = typeEmitter.DefineMethod("N2N", MethodAttributes.Public | MethodAttributes.Static, typeof(long?));
+            var param = method.DefineParameter(typeof(int?), "v");
+
+            // int? -> long? 走 EmitNullableToNullableConversion 路径
+            method.Append(Expression.Return(Expression.Convert(param, typeof(long?))));
+
+            var type = typeEmitter.CreateType();
+            var mi = type.GetMethod("N2N");
+
+            Assert.Equal((long?)42, mi.Invoke(null, new object[] { (int?)42 }));
+            Assert.Null(mi.Invoke(null, new object[] { null }));
+        }
+
+        /// <summary>
+        /// 修复：EmitHasValue / EmitGetValue / EmitGetValueOrDefault 在 TypeBuilder
+        /// 上调用 GetMethod 不应失败（通过 Convert 切换多个 Nullable 来覆盖）。
+        /// </summary>
+        [Fact]
+        public void Convert_NullableWrapper_ShouldNotThrow()
+        {
+            var typeEmitter = _emitter.DefineType($"Convert_NW_{Guid.NewGuid():N}", TypeAttributes.Public | TypeAttributes.Class);
+
+            // int -> int? 走 EmitNonNullableToNullableConversion (GetConstructor)
+            var m1 = typeEmitter.DefineMethod("WrapInt", MethodAttributes.Public | MethodAttributes.Static, typeof(int?));
+            var p1 = m1.DefineParameter(typeof(int), "v");
+            m1.Append(Expression.Return(Expression.Convert(p1, typeof(int?))));
+
+            // int? -> long? 走 EmitNullableToNullableConversion (GetConstructor + HasValue + GetValueOrDefault)
+            var m2 = typeEmitter.DefineMethod("IntToLong", MethodAttributes.Public | MethodAttributes.Static, typeof(long?));
+            var p2 = m2.DefineParameter(typeof(int?), "v");
+            m2.Append(Expression.Return(Expression.Convert(p2, typeof(long?))));
+
+            // int? -> int 走 EmitNullableToNonNullableConversion (GetValue)
+            var m3 = typeEmitter.DefineMethod("UnwrapInt", MethodAttributes.Public | MethodAttributes.Static, typeof(int));
+            var p3 = m3.DefineParameter(typeof(int?), "v");
+            m3.Append(Expression.Return(Expression.Convert(p3, typeof(int))));
+
+            var type = typeEmitter.CreateType();
+
+            Assert.Equal((int?)42, type.GetMethod("WrapInt").Invoke(null, new object[] { 42 }));
+            Assert.Equal((long?)42, type.GetMethod("IntToLong").Invoke(null, new object[] { (int?)42 }));
+            Assert.Equal(42, type.GetMethod("UnwrapInt").Invoke(null, new object[] { (int?)42 }));
+        }
+
+        #endregion
+
+        #region TypeBuilder IL emit 覆盖 —— TypeAsExpression 中的 Box/Isinst 使用 TypeBuilder 令牌
+
+        /// <summary>
+        /// 覆盖：TypeAs 目标为内嵌引用类型（TypeBuilder），body 为 object。
+        /// 走 else 分支（RuntimeType 非值类型），仅触发 <c>Isinst</c>（不触发 Box）。
+        /// </summary>
+        [Fact]
+        public void TypeAs_IsinstWithTypeBuilderRefType_ShouldNotThrow()
+        {
+            // public static object Test(object o) => o as NestedRef;
+            var parent = _emitter.DefineType($"TB_IsinstRef_{Guid.NewGuid():N}", TypeAttributes.Public | TypeAttributes.Class);
+            var nestedRef = parent.DefineNestedType($"NestedRef_{Guid.NewGuid():N}", TypeAttributes.Public | TypeAttributes.Class);
+
+            var method = parent.DefineMethod("Test", MethodAttributes.Public | MethodAttributes.Static, typeof(object));
+            var objParam = method.DefineParameter(typeof(object), "o");
+
+            // object as NestedRef → 命中 else 分支，body.IsValueType = false，Isinst 用 TypeBuilder
+            method.Append(Expression.Return(Expression.TypeAs(objParam, nestedRef.UncompiledType)));
+
+            var type = parent.CreateType();
+            var mi = type.GetMethod("Test");
+
+            // "hello" 不是 NestedRef → 返回 null
+            Assert.Null(mi.Invoke(null, new object[] { "hello" }));
+        }
+
+        /// <summary>
+        /// 覆盖：TypeAs body 为 int（值类型），目标为内嵌引用类型（TypeBuilder）。
+        /// 走 else 分支，触发 <c>Box(int)</c> 以及 <c>Isinst(TypeBuilder)</c>。
+        /// Box 目标非 TypeBuilder，Isinst 目标为 TypeBuilder。
+        /// </summary>
+        [Fact]
+        public void TypeAs_BoxWithInt_IsinstWithTypeBuilder_ShouldNotThrow()
+        {
+            // public static object Test(int v) => v as NestedRef;
+            var parent = _emitter.DefineType($"TB_BoxInt_{Guid.NewGuid():N}", TypeAttributes.Public | TypeAttributes.Class);
+            var nestedRef = parent.DefineNestedType($"NestedRef_{Guid.NewGuid():N}", TypeAttributes.Public | TypeAttributes.Class);
+
+            var method = parent.DefineMethod("Test", MethodAttributes.Public | MethodAttributes.Static, typeof(object));
+            var intParam = method.DefineParameter(typeof(int), "v");
+
+            // int as NestedRef → 命中 else 分支，body.IsValueType = true，Box(int)，Isinst(TypeBuilder)
+            method.Append(Expression.Return(Expression.TypeAs(intParam, nestedRef.UncompiledType)));
+
+            var type = parent.CreateType();
+            var mi = type.GetMethod("Test");
+
+            // int 不是 NestedRef → 返回 null
+            Assert.Null(mi.Invoke(null, new object[] { 42 }));
+        }
+
+        /// <summary>
+        /// 覆盖：TypeAs body 为值类型 TypeBuilder，目标为引用类型 TypeBuilder。
+        /// 走 else 分支，同时触发 <c>Box({TypeBuilder})</c> 和 <c>Isinst({TypeBuilder})</c>。
+        /// </summary>
+        [Fact]
+        public void TypeAs_BoxAndIsinstBothTypeBuilder_ShouldNotThrow()
+        {
+            var parent = _emitter.DefineType($"TB_Both_{Guid.NewGuid():N}", TypeAttributes.Public | TypeAttributes.Class);
+
+            // 内嵌值类型（struct）
+            var nestedValue = parent.DefineNestedType(
+                $"NestedVal_{Guid.NewGuid():N}",
+                TypeAttributes.Public | TypeAttributes.Sealed | TypeAttributes.SequentialLayout,
+                typeof(ValueType));
+
+            // 内嵌引用类型（class）
+            var nestedRef = parent.DefineNestedType($"NestedRef_{Guid.NewGuid():N}", TypeAttributes.Public | TypeAttributes.Class);
+
+            var method = parent.DefineMethod("Test", MethodAttributes.Public | MethodAttributes.Static, typeof(object));
+
+            // 局部变量：值类型 TypeBuilder
+            var local = Expression.Variable(nestedValue.UncompiledType);
+            method.Append(Expression.Assign(local, Expression.Default(nestedValue.UncompiledType)));
+
+            // 值类型 TypeBuilder as 引用类型 TypeBuilder
+            // 命中 else 分支：body.IsValueType=true → Box(TypeBuilder)，Isinst(TypeBuilder)
+            method.Append(Expression.Return(Expression.TypeAs(local, nestedRef.UncompiledType)));
+
+            var type = parent.CreateType();
+            var mi = type.GetMethod("Test");
+
+            // 值类型实例不是引用类型 → 返回 null
+            Assert.Null(mi.Invoke(null, null));
         }
 
         #endregion

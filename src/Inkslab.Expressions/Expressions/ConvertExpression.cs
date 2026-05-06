@@ -34,6 +34,8 @@ namespace Inkslab.Expressions
 
         /// <summary>
         /// 生成。
+        /// <para>委托 <see cref="EmitUtils.EmitConvertToType"/> 处理，
+        /// 该路径已适配 TypeBuilder 场景（使用 TypeBuilder.GetMethod / GetConstructor 替代反射）。</para>
         /// </summary>
         /// <param name="ilg">指令。</param>
         public override void Load(ILGenerator ilg)

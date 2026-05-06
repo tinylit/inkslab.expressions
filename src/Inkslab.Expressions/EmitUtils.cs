@@ -29,6 +29,26 @@ namespace Inkslab
         private static readonly Dictionary<object, int> _constantCache = new Dictionary<object, int>();
         private static readonly MethodInfo _getConstantMethod = typeof(EmitUtils).GetMethod(nameof(GetConstant), BindingFlags.NonPublic | BindingFlags.Static | BindingFlags.Instance);
 
+        /// <summary>
+        /// <see cref="Nullable{T}.HasValue"/> 的 getter（开放泛型，用于 <see cref="TypeBuilder.GetMethod(Type, MethodInfo)"/>）。
+        /// </summary>
+        private static readonly MethodInfo _nullableHasValueMethod = typeof(Nullable<>).GetProperty(nameof(Nullable<int>.HasValue)).GetGetMethod();
+
+        /// <summary>
+        /// <see cref="Nullable{T}.Value"/> 的 getter（开放泛型，用于 <see cref="TypeBuilder.GetMethod(Type, MethodInfo)"/>）。
+        /// </summary>
+        private static readonly MethodInfo _nullableGetValueMethod = typeof(Nullable<>).GetProperty(nameof(Nullable<int>.Value)).GetGetMethod();
+
+        /// <summary>
+        /// <see cref="Nullable{T}.GetValueOrDefault()"/>（开放泛型，用于 <see cref="TypeBuilder.GetMethod(Type, MethodInfo)"/>）。
+        /// </summary>
+        private static readonly MethodInfo _nullableGetValueOrDefaultMethod = typeof(Nullable<>).GetMethod(nameof(Nullable<int>.GetValueOrDefault), Type.EmptyTypes);
+
+        /// <summary>
+        /// <see cref="Nullable{T}"/> 的单参构造器（开放泛型，用于 <see cref="TypeBuilder.GetConstructor(Type, ConstructorInfo)"/>）。
+        /// </summary>
+        private static readonly ConstructorInfo _nullableConstructor = typeof(Nullable<>).GetConstructor(typeof(Nullable<>).GetGenericArguments());
+
         private static object GetConstant(int index) => _constants[index];
 
         #region Convert
@@ -319,6 +339,10 @@ namespace Inkslab
             return true;
         }
 
+        /// <summary>
+        /// 类型转换（引用/装箱/拆箱）。
+        /// 注：typeFrom/typeTo 可能为 TypeBuilder，同一动态模块内的 IL emit 类型令牌是合法的。
+        /// </summary>
         private static void EmitCastToType(ILGenerator ilg, Type typeFrom, Type typeTo)
         {
             if (!typeFrom.IsValueType && typeTo.IsValueType)
@@ -344,21 +368,36 @@ namespace Inkslab
             }
         }
 
+        /// <summary>
+        /// 获取 <see cref="Nullable{T}.HasValue"/> 的 getter 方法，兼容 <see cref="TypeBuilder"/>。
+        /// </summary>
+        /// <param name="nullableType">可为 null 的类型。</param>
+        /// <returns>get_HasValue 方法。</returns>
+        internal static MethodInfo GetHasValueMethod(Type nullableType)
+        {
+            return nullableType is TypeBuilder tb
+                ? TypeBuilder.GetMethod(tb, _nullableHasValueMethod)
+                : nullableType.GetMethod("get_HasValue", BindingFlags.Instance | BindingFlags.Public);
+        }
+
         private static void EmitHasValue(ILGenerator ilg, Type nullableType)
         {
-            MethodInfo mi = nullableType.GetMethod("get_HasValue", BindingFlags.Instance | BindingFlags.Public);
-            ilg.Emit(OpCodes.Call, mi);
+            ilg.Emit(OpCodes.Call, GetHasValueMethod(nullableType));
         }
 
         private static void EmitGetValue(ILGenerator ilg, Type nullableType)
         {
-            MethodInfo mi = nullableType.GetMethod("get_Value", BindingFlags.Instance | BindingFlags.Public);
+            MethodInfo mi = nullableType is TypeBuilder tb
+                ? TypeBuilder.GetMethod(tb, _nullableGetValueMethod)
+                : nullableType.GetMethod("get_Value", BindingFlags.Instance | BindingFlags.Public);
             ilg.Emit(OpCodes.Call, mi);
         }
 
         private static void EmitGetValueOrDefault(ILGenerator ilg, Type nullableType)
         {
-            MethodInfo mi = nullableType.GetMethod("GetValueOrDefault", Type.EmptyTypes);
+            MethodInfo mi = nullableType is TypeBuilder tb
+                ? TypeBuilder.GetMethod(tb, _nullableGetValueOrDefaultMethod)
+                : nullableType.GetMethod("GetValueOrDefault", Type.EmptyTypes);
             ilg.Emit(OpCodes.Call, mi);
         }
 
@@ -551,7 +590,9 @@ namespace Inkslab
             Type nnTypeTo = Nullable.GetUnderlyingType(typeTo);
             EmitConvertToType(ilg, typeFrom, nnTypeTo, isChecked);
 
-            ConstructorInfo ci = typeTo.GetConstructor(new Type[] { nnTypeTo });
+            ConstructorInfo ci = typeTo is TypeBuilder tb
+                ? TypeBuilder.GetConstructor(tb, _nullableConstructor)
+                : typeTo.GetConstructor(new Type[] { nnTypeTo });
             ilg.Emit(OpCodes.Newobj, ci);
             ilg.Emit(OpCodes.Stloc, locTo);
             ilg.Emit(OpCodes.Ldloc, locTo);
@@ -573,7 +614,9 @@ namespace Inkslab
             Type nnTypeTo = Nullable.GetUnderlyingType(typeTo);
             EmitConvertToType(ilg, nnTypeFrom, nnTypeTo, isChecked);
             // construct result type
-            ConstructorInfo ci = typeTo.GetConstructor(new Type[] { nnTypeTo });
+            ConstructorInfo ci = typeTo is TypeBuilder tb
+                ? TypeBuilder.GetConstructor(tb, _nullableConstructor)
+                : typeTo.GetConstructor(new Type[] { nnTypeTo });
             ilg.Emit(OpCodes.Newobj, ci);
             ilg.Emit(OpCodes.Stloc, locTo);
             var labEnd = ilg.DefineLabel();

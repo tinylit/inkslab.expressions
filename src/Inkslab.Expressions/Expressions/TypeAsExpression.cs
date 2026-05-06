@@ -30,6 +30,8 @@ namespace Inkslab.Expressions
 
         /// <summary>
         /// 生成。
+        /// <para>注：RuntimeType 可能为 TypeBuilder（尚未 CreateType），
+        /// IL emit（Isinst / Unbox_Any）在同一动态模块内使用 TypeBuilder 类型令牌是合法的。</para>
         /// </summary>
         /// <param name="ilg">指令。</param>
         public override void Load(ILGenerator ilg)
