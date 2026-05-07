@@ -409,8 +409,11 @@ namespace Inkslab
         /// <summary>调用方法。</summary>
         public static Expression Call(MethodEmitter methodEmitter) => new MethodCallEmitter(methodEmitter);
 
-        /// <summary>调用方法。</summary>
+        /// <summary>调用方法（this 自动注入）。</summary>
         public static Expression Call(MethodEmitter methodEmitter, params Expression[] arguments) => new MethodCallEmitter(methodEmitter, arguments);
+
+        /// <summary>调用方法（显式指定实例）。</summary>
+        public static Expression Call(Expression instanceAst, MethodEmitter methodEmitter, params Expression[] arguments) => new InstanceMethodCallEmitter(instanceAst, methodEmitter, arguments);
 
         /// <summary>
         /// 调用方法（若方法 <paramref name="methodInfo"/> 不为抽象方法，则直接调用方法，而不是被重写的方法；否则，调用重写方法。）。

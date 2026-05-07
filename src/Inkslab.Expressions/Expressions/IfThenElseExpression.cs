@@ -50,7 +50,7 @@ namespace Inkslab.Expressions
 
             _ifTrue.Load(ilg);
 
-            if (_ifTrue.RuntimeType != typeof(void))
+            if (!_ifTrue.IsVoid)
             {
                 ilg.Emit(OpCodes.Pop);
             }
@@ -61,7 +61,7 @@ namespace Inkslab.Expressions
 
             _ifFalse.Load(ilg);
 
-            if (_ifFalse.RuntimeType != typeof(void))
+            if (!_ifFalse.IsVoid)
             {
                 ilg.Emit(OpCodes.Pop);
             }

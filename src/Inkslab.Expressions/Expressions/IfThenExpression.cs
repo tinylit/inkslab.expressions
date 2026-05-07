@@ -46,7 +46,7 @@ namespace Inkslab.Expressions
 
             _ifTrue.Load(ilg);
 
-            if (_ifTrue.RuntimeType != typeof(void))
+            if (!_ifTrue.IsVoid)
             {
                 ilg.Emit(OpCodes.Pop);
             }
@@ -64,5 +64,13 @@ namespace Inkslab.Expressions
         {
             _ifTrue.StoredLocal(variable);
         }
+
+        /// <inheritdoc/>
+        /// <remarks>
+        /// IfThen 仅覆盖条件为真的分支，else 分支会穿透到后续代码。
+        /// 因此不能像 IfThenElse 那样要求两个分支均返回。返回 <see langword="false"/>
+        /// 以允许后续表达式（如尾随 Return）作为兜底返回路径（对应 Issue #5）。
+        /// </remarks>
+        protected internal override bool DetectionResult(Type returnType) => false;
     }
 }

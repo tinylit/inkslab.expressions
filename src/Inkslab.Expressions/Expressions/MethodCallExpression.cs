@@ -59,7 +59,23 @@ namespace Inkslab.Expressions
             }
             else if (!EmitUtils.IsAssignableFromSignatureTypes(methodInfo.DeclaringType, instanceAst.RuntimeType))
             {
-                throw new AstException($"方法“{methodInfo.Name}”不属于实例(“{instanceAst.RuntimeType}”)！");
+                // 接口方法可以通过 callvirt 在任何引用类型实例上调用，
+                // JIT 在运行时检查实际类型是否实现了该接口（对应 Issue #6）。
+                if (methodInfo.DeclaringType.IsInterface && !instanceAst.RuntimeType.IsValueType)
+                {
+                    // 允许通过：object 或任意引用类型实例调用接口方法
+                }
+                else
+                {
+                    throw new AstException($"方法“{methodInfo.Name}”不属于实例(“{instanceAst.RuntimeType}”)！");
+                }
+            }
+
+            // MethodBuilder 在 TypeBuilder.CreateType() 之前调用 GetParameters() 会抛
+            // NotSupportedException，参数校验延迟到 Emit 阶段由 IL 运行时校验（对应 Issue #2）。
+            if (methodInfo is MethodBuilder)
+            {
+                return methodInfo.ReturnType;
             }
 
             var parameterInfos = methodInfo.IsGenericMethod
