@@ -418,6 +418,257 @@ namespace Inkslab.Expressions.Tests
 
         #endregion
 
+        #region Issue #7: InstanceMethodCallEmitter — 跨 TypeBuilder 通过 object[] 数组传递实例调用
+
+        /// <summary>
+        /// Issue #7：模拟 hys_agent 中 IMemberRefBinder 跨类型通信场景。
+        /// RootType 为父类型，NestedType 通过 DefineNestedType 内嵌在 RootType 中，
+        /// 通过 object[] deepObj 数组传递实例，跨实例调用 GetMemberRefSource 返回 object。
+        /// 方法属性：Public | Virtual | NewSlot | Final | HideBySig。
+        /// </summary>
+        [Fact]
+        public void CrossTypeBuilder_ObjectArray_InstanceMethodCall_ShouldReturnCorrectValue()
+        {
+            const MethodAttributes binderMethodAttrs =
+                MethodAttributes.Public | MethodAttributes.Virtual |
+                MethodAttributes.NewSlot | MethodAttributes.Final | MethodAttributes.HideBySig;
+
+            // ── RootType：提供 GetMemberRefSource(int)，并内嵌 NestedType ──
+            var rootEmitter = _emitter.DefineType($"RootType_{Guid.NewGuid():N}",
+                TypeAttributes.Public | TypeAttributes.Class);
+
+            var getSourceMethod = rootEmitter.DefineMethod("GetMemberRefSource",
+                binderMethodAttrs, typeof(object));
+            var slotParam = getSourceMethod.DefineParameter(typeof(int), "slot");
+            getSourceMethod.Append(Expression.IfThen(
+                Expression.Equal(slotParam, Expression.Constant(0)),
+                Expression.Return(Expression.Constant("hello"))));
+            getSourceMethod.Append(Expression.Return(Expression.Constant(null, typeof(object))));
+
+            // ── NestedType 内嵌于 RootType ──
+            var nestedEmitter = rootEmitter.DefineNestedType(
+                $"NestedType_{Guid.NewGuid():N}",
+                TypeAttributes.NestedPublic | TypeAttributes.Class);
+            nestedEmitter.DefineDefaultConstructor();
+
+            var bindMethod = nestedEmitter.DefineMethod("BindMemberRefs",
+                binderMethodAttrs, typeof(object));
+            var deepObjParam = bindMethod.DefineParameter(typeof(object[]), "deepObj");
+            var levelParam = bindMethod.DefineParameter(typeof(int), "level");
+
+            bindMethod.Append(Expression.Assign(
+                Expression.ArrayIndex(deepObjParam, levelParam),
+                Expression.This(nestedEmitter)));
+
+            // 跨实例调用：通过 deepObj[0] 获取 RootType 实例
+            var target = Expression.ArrayIndex(deepObjParam, Expression.Constant(0));
+            var crossCall = Expression.Call(target, getSourceMethod, Expression.Constant(0));
+            bindMethod.Append(Expression.Return(crossCall));
+
+            var rootType = rootEmitter.CreateType();
+            var nestedType = rootType.GetNestedType(nestedEmitter.Name,
+                BindingFlags.Public | BindingFlags.NonPublic);
+
+            Assert.NotNull(nestedType);
+
+            var rootInst = Activator.CreateInstance(rootType);
+            var nestedInst = Activator.CreateInstance(nestedType);
+
+            var deepObj = new object[] { rootInst, null };
+            var result = nestedType.GetMethod("BindMemberRefs")
+                .Invoke(nestedInst, new object[] { deepObj, 1 });
+
+            Assert.Equal("hello", result);
+        }
+
+        /// <summary>
+        /// Issue #7 边界：Caller 内嵌 Helper，跨 TypeBuilder 实例调用无参数方法。
+        /// </summary>
+        [Fact]
+        public void CrossTypeBuilder_ObjectArray_InstanceCall_NoArgs_ShouldReturnCorrectValue()
+        {
+            const MethodAttributes binderMethodAttrs =
+                MethodAttributes.Public | MethodAttributes.Virtual |
+                MethodAttributes.NewSlot | MethodAttributes.Final | MethodAttributes.HideBySig;
+
+            // Caller 类型，内嵌 Helper
+            var callerEmitter = _emitter.DefineType($"Caller_{Guid.NewGuid():N}",
+                TypeAttributes.Public | TypeAttributes.Class);
+
+            // Helper 内嵌类型
+            var helperEmitter = callerEmitter.DefineNestedType(
+                $"Helper_{Guid.NewGuid():N}",
+                TypeAttributes.NestedPublic | TypeAttributes.Class);
+            helperEmitter.DefineDefaultConstructor();
+
+            var getValueMethod = helperEmitter.DefineMethod("GetValue",
+                binderMethodAttrs, typeof(string));
+            getValueMethod.Append(Expression.Return(Expression.Constant("world")));
+
+            var callMethod = callerEmitter.DefineMethod("Call",
+                binderMethodAttrs, typeof(string));
+            var arrParam = callMethod.DefineParameter(typeof(object[]), "arr");
+
+            var inst = Expression.ArrayIndex(arrParam, Expression.Constant(0));
+            var result = Expression.Call(inst, getValueMethod);
+            callMethod.Append(Expression.Return(result));
+
+            var callerType = callerEmitter.CreateType();
+            var helperType = callerType.GetNestedType(helperEmitter.Name,
+                BindingFlags.Public | BindingFlags.NonPublic);
+
+            Assert.NotNull(helperType);
+
+            var helperInst = Activator.CreateInstance(helperType);
+            var callerInst = Activator.CreateInstance(callerType);
+
+            var deepObj = new object[] { helperInst };
+            var ret = callerType.GetMethod("Call")
+                .Invoke(callerInst, new object[] { deepObj });
+
+            Assert.Equal("world", ret);
+        }
+
+        /// <summary>
+        /// Issue #7 边界：Caller 内嵌 Source，跨 TypeBuilder 实例调用带参数方法。
+        /// </summary>
+        [Fact]
+        public void CrossTypeBuilder_ObjectArray_InstanceCall_WithArg_ShouldReturnCorrectValue()
+        {
+            const MethodAttributes binderMethodAttrs =
+                MethodAttributes.Public | MethodAttributes.Virtual |
+                MethodAttributes.NewSlot | MethodAttributes.Final | MethodAttributes.HideBySig;
+
+            // Caller 类型，内嵌 Source
+            var callerEmitter = _emitter.DefineType($"Caller_{Guid.NewGuid():N}",
+                TypeAttributes.Public | TypeAttributes.Class);
+
+            // Source 内嵌类型
+            var srcEmitter = callerEmitter.DefineNestedType(
+                $"Source_{Guid.NewGuid():N}",
+                TypeAttributes.NestedPublic | TypeAttributes.Class);
+            srcEmitter.DefineDefaultConstructor();
+
+            var getBySlotMethod = srcEmitter.DefineMethod("GetBySlot",
+                binderMethodAttrs, typeof(object));
+            var slotParam = getBySlotMethod.DefineParameter(typeof(int), "slot");
+            getBySlotMethod.Append(Expression.IfThen(
+                Expression.Equal(slotParam, Expression.Constant(42)),
+                Expression.Return(Expression.Constant("answer"))));
+            getBySlotMethod.Append(Expression.Return(Expression.Constant(null, typeof(object))));
+
+            var callMethod = callerEmitter.DefineMethod("Fetch",
+                binderMethodAttrs, typeof(object));
+            var arrParam = callMethod.DefineParameter(typeof(object[]), "arr");
+            var idxParam = callMethod.DefineParameter(typeof(int), "idx");
+
+            var target = Expression.ArrayIndex(arrParam, Expression.Constant(0));
+            var crossResult = Expression.Call(target, getBySlotMethod, idxParam);
+            callMethod.Append(Expression.Return(crossResult));
+
+            var callerType = callerEmitter.CreateType();
+            var srcType = callerType.GetNestedType(srcEmitter.Name,
+                BindingFlags.Public | BindingFlags.NonPublic);
+
+            Assert.NotNull(srcType);
+
+            var srcInst = Activator.CreateInstance(srcType);
+            var callerInst = Activator.CreateInstance(callerType);
+
+            var arr = new object[] { srcInst };
+
+            // slot=42 → "answer"
+            var ret1 = callerType.GetMethod("Fetch")
+                .Invoke(callerInst, new object[] { arr, 42 });
+            Assert.Equal("answer", ret1);
+
+            // slot=0 → null
+            var ret2 = callerType.GetMethod("Fetch")
+                .Invoke(callerInst, new object[] { arr, 0 });
+            Assert.Null(ret2);
+        }
+
+        /// <summary>
+        /// Issue #7 全链路测试：RootType.BindMemberRefs → NestedType.BindMemberRefs → RootType.GetMemberRefSource。
+        /// NestedType 通过 DefineNestedType 内嵌于 RootType，完全模拟文档中的三层调用链。
+        /// </summary>
+        [Fact]
+        public void CrossTypeBuilder_FullChain_ObjectArray_ShouldReturnCorrectValue()
+        {
+            const MethodAttributes binderMethodAttrs =
+                MethodAttributes.Public | MethodAttributes.Virtual |
+                MethodAttributes.NewSlot | MethodAttributes.Final | MethodAttributes.HideBySig;
+
+            // ── RootType：GetMemberRefSource(int) + BindMemberRefs(object[], int) ──
+            var rootEmitter = _emitter.DefineType($"RootChain_{Guid.NewGuid():N}",
+                TypeAttributes.Public | TypeAttributes.Class);
+
+            var getSourceMethod = rootEmitter.DefineMethod("GetMemberRefSource",
+                binderMethodAttrs, typeof(object));
+            var srcSlotParam = getSourceMethod.DefineParameter(typeof(int), "slot");
+            getSourceMethod.Append(Expression.IfThen(
+                Expression.Equal(srcSlotParam, Expression.Constant(0)),
+                Expression.Return(Expression.Constant("hello"))));
+            getSourceMethod.Append(Expression.Return(Expression.Constant(null, typeof(object))));
+
+            // ── NestedType 内嵌于 RootType ──
+            var nestedEmitter = rootEmitter.DefineNestedType(
+                $"NestedChain_{Guid.NewGuid():N}",
+                TypeAttributes.NestedPublic | TypeAttributes.Class);
+            nestedEmitter.DefineDefaultConstructor();
+
+            var nestedBindMethod = nestedEmitter.DefineMethod("BindMemberRefs",
+                binderMethodAttrs, typeof(void));
+            var nestedDeepObjParam = nestedBindMethod.DefineParameter(typeof(object[]), "deepObj");
+            var nestedLevelParam = nestedBindMethod.DefineParameter(typeof(int), "level");
+
+            nestedBindMethod.Append(Expression.Assign(
+                Expression.ArrayIndex(nestedDeepObjParam, nestedLevelParam),
+                Expression.This(nestedEmitter)));
+
+            // 跨实例调用：通过 deepObj[0] 获取 root 实例，调用 GetMemberRefSource(0)
+            var targetFromArray = Expression.ArrayIndex(nestedDeepObjParam, Expression.Constant(0));
+            var crossResult = Expression.Call(targetFromArray, getSourceMethod, Expression.Constant(0));
+
+            nestedBindMethod.Append(Expression.Assign(
+                Expression.ArrayIndex(nestedDeepObjParam, Expression.Constant(2)),
+                crossResult));
+
+            // ── RootType.BindMemberRefs(object[], int)：自调用入口，递归到 NestedType ──
+            var rootBindMethod = rootEmitter.DefineMethod("BindMemberRefs",
+                binderMethodAttrs, typeof(void));
+            var rootDeepObjParam = rootBindMethod.DefineParameter(typeof(object[]), "deepObj");
+            var rootLevelParam = rootBindMethod.DefineParameter(typeof(int), "level");
+
+            rootBindMethod.Append(Expression.Assign(
+                Expression.ArrayIndex(rootDeepObjParam, Expression.Constant(0)),
+                Expression.This(rootEmitter)));
+
+            // 跨实例递归：body.BindMemberRefs(deepObj, 1)，body 从 deepObj[3] 获取
+            var bodyInstance = Expression.ArrayIndex(rootDeepObjParam, Expression.Constant(3));
+            rootBindMethod.Append(Expression.Call(
+                bodyInstance, nestedBindMethod,
+                rootDeepObjParam, Expression.Constant(1)));
+
+            var rootType = rootEmitter.CreateType();
+            var nestedType = rootType.GetNestedType(nestedEmitter.Name,
+                BindingFlags.Public | BindingFlags.NonPublic);
+
+            Assert.NotNull(nestedType);
+
+            var rootInst = Activator.CreateInstance(rootType);
+            var nestedInst = Activator.CreateInstance(nestedType);
+
+            // deepObj: [0]=root(运行时), [1]=nested(运行时), [2]=result(输出), [3]=nested实例(输入)
+            var deepObj = new object[] { null, null, null, nestedInst };
+            rootType.GetMethod("BindMemberRefs")
+                .Invoke(rootInst, new object[] { deepObj, 0 });
+
+            Assert.Equal("hello", deepObj[2]);
+        }
+
+        #endregion
+
         #region 综合测试：多个修复项的组合场景
 
         /// <summary>

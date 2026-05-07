@@ -107,8 +107,6 @@ namespace Inkslab
 
             public override void DefineMethod(TypeBuilder builder)
             {
-                base.DefineMethod(builder);
-
                 // 只有虚方法或接口方法才能使用 DefineMethodOverride
                 if (_isVirtualMethod || _methodInfoDeclaration.DeclaringType.IsInterface)
                 {
@@ -627,9 +625,9 @@ namespace Inkslab
         public Type[] GetInterfaces() => _interfaces ?? Type.EmptyTypes;
 
         /// <summary>
-        /// 未编译类型（请勿直接使用 <see cref="TypeBuilder"/>）。
+        /// 未编译类型（程序集内部使用）。
         /// </summary>
-        public TypeBuilder UncompiledType => _typeBuilder;
+        internal TypeBuilder Value => _typeBuilder;
 
         private void CheckGenericParameters()
         {
@@ -1246,13 +1244,13 @@ namespace Inkslab
         public NestedClassEmitter DefineNestedType(string name, TypeAttributes attr, Type parent, Type[] interfaces) => new NestedClassEmitter(this, name, attr, parent, interfaces);
 
         /// <summary>
-        /// 发行。
+        /// 声明成员。
         /// </summary>
-        protected virtual Type Emit()
+        protected virtual void Define()
         {
             CheckGenericParameters();
 
-            foreach (FieldEmitter emitter in _fields.Values)
+            foreach (var emitter in _fields.Values)
             {
                 var fieldDefinition = _typeBuilder.DefineField(emitter.Name, emitter.RuntimeType, emitter.Attributes);
 
@@ -1264,7 +1262,7 @@ namespace Inkslab
                 DefineDefaultConstructor();
             }
 
-            foreach (ConstructorEmitter emitter in _constructors)
+            foreach (var emitter in _constructors)
             {
                 var parameters = emitter.GetParameters();
 
@@ -1278,27 +1276,38 @@ namespace Inkslab
                 emitter.Emit(_typeBuilder.DefineConstructor(emitter.Attributes, emitter.Conventions, parameterTypes));
             }
 
-            foreach (MethodEmitter emitter in _methods)
+            foreach (var emitter in _methods)
             {
                 emitter.DefineMethod(_typeBuilder);
+            }
+
+            foreach (var emitter in _properties.Values)
+            {
+                emitter.Emit(_typeBuilder.DefineProperty(emitter.Name, emitter.Attributes, emitter.RuntimeType, emitter.ParameterTypes));
+            }
+
+            foreach (var emitter in _abstracts)
+            {
+                emitter.Define();
+            }
+
+            TypeInitializer.Emit(_typeBuilder.DefineTypeInitializer());
+        }
+
+        /// <summary>
+        /// 发行。
+        /// </summary>
+        protected virtual Type Emit()
+        {
+            foreach (var emitter in _methods)
+            {
+                emitter.Emit();
             }
 
             foreach (var emitter in _abstracts)
             {
                 emitter.Emit();
             }
-
-            foreach (MethodEmitter emitter in _methods)
-            {
-                emitter.Emit();
-            }
-
-            foreach (PropertyEmitter emitter in _properties.Values)
-            {
-                emitter.Emit(_typeBuilder.DefineProperty(emitter.Name, emitter.Attributes, emitter.RuntimeType, emitter.ParameterTypes));
-            }
-
-            TypeInitializer.Emit(_typeBuilder.DefineTypeInitializer());
 
 #if NETSTANDARD2_0_OR_GREATER
             return _typeBuilder.CreateTypeInfo().AsType();

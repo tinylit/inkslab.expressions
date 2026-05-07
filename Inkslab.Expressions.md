@@ -102,7 +102,11 @@ ModuleEmitter                      // 动态程序集（每个模块 = 一个 As
 ModuleEmitter()
 ModuleEmitter(string assemblyName)
 ModuleEmitter(string assemblyName, string moduleFileName)
-ModuleEmitter(bool savePhysicalAssembly)              // NET Framework 才有效
+ModuleEmitter(bool savePhysicalAssembly)                              // NET Framework 才有效
+ModuleEmitter(bool savePhysicalAssembly, string assemblyName)
+ModuleEmitter(bool savePhysicalAssembly, string assemblyName, string moduleFileName)
+ModuleEmitter(INamingScope naming, string assemblyName, string moduleFileName)          // 嵌套模块
+ModuleEmitter(bool savePhysicalAssembly, INamingScope namingScope, string assemblyName, string moduleFileName)
 ```
 
 **默认值常量**：
@@ -112,15 +116,24 @@ ModuleEmitter(bool savePhysicalAssembly)              // NET Framework 才有效
 | `ModuleEmitter.DEFAULT_ASSEMBLY_NAME` | `"Inkslab.Override"` |
 | `ModuleEmitter.DEFAULT_FILE_NAME` | `"Inkslab.Override.dll"` |
 
+### 属性
+
+| 属性 | 类型 | 说明 |
+|------|------|------|
+| `AssemblyFileName` | `string` | 程序集文件名 |
+| `AssemblyDirectory` | `string` | 程序集输出目录 |
+
 ### 主要方法
 
 | 方法 | 返回 | 说明 |
 |------|------|------|
-| `DefineType(name, attributes)` | `ClassEmitter` | 顶级类 |
+| `DefineType(name)` | `ClassEmitter` | 顶级类（默认属性） |
+| `DefineType(name, attributes)` | `ClassEmitter` | 指定属性 |
 | `DefineType(name, attributes, baseType)` | `ClassEmitter` | 指定基类 |
 | `DefineType(name, attributes, baseType, interfaces[])` | `ClassEmitter` | 基类 + 多接口 |
 | `DefineEnum(name, attributes, underlyingType)` | `EnumEmitter` | 枚举类型 |
-| `SaveAssembly()` | `void` | 仅 NET Framework，保存到磁盘 |
+| `BeginScope()` | `INamingScope` | 开始命名作用域 |
+| `SaveAssembly()` | `string` | 仅 NET Framework，保存到磁盘，返回路径 |
 
 ---
 
@@ -128,16 +141,55 @@ ModuleEmitter(bool savePhysicalAssembly)              // NET Framework 才有效
 
 > `ClassEmitter` 与 `EnumEmitter`、`NestedClassEmitter` 共同继承自 `AbstractTypeEmitter`。下表方法都属于基类。
 
+### 属性
+
+| 属性 | 类型 | 说明 |
+|------|------|------|
+| `Name` | `string` | 类型名称 |
+| `BaseType` | `Type` | 基类类型 |
+| `IsGenericType` | `bool` | 是否为泛型类型 |
+
+### 方法
+
 | 方法 | 返回 | 说明 |
 |------|------|------|
-| `DefineField(name, type, attributes)` | `FieldEmitter` | 字段 |
+| `DefineField(name, type, attributes)` | `FieldEmitter` | 字段（最常用重载） |
+| `DefineField(name, type)` | `FieldEmitter` | 字段（默认 `FieldAttributes.Private`） |
+| `DefineField(name, type, serializable)` | `FieldEmitter` | 字段（支持序列化标记） |
+| `DefineField(fieldInfo)` | `FieldEmitter` | 从已有 `FieldInfo` 克隆字段定义 |
 | `DefineProperty(name, attributes, type)` | `PropertyEmitter` | 属性，需后续 `SetGetMethod` / `SetSetMethod` |
-| `DefineMethod(name, attributes, returnType)` | `MethodEmitter` | 普通方法 |
+| `DefineProperty(name, attributes, type, arguments[])` | `PropertyEmitter` | 带索引参数的属性（如 `this[int]`） |
+| `DefineMethod(name, attrs, returnType)` | `MethodEmitter` | 普通方法 |
+| `DefineMethodOverride(ref methodInfo)` | `MethodEmitter` | 显式接口方法实现 |
 | `DefineConstructor(attributes)` | `ConstructorEmitter` | 实例构造函数 |
-| `DefineTypeInitializer()` | `TypeInitializerEmitter` | 静态构造函数 |
-| `DefineNestedType(name, attributes)` | `ClassEmitter` | 嵌套类型 |
+| `DefineConstructor(attributes, conventions)` | `ConstructorEmitter` | 指定调用约定的构造函数 |
+| `DefineDefaultConstructor()` | `void` | 自动生成默认无参构造 |
+| `DefineTypeInitializer()` | `TypeInitializerEmitter` | 静态构造函数（`static MyType() { }`） |
+| `DefineNestedType(name)` | `NestedClassEmitter` | 嵌套类型（默认属性） |
+| `DefineNestedType(name, attributes)` | `NestedClassEmitter` | 嵌套类型 |
+| `DefineNestedType(name, attributes, baseType)` | `NestedClassEmitter` | 指定基类 |
+| `DefineNestedType(name, attributes, baseType, interfaces[])` | `NestedClassEmitter` | 基类 + 接口 |
+| `DefineGenericParameters(typeArguments)` | `GenericTypeParameterBuilder[]` | 定义泛型参数 |
 | `OverrideMethod(MethodInfo)` | `MethodEmitter` | 重写基类虚方法或实现接口方法 |
+| `BeginScope()` | `INamingScope` | 开始命名作用域 |
+| `GetInterfaces()` | `Type[]` | 获取实现的接口列表 |
+| `GetGenericArguments()` | `Type[]` | 获取泛型参数 |
+| `IsCreated()` | `bool` | 类型是否已创建 |
 | `CreateType()` | `Type` | **结束定义**，返回运行时类型 |
+
+> **关于 `NestedClassEmitter.UncompiledType`**：仅 `NestedClassEmitter` 对外暴露 `public TypeBuilder UncompiledType`，用于需要直接访问未编译类型令牌的场景。`Convert` / `TypeIs` / `TypeAs` 已提供 `AbstractTypeEmitter` 重载，推荐优先使用而非手动访问此属性。
+
+### 自定义特性（Custom Attributes）
+
+所有 `AbstractTypeEmitter` 子类（`ClassEmitter`、`EnumEmitter`、`NestedClassEmitter`）均支持：
+
+| 方法 | 说明 |
+|------|------|
+| `SetCustomAttribute(CustomAttributeData)` | 通过 `CustomAttributeData` 设置特性 |
+| `SetCustomAttribute(ConstructorInfo, byte[])` | 通过构造函数 + 二进制数据设置特性 |
+| `DefineCustomAttribute(CustomAttributeBuilder)` | 通过 `CustomAttributeBuilder` 定义特性 |
+| `DefineCustomAttribute<TAttribute>()` | 泛型快捷方式：`TAttribute : Attribute, new()` |
+| `DefineCustomAttribute(CustomAttributeData)` | 通过 `CustomAttributeData` 定义特性 |
 
 ### 示例
 
@@ -161,13 +213,30 @@ Type runtime = cls.CreateType();
 
 继承自 `BlockExpression`，本身就是一个方法体级的代码块。
 
+### 属性
+
+| 属性 | 类型 | 说明 |
+|------|------|------|
+| `Name` | `string` | 方法名称 |
+| `ReturnType` | `Type` | 返回值类型（同 `RuntimeType`） |
+| `Attributes` | `MethodAttributes` | 方法特性（`Public` / `Static` / `Virtual` 等） |
+| `IsStatic` | `bool` | 是否为静态方法 |
+| `IsGenericMethod` | `bool` | 是否为泛型方法 |
+| `DeclaringType` | `AbstractTypeEmitter` | 声明此方法的类型 |
+
+### 方法
+
 | 方法 | 说明 |
 |------|------|
-| `DefineParameter(type, attributes, name)` | 定义参数，返回 `ParameterEmitter`（继承 `ParameterExpression`，可直接作为表达式使用） |
+| `DefineParameter(type, attributes, name)` | 定义参数，返回 `ParameterEmitter`（继承 `ParameterExpression`） |
+| `DefineParameter(type, name)` | 定义参数（简化重载，默认属性） |
+| `DefineParameter(ParameterInfo)` | 从已有 `ParameterInfo` 克隆参数定义 |
 | `Append(Expression)` | 追加一条语句；返回自身以支持链式 |
 | `MakeGenericMethod(Type[])` | 获取该方法的泛型实例化版本 |
-| `SetCustomAttribute(CustomAttributeBuilder)` | 添加特性 |
 | `GetParameters()` | 获取所有已定义的 `ParameterEmitter` |
+| `SetCustomAttribute(CustomAttributeBuilder)` | 添加特性 |
+| `SetCustomAttribute<TAttribute>()` | 泛型快捷方式添加特性 |
+| `SetCustomAttribute(CustomAttributeData)` | 通过 `CustomAttributeData` 添加特性 |
 
 ### 返回值规则
 
@@ -187,13 +256,33 @@ add.Append(Expression.Add(a, b));   // 末尾表达式即返回值
 
 ## ConstructorEmitter — 构造函数
 
-继承自 `BlockExpression`。框架默认在体首自动调用基类无参构造，如需调用自定义基类构造，使用 `Expression.Base(...)`。
+继承自 `BlockExpression`。框架默认在体首自动调用基类无参构造，如需调用自定义基类构造，使用 `InvokeBaseConstructor`。
+
+### 属性
+
+| 属性 | 类型 | 说明 |
+|------|------|------|
+| `Name` | `string` | 构造函数名称（即类型名） |
+| `Attributes` | `MethodAttributes` | 构造特性 |
+| `Conventions` | `CallingConventions` | 调用约定 |
+
+### 方法
+
+| 方法 | 说明 |
+|------|------|
+| `DefineParameter(type, attributes, name)` | 定义参数 |
+| `DefineParameter(ParameterInfo)` | 从已有 `ParameterInfo` 克隆参数 |
+| `Append(Expression)` | 追加语句 |
+| `GetParameters()` | 获取所有已定义的参数 |
+| `InvokeBaseConstructor()` | 调用基类无参构造 |
+| `InvokeBaseConstructor(ConstructorInfo)` | 调用指定基类构造（无参） |
+| `InvokeBaseConstructor(ConstructorInfo, params Expression[])` | 调用指定基类构造并传参 |
 
 ```csharp
 var ctor = cls.DefineConstructor(MethodAttributes.Public);
 var p = ctor.DefineParameter(typeof(string), ParameterAttributes.None, "value");
-ctor.Append(Expression.Base(cls, baseCtorInfo, p));   // base(value)
-ctor.Append(Expression.Assign(field, p));             // _field = value;
+ctor.InvokeBaseConstructor(baseCtorInfo, p);            // : base(value)
+ctor.Append(Expression.Assign(field, p));               // _field = value;
 ```
 
 ---
@@ -205,6 +294,42 @@ ctor.Append(Expression.Assign(field, p));             // _field = value;
 - 直接 `Append(field)` 表示读取字段值。
 - `Expression.Assign(field, value)` 表示写入字段。
 - 属性访问通过 `Expression.Property(...)` 或直接使用 `PropertyEmitter`。
+
+### FieldEmitter
+
+| 属性 | 类型 | 说明 |
+|------|------|------|
+| `Name` | `string` | 字段名称 |
+| `Attributes` | `FieldAttributes` | 字段特性 |
+| `CanWrite` | `bool` | 是否可写（非 `Literal` 即为 `true`） |
+| `IsStatic` | `bool` | 是否为静态字段 |
+| `DefaultValue` | `object` | 字段默认值 |
+
+| 方法 | 说明 |
+|------|------|
+| `SetCustomAttribute<TAttribute>()` | 泛型添加特性 |
+| `SetCustomAttribute(CustomAttributeData)` | 通过 `CustomAttributeData` 添加特性 |
+| `SetCustomAttribute(CustomAttributeBuilder)` | 通过 `CustomAttributeBuilder` 添加特性 |
+
+### PropertyEmitter
+
+| 属性 | 类型 | 说明 |
+|------|------|------|
+| `Name` | `string` | 属性名称 |
+| `Attributes` | `PropertyAttributes` | 属性特性 |
+| `CanRead` | `bool` | 是否可读（已设置 getter） |
+| `CanWrite` | `bool` | 是否可写（已设置 setter） |
+| `IsStatic` | `bool` | 是否为静态属性 |
+| `DefaultValue` | `object` | 属性默认值 |
+| `ParameterTypes` | `Type[]` | 索引参数类型（如 `this[int]` 则为 `[typeof(int)]`） |
+
+| 方法 | 返回 | 说明 |
+|------|------|------|
+| `SetGetMethod(MethodEmitter)` | `PropertyEmitter` | 设置 getter |
+| `SetSetMethod(MethodEmitter)` | `PropertyEmitter` | 设置 setter |
+| `SetCustomAttribute<TAttribute>()` | `void` | 泛型添加特性 |
+| `SetCustomAttribute(CustomAttributeData)` | `void` | 添加特性 |
+| `SetCustomAttribute(CustomAttributeBuilder)` | `void` | 添加特性 |
 
 ```csharp
 var backing = cls.DefineField("_name", typeof(string), FieldAttributes.Private);
@@ -237,6 +362,18 @@ e.DefineLiteral("Blue",  2);
 Type colorType = e.CreateType();
 ```
 
+### 方法
+
+| 方法 | 返回 | 说明 |
+|------|------|------|
+| `DefineLiteral(name, value)` | `FieldEmitter` | 定义枚举字面量 |
+| `DefineCustomAttribute<TAttribute>()` | `void` | 泛型添加特性 |
+| `DefineCustomAttribute(CustomAttributeBuilder)` | `void` | 添加特性 |
+| `DefineCustomAttribute(CustomAttributeData)` | `void` | 添加特性 |
+| `SetCustomAttribute(ConstructorInfo, byte[])` | `void` | 二进制方式设置特性 |
+| `IsCreated()` | `bool` | 枚举是否已创建 |
+| `CreateType()` | `Type` | 创建枚举类型 |
+
 ---
 
 # Expression — 表达式系统
@@ -253,6 +390,12 @@ Type colorType = e.CreateType();
 | `CanWrite` | `bool` | 能否作为赋值左值（默认 `false`） |
 
 **`CanWrite == true` 的节点**：`VariableExpression`、非 `in` 的 `ParameterExpression`、非 `readonly` `FieldExpression`、有 setter 的 `PropertyExpression`、`ArrayIndexExpression`。
+
+### 静态成员
+
+| 成员 | 类型 | 说明 |
+|------|------|------|
+| `EmptyAsts` | `Expression[]` | 空表达式数组，用于无参方法调用等场景 |
 
 ---
 
@@ -388,11 +531,16 @@ Expression Assign(Expression left, Expression right);
 ### 6. 类型转换与检查
 
 ```csharp
-ConvertExpression  Convert(Expression body, Type convertToType);  // (T)expr
-TypeIsExpression   TypeIs(Expression body, Type bodyIsType);      // expr is T -> bool
-TypeAsExpression   TypeAs(Expression body, Type bodyAsType);      // expr as T
-CoalesceExpression Coalesce(Expression left, Expression right);   // left ?? right
+ConvertExpression  Convert(Expression body, Type convertToType);                   // (T)expr
+ConvertExpression  Convert(Expression body, AbstractTypeEmitter typeEmitter);       // 传入类型发射器
+TypeIsExpression   TypeIs(Expression body, Type bodyIsType);                       // expr is T
+TypeIsExpression   TypeIs(Expression body, AbstractTypeEmitter typeEmitter);       // 传入类型发射器
+TypeAsExpression   TypeAs(Expression body, Type bodyAsType);                       // expr as T
+TypeAsExpression   TypeAs(Expression body, AbstractTypeEmitter typeEmitter);       // 传入类型发射器
+CoalesceExpression Coalesce(Expression left, Expression right);                    // left ?? right
 ```
+
+> `AbstractTypeEmitter` 重载可直接传入 `ClassEmitter` / `NestedClassEmitter` 实例，内部自动通过 `Value` 获取 `TypeBuilder`。
 
 **约束**：
 
@@ -401,7 +549,7 @@ CoalesceExpression Coalesce(Expression left, Expression right);   // left ?? rig
 
 ---
 
-### 7. 三目
+### 7. 三目（必须有返回值）
 
 ```csharp
 ConditionExpression Condition(Expression test, Expression ifTrue, Expression ifFalse);
@@ -411,12 +559,28 @@ ConditionExpression Condition(Expression test, Expression ifTrue, Expression ifF
 **约束**：
 
 - `test.RuntimeType == typeof(bool)`。
+- **必须有返回值**：`ifTrue` / `ifFalse` 任一为 `void` 或显式指定 `returnType = typeof(void)` 均抛 `AstException("三目运算表达式必须有返回值，无返回值请使用 IfThenElse 表达式！")`。
 - 不指定 `returnType` 时，`ifTrue` 与 `ifFalse` 必须类型相同；
 - 指定 `returnType` 时，两分支必须可隐式转换为该类型，否则抛 `ArgumentException`。
 
 ---
 
-### 8. 方法调用 — 三种形态语义不同
+### 8. IfThen / IfThenElse — 无返回值分支
+
+```csharp
+IfThenExpression     IfThen(Expression test, Expression ifTrue);
+IfThenElseExpression IfThenElse(Expression test, Expression ifTrue, Expression ifFalse);
+```
+
+**约束**：
+
+- `test.RuntimeType == typeof(bool)`。
+- 两者均为 **void 表达式**（`IsVoid == true`），不可作为有返回值方法的最终表达式直接返回。若所有分支已含 `Return`/`Throw`，末尾需追加 `Expression.Throw(...)` 表示不可达路径。
+- 需要带返回值的条件表达式请使用 `Expression.Condition(...)`（三目）。
+
+---
+
+### 9. 方法调用 — 三种形态语义不同
 
 | 工厂 | IL | 参数 | 适用 |
 |------|----|------|------|
@@ -430,8 +594,9 @@ Expression.Call(methodInfo);                           // 静态无参
 Expression.Call(methodInfo, arg0, arg1);               // 静态有参
 Expression.Call(instance, methodInfo);                 // 实例无参
 Expression.Call(instance, methodInfo, arg0, arg1);     // 实例有参
-Expression.Call(methodEmitter);                        // 同模块 MethodEmitter
-Expression.Call(methodEmitter, arg0, arg1);
+Expression.Call(methodEmitter);                        // 同模块 MethodEmitter（this 自动注入）
+Expression.Call(methodEmitter, arg0, arg1);            // 同模块 MethodEmitter 有参（this 自动注入）
+Expression.Call(instance, methodEmitter, arg0, arg1);  // MethodEmitter 显式指定实例
 
 // DeclaringCall
 Expression.DeclaringCall(instance, methodInfo);
@@ -450,7 +615,7 @@ Expression.Invoke(instance, methodExpr, argsArrayExpr);
 
 ---
 
-### 9. 创建对象
+### 10. 创建对象
 
 ```csharp
 NewExpression New(Type instanceType);
@@ -463,7 +628,7 @@ Expression    New(ConstructorEmitter constructorEmitter, params Expression[] par
 
 ---
 
-### 10. 对象初始化器
+### 11. 对象初始化器
 
 ```csharp
 MemberAssignment     Bind(MemberInfo member, Expression expression);
@@ -475,7 +640,7 @@ MemberInitExpression MemberInit(NewExpression newExpression, IEnumerable<MemberA
 
 ---
 
-### 11. 数组
+### 12. 数组
 
 ```csharp
 NewArrayExpression    NewArray(int size);                              // new object[n]
@@ -489,7 +654,7 @@ ArrayLengthExpression ArrayLength(Expression array);                   // arr.Le
 
 ---
 
-### 12. 二元运算
+### 13. 二元运算
 
 #### 算术（返回操作数同类型，支持 `op_Addition` 等用户重载）
 
@@ -536,7 +701,7 @@ ArrayLengthExpression ArrayLength(Expression array);                   // arr.Le
 
 ---
 
-### 13. 一元运算
+### 14. 一元运算
 
 | 方法 | 等价 | 说明 |
 |------|------|------|
@@ -821,6 +986,20 @@ Type proxyType = cls.CreateType();
 
 ---
 
+## DynamicMethod — 动态方法包装
+
+`DynamicMethod` 继承自 `MethodInfo`，用于包装在动态类型中生成的方法，提供与反射兼容的 `MethodInfo` 接口。
+
+| 属性 | 类型 | 说明 |
+|------|------|------|
+| `RuntimeMethod` | `MethodInfo` | 实际运行时方法（通常为 `MethodBuilder`） |
+
+`DynamicMethod` 由框架内部自动创建，用户一般无需直接构造。当通过 `MethodEmitter.MakeGenericMethod(...)` 获取泛型实例化版本，或通过 `AbstractTypeEmitter.OverrideMethod(...)` 获取重写方法时，返回的即是 `DynamicMethod` 实例。
+
+`Expression.Call(DynamicMethod, args)` 与 `Expression.Call(instance, DynamicMethod, args)` 会将其作为普通 `MethodInfo` 处理，自动选择 `call` / `callvirt` 指令。
+
+---
+
 ## 行为约束 / 常见陷阱（Cheatsheet）
 
 | 事项 | 规则 |
@@ -835,6 +1014,11 @@ Type proxyType = cls.CreateType();
 | `Increment` vs `IncrementAssign` | 前者**不写回**变量，仅产生新值；后者**写回**，要求 `CanWrite == true` |
 | 赋值类型兼容 | 见第 5 节四条规则，任一满足即可 |
 | `Coalesce` 类型 | 左侧必须为引用类型或 `Nullable<T>` |
+| `Condition` 三目 | **必须有返回值**，void 分支或 `returnType=void` 抛 `AstException`，提示使用 `IfThenElse` |
+| `IfThen` / `IfThenElse` | **均为 void**，仅用于流程控制，不可作为返回值表达式；需返回值用 `Condition` |
+| `DeclaringCall` base 调用 | 获取基类 `MethodInfo` 后通过 `DeclaringCall` 发射 `call` 指令，绕过子类重写 |
+| 自定义特性 | 类型/方法/字段/属性均支持 `SetCustomAttribute` / `DefineCustomAttribute`，泛型快捷方式 `SetCustomAttribute<MyAttr>()` |
+| `ConstructorEmitter` 基类调用 | 使用 `InvokeBaseConstructor(ConstructorInfo, params Expression[])` 而非 `Expression.Base(...)` |
 
 ---
 

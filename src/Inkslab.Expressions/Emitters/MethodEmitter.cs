@@ -324,11 +324,6 @@ namespace Inkslab.Emitters
                 throw new ArgumentNullException(nameof(builder));
             }
 
-            if (_methodBuilder != null)
-            {
-                return;
-            }
-
             int index = 0;
 
             var parameterTypes = new Type[_parameters.Count];

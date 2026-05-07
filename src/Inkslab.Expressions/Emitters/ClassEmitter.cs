@@ -58,6 +58,11 @@ namespace Inkslab.Emitters
         /// 创建类型。
         /// </summary>
         /// <returns></returns>
-        public Type CreateType() => Emit();
+        public Type CreateType()
+        {
+            Define();
+
+            return Emit();
+        }
     }
 }

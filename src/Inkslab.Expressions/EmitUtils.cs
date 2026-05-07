@@ -1487,7 +1487,7 @@ namespace Inkslab
 
                         break;
                     case AbstractTypeEmitter typeEmitter:
-                        ilg.Emit(OpCodes.Ldtoken, typeEmitter.UncompiledType);
+                        ilg.Emit(OpCodes.Ldtoken, typeEmitter.Value);
                         ilg.Emit(OpCodes.Call, GetTypeFromHandle);
 
                         ilg.Emit(OpCodes.Castclass, valueType);

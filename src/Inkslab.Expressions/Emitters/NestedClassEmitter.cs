@@ -8,7 +8,6 @@ namespace Inkslab.Emitters
     /// </summary>
     public class NestedClassEmitter : AbstractTypeEmitter
     {
-
         /// <summary>
         /// 创建匿名类型的构造函数。
         /// </summary>
@@ -54,5 +53,10 @@ namespace Inkslab.Emitters
         {
 
         }
+
+        /// <summary>
+        /// 未编译类型。
+        /// </summary>
+        public Type UncompiledType => Value;
     }
 }

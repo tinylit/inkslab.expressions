@@ -22,6 +22,22 @@ namespace Inkslab
         public static ConvertExpression Convert(Expression body, Type convertToType) => new ConvertExpression(body, convertToType);
 
         /// <summary>
+        /// 类型转换。
+        /// </summary>
+        /// <param name="body">表达式。</param>
+        /// <param name="typeEmitter">转换目标类型发射器。</param>
+        /// <returns>类型转换表达式。</returns>
+        public static ConvertExpression Convert(Expression body, AbstractTypeEmitter typeEmitter)
+        {
+            if (typeEmitter is null)
+            {
+                throw new ArgumentNullException(nameof(typeEmitter));
+            }
+
+            return new ConvertExpression(body, typeEmitter.Value);
+        }
+
+        /// <summary>
         /// 默认值。
         /// </summary>
         /// <param name="defaultType">默认值。</param>
@@ -52,12 +68,44 @@ namespace Inkslab
         public static TypeIsExpression TypeIs(Expression body, Type bodyIsType) => new TypeIsExpression(body, bodyIsType);
 
         /// <summary>
+        /// 类型是。
+        /// </summary>
+        /// <param name="body">表达式。</param>
+        /// <param name="typeEmitter">判断类型发射器。</param>
+        /// <returns>类型判断表达式。</returns>
+        public static TypeIsExpression TypeIs(Expression body, AbstractTypeEmitter typeEmitter)
+        {
+            if (typeEmitter is null)
+            {
+                throw new ArgumentNullException(nameof(typeEmitter));
+            }
+
+            return new TypeIsExpression(body, typeEmitter.Value);
+        }
+
+        /// <summary>
         /// 类型转为。
         /// </summary>
         /// <param name="body">表达式。</param>
         /// <param name="bodyAsType">类型。</param>
         /// <returns>类型判断与转换表达式。</returns>
         public static TypeAsExpression TypeAs(Expression body, Type bodyAsType) => new TypeAsExpression(body, bodyAsType);
+
+        /// <summary>
+        /// 类型转为。
+        /// </summary>
+        /// <param name="body">表达式。</param>
+        /// <param name="typeEmitter">转换目标类型发射器。</param>
+        /// <returns>类型判断与转换表达式。</returns>
+        public static TypeAsExpression TypeAs(Expression body, AbstractTypeEmitter typeEmitter)
+        {
+            if (typeEmitter is null)
+            {
+                throw new ArgumentNullException(nameof(typeEmitter));
+            }
+
+            return new TypeAsExpression(body, typeEmitter.Value);
+        }
 
         /// <summary>
         /// 创建实例。
