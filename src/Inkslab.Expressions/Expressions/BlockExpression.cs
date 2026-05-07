@@ -1,7 +1,5 @@
-﻿using Inkslab.Emitters;
-using System;
+﻿using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Reflection.Emit;
 
 namespace Inkslab.Expressions
@@ -22,7 +20,7 @@ namespace Inkslab.Expressions
             /// <summary>
             /// 构造函数。
             /// </summary>
-            private NopExpression() : base(typeof(void))
+            private NopExpression()
             {
             }
 
@@ -34,6 +32,7 @@ namespace Inkslab.Expressions
         }
 
         private bool _isReadOnly = false;
+        private Expression _lastCode;
 
         internal BlockExpression()
         {
@@ -66,9 +65,7 @@ namespace Inkslab.Expressions
                     return IsVoid;
                 }
 
-                Expression last = _codes.Last();
-
-                return last is GotoExpression or ReturnExpression or BreakExpression or ContinueExpression or ThrowExpression;
+                return _lastCode is GotoExpression or ReturnExpression or BreakExpression or ContinueExpression or ThrowExpression;
             }
         }
 
@@ -100,11 +97,7 @@ namespace Inkslab.Expressions
                     goto label_core;
                 }
 
-                int index = _codes.Count - 1;
-
-                Expression lastCode = _codes[index];
-
-                if (lastCode is GotoExpression or ReturnExpression or BreakExpression or ContinueExpression or ThrowExpression)
+                if (_lastCode is GotoExpression or ReturnExpression or BreakExpression or ContinueExpression or ThrowExpression)
                 {
                     return this;
                 }
@@ -114,8 +107,8 @@ namespace Inkslab.Expressions
                 blockAst._isReadOnly = true;
             }
 
-label_core:
-            _codes.Add(code);
+        label_core:
+            _codes.Add(_lastCode = code);
 
             if (checkFlag)
             {
@@ -123,7 +116,7 @@ label_core:
                 {
                     if (!code.IsVoid)
                     {
-                        _codes.Add(NopExpression.Instance);
+                        _codes.Add(_lastCode = NopExpression.Instance);
                     }
                 }
                 else if (code.IsVoid || RuntimeType == code.RuntimeType)
@@ -132,7 +125,7 @@ label_core:
                 }
                 else if (RuntimeType.IsGenericType || RuntimeType.IsGenericParameter || code.RuntimeType.IsGenericType || code.RuntimeType.IsGenericParameter || !RuntimeType.IsAssignableFrom(code.RuntimeType)) // 解决泛型类调用“IsAssignableFrom”方法异常。
                 {
-                    _codes.Add(NopExpression.Instance);
+                    _codes.Add(_lastCode = NopExpression.Instance);
                 }
             }
 
@@ -176,14 +169,7 @@ label_core:
                 return false;
             }
 
-            var last = _codes.Last();
-
-            if (last is ThrowExpression)
-            {
-                return true;
-            }
-
-            return last.DetectionResult(returnType);
+            return _lastCode.DetectionResult(returnType);
         }
 
         /// <summary>
@@ -202,16 +188,14 @@ label_core:
                 throw new NotSupportedException("并发所有代码路径都有返回值！");
             }
 
-            var last = _codes.Last();
-
-            if (last is GotoExpression || last is ReturnExpression || last is BreakExpression || last is ContinueExpression || last is ThrowExpression || last.DetectionResult(RuntimeType))
+            if (_lastCode is GotoExpression or ReturnExpression or BreakExpression or ContinueExpression or ThrowExpression || _lastCode.DetectionResult(RuntimeType))
             {
                 goto label_core;
             }
 
             throw new NotSupportedException("并发所有代码路径都有返回值！");
 
-label_core:
+        label_core:
             foreach (var code in _codes)
             {
                 code.Load(ilg);

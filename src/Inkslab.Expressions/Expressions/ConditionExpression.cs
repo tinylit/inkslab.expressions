@@ -36,6 +36,11 @@ namespace Inkslab.Expressions
         {
             _test = test ?? throw new ArgumentNullException(nameof(test));
 
+            if (returnType == typeof(void))
+            {
+                throw new AstException("三目运算表达式必须有返回值，无返回值请使用 IfThenElse 表达式！");
+            }
+
             if (test.RuntimeType == typeof(bool))
             {
                 _ifTrue = ifTrue ?? throw new ArgumentNullException(nameof(ifTrue));
@@ -44,11 +49,6 @@ namespace Inkslab.Expressions
             else
             {
                 throw new ArgumentException("不是有效的条件语句!", nameof(test));
-            }
-
-            if (returnType == typeof(void))
-            {
-                return;
             }
 
             if (returnType == ifTrue.RuntimeType)
@@ -120,18 +120,6 @@ namespace Inkslab.Expressions
         /// <param name="ilg">指令。</param>
         public override void Load(ILGenerator ilg)
         {
-            if (IsVoid)
-            {
-                EmitVoid(ilg);
-            }
-            else
-            {
-                Emit(ilg);
-            }
-        }
-
-        private void Emit(ILGenerator ilg)
-        {
             var label = ilg.DefineLabel();
             var leave = ilg.DefineLabel();
             var variable = ilg.DeclareLocal(RuntimeType);
@@ -157,38 +145,6 @@ namespace Inkslab.Expressions
             ilg.MarkLabel(leave);
 
             ilg.Emit(OpCodes.Ldloc, variable);
-        }
-
-        private void EmitVoid(ILGenerator ilg)
-        {
-            var label = ilg.DefineLabel();
-            var leave = ilg.DefineLabel();
-
-            _test.Load(ilg);
-
-            ilg.Emit(OpCodes.Brfalse_S, label);
-
-            ilg.Emit(OpCodes.Nop);
-
-            _ifTrue.Load(ilg);
-
-            if (_ifTrue.RuntimeType != typeof(void))
-            {
-                ilg.Emit(OpCodes.Pop);
-            }
-
-            ilg.Emit(OpCodes.Br, leave);
-
-            ilg.MarkLabel(label);
-
-            _ifFalse.Load(ilg);
-
-            if (_ifFalse.RuntimeType != typeof(void))
-            {
-                ilg.Emit(OpCodes.Pop);
-            }
-
-            ilg.MarkLabel(leave);
         }
     }
 }

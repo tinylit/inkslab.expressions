@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Diagnostics;
-using System.Reflection;
 using System.Reflection.Emit;
 
 namespace Inkslab.Expressions
@@ -54,5 +53,8 @@ namespace Inkslab.Expressions
 
             ilg.Emit(OpCodes.Throw);
         }
+
+        /// <inheritdoc/>
+        override protected internal bool DetectionResult(Type returnType) => true;
     }
 }

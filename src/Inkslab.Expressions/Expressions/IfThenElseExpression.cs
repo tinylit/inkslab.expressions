@@ -84,9 +84,6 @@ namespace Inkslab.Expressions
         }
 
         /// <inheritdoc/>
-        protected internal override bool DetectionResult(Type returnType)
-        {
-            return _ifTrue.DetectionResult(returnType) && _ifFalse.DetectionResult(returnType);
-        }
+        protected internal override bool DetectionResult(Type returnType) => false;
     }
 }

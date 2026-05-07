@@ -1,5 +1,4 @@
 using Xunit;
-using Inkslab.Emitters;
 using System;
 using System.Reflection;
 

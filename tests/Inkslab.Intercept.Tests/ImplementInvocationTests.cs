@@ -1,6 +1,4 @@
 using System;
-using System.Reflection;
-using Inkslab.Intercept;
 using Xunit;
 
 #pragma warning disable CS1591 // 测试方法不需要 XML 注释

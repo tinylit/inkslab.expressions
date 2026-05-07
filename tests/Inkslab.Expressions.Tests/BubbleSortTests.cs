@@ -1,7 +1,5 @@
 using System;
 using System.Reflection;
-using Inkslab;
-using Inkslab.Emitters;
 using Xunit;
 
 namespace Inkslab.Expressions.Tests

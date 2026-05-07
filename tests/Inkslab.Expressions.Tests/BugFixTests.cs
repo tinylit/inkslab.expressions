@@ -1,5 +1,4 @@
 using Xunit;
-using Inkslab.Emitters;
 using System;
 using System.Reflection;
 
@@ -127,34 +126,27 @@ namespace Inkslab.Expressions.Tests
         }
 
         /// <summary>
-        /// 修复：ConditionExpression void 版本（EmitVoid）不应重复标记标签。
+        /// ConditionExpression 三目运算必须有返回值，void 场景应抛出 AstException 并建议使用 IfThenElse。
         /// </summary>
         [Fact]
-        public void ConditionExpression_VoidBranches_ShouldNotThrow()
+        public void ConditionExpression_VoidBranches_ShouldThrow()
         {
-            // Arrange：void CondVoid(bool flag, int x) { _ = flag ? x + 1 : x + 2; }
-            // 两个分支都产生 int 值，但 returnType 为 void（丢弃结果），触发 EmitVoid 路径
             var typeEmitter = _emitter.DefineType($"CondVoidTest_{Guid.NewGuid():N}", TypeAttributes.Public | TypeAttributes.Class);
             var methodEmitter = typeEmitter.DefineMethod("CondVoid", MethodAttributes.Public | MethodAttributes.Static, typeof(void));
             var flagParam = methodEmitter.DefineParameter(typeof(bool), "flag");
             var xParam = methodEmitter.DefineParameter(typeof(int), "x");
 
-            methodEmitter.Append(
-                Expression.Condition(
-                    flagParam,
-                    Expression.Add(xParam, Expression.Constant(1)),
-                    Expression.Add(xParam, Expression.Constant(2)),
-                    typeof(void)
-                )
-            );
+            var ex = Assert.Throws<AstException>(() =>
+                methodEmitter.Append(
+                    Expression.Condition(
+                        flagParam,
+                        Expression.Add(xParam, Expression.Constant(1)),
+                        Expression.Add(xParam, Expression.Constant(2)),
+                        typeof(void)
+                    )
+                ));
 
-            // Act：创建类型不应抛异常（之前因 EmitVoid 中 label 被标记两次会产生无效 IL）
-            var type = typeEmitter.CreateType();
-            var method = type.GetMethod("CondVoid");
-
-            // Assert：执行不抛异常
-            method.Invoke(null, new object[] { true, 10 });
-            method.Invoke(null, new object[] { false, 10 });
+            Assert.Contains("IfThenElse", ex.Message);
         }
 
         /// <summary>
@@ -469,6 +461,8 @@ namespace Inkslab.Expressions.Tests
             ifFalse.Append(Expression.Return(Expression.Constant(2)));
 
             method.Append(Expression.IfThenElse(flag, ifTrue, ifFalse));
+            // IfThenElse 已调整为 void，所有分支含 Return，此处不可达。
+            method.Append(Expression.Throw(typeof(InvalidOperationException)));
 
             var type = typeEmitter.CreateType();
             var mi = type.GetMethod("Choose");
@@ -518,6 +512,8 @@ namespace Inkslab.Expressions.Tests
                 Expression.GreaterThan(v, Expression.Constant(0)),
                 positiveBlock,
                 innerElseBlock));
+            // 所有分支含 Return，此处不可达。
+            method.Append(Expression.Throw(typeof(InvalidOperationException)));
 
             var type = typeEmitter.CreateType();
             var mi = type.GetMethod("Classify");

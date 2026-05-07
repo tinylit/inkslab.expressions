@@ -1,10 +1,6 @@
-﻿using Inkslab.Emitters;
-using Inkslab.Expressions;
+﻿using Inkslab.Expressions;
 using System;
-using System.Collections.Generic;
 using System.Diagnostics;
-using System.Linq;
-using System.Reflection;
 using System.Reflection.Emit;
 
 namespace Inkslab
@@ -131,9 +127,7 @@ namespace Inkslab
                 throw new ArgumentException("左侧表达式不可写!");
             }
 
-            var returnType = left.RuntimeType;
-
-            if (returnType == typeof(void))
+            if (left.IsVoid)
             {
                 throw new AstException("不能对无返回值类型进行赋值运算!");
             }
@@ -143,12 +137,14 @@ namespace Inkslab
                 return;
             }
 
-            var valueType = right.RuntimeType;
-
-            if (valueType == typeof(void))
+            if (right.IsVoid)
             {
                 throw new AstException("无返回值类型赋值不能用于赋值运算!");
             }
+
+            var returnType = left.RuntimeType;
+
+            var valueType = right.RuntimeType;
 
             if (!ConvertChecked(returnType, valueType))
             {
@@ -221,7 +217,7 @@ namespace Inkslab
         /// 结果检测。
         /// </summary>
         /// <param name="returnType">返回类型。</param>
-        protected internal virtual bool DetectionResult(Type returnType) => returnType == RuntimeType;
+        protected internal virtual bool DetectionResult(Type returnType) => !IsVoid && returnType == RuntimeType;
 
         #region 表达式模块
 
