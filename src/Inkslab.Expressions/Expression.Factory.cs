@@ -547,6 +547,24 @@ namespace Inkslab
         /// <summary>位运算：异或等于。</summary>
         public static BinaryExpression ExclusiveOrAssign(Expression left, Expression right) => new BinaryExpression(left, BinaryExpressionType.ExclusiveOrAssign, right);
 
+        /// <summary>左移。</summary>
+        public static BinaryExpression LeftShift(Expression left, Expression right) => new BinaryExpression(left, BinaryExpressionType.LeftShift, right);
+
+        /// <summary>左移等于。</summary>
+        public static BinaryExpression LeftShiftAssign(Expression left, Expression right) => new BinaryExpression(left, BinaryExpressionType.LeftShiftAssign, right);
+
+        /// <summary>右移。</summary>
+        public static BinaryExpression RightShift(Expression left, Expression right) => new BinaryExpression(left, BinaryExpressionType.RightShift, right);
+
+        /// <summary>右移等于。</summary>
+        public static BinaryExpression RightShiftAssign(Expression left, Expression right) => new BinaryExpression(left, BinaryExpressionType.RightShiftAssign, right);
+
+        /// <summary>幂运算（仅支持 <see cref="double"/>，NETSTANDARD2_1+ 还支持 <see cref="float"/>）。</summary>
+        public static BinaryExpression Power(Expression left, Expression right) => new BinaryExpression(left, BinaryExpressionType.Power, right);
+
+        /// <summary>幂等于。</summary>
+        public static BinaryExpression PowerAssign(Expression left, Expression right) => new BinaryExpression(left, BinaryExpressionType.PowerAssign, right);
+
         /// <summary>等于。</summary>
         public static BinaryExpression Equal(Expression left, Expression right) => new BinaryExpression(left, BinaryExpressionType.Equal, right);
 

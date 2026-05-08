@@ -48,7 +48,7 @@ namespace Inkslab.Expressions
         /// <param name="left">左表达式。</param>
         /// <param name="expressionType">计算方式。</param>
         /// <param name="right">右表达式。</param>
-        internal BinaryExpression(Expression left, BinaryExpressionType expressionType, Expression right) : base(AnalysisType(left, expressionType, right, out MethodInfo operatorMethod, out NullableComparisonKind nullableComparisonKind, out Type nullableUnderlyingType))
+        internal BinaryExpression(Expression left, BinaryExpressionType expressionType, Expression right) : base(AnalysisType(ref left, expressionType, ref right, out MethodInfo operatorMethod, out NullableComparisonKind nullableComparisonKind, out Type nullableUnderlyingType))
         {
             _left = left;
             _expressionType = expressionType;
@@ -58,7 +58,7 @@ namespace Inkslab.Expressions
             _nullableUnderlyingType = nullableUnderlyingType;
         }
 
-        private static Type AnalysisType(Expression left, BinaryExpressionType expressionType, Expression right, out MethodInfo operatorMethod, out NullableComparisonKind nullableComparisonKind, out Type nullableUnderlyingType)
+        private static Type AnalysisType(ref Expression left, BinaryExpressionType expressionType, ref Expression right, out MethodInfo operatorMethod, out NullableComparisonKind nullableComparisonKind, out Type nullableUnderlyingType)
         {
             operatorMethod = null;
             nullableComparisonKind = NullableComparisonKind.None;
@@ -75,7 +75,19 @@ namespace Inkslab.Expressions
                     {
                         return left.RuntimeType;
                     }
-                    return AnalysisTypeByCustom(left, expressionType, right, ref operatorMethod, ref nullableUnderlyingType, ref nullableComparisonKind);
+                    if (IsCompoundAssignment(expressionType))
+                    {
+                        // 复合赋值仅允许右侧隐式提升到左侧类型（如 long += int），结果类型恒为左侧类型
+                        if (TryPromoteCompoundAssignment(ref right, left.RuntimeType, integerOnly: false))
+                        {
+                            return left.RuntimeType;
+                        }
+                    }
+                    else if (TryPromoteArithmetic(ref left, ref right, out Type promotedArithType))
+                    {
+                        return promotedArithType;
+                    }
+                    return AnalysisTypeByCustom(ref left, expressionType, ref right, ref operatorMethod, ref nullableUnderlyingType, ref nullableComparisonKind);
                 case BinaryExpressionType.LessThan:
                 case BinaryExpressionType.LessThanOrEqual:
                 case BinaryExpressionType.Equal:
@@ -90,7 +102,11 @@ namespace Inkslab.Expressions
                     {
                         return typeof(bool);
                     }
-                    return AnalysisTypeByCustom(left, expressionType, right, ref operatorMethod, ref nullableUnderlyingType, ref nullableComparisonKind);
+                    if (TryPromoteArithmetic(ref left, ref right, out _))
+                    {
+                        return typeof(bool);
+                    }
+                    return AnalysisTypeByCustom(ref left, expressionType, ref right, ref operatorMethod, ref nullableUnderlyingType, ref nullableComparisonKind);
                 case BinaryExpressionType.OrElse:
                 case BinaryExpressionType.AndAlso:
                     if (left.RuntimeType == right.RuntimeType && left.RuntimeType == typeof(bool))
@@ -105,7 +121,18 @@ namespace Inkslab.Expressions
                     {
                         return left.RuntimeType;
                     }
-                    return AnalysisTypeByCustom(left, expressionType, right, ref operatorMethod, ref nullableUnderlyingType, ref nullableComparisonKind);
+                    if (IsCompoundAssignment(expressionType))
+                    {
+                        if (TryPromoteCompoundAssignment(ref right, left.RuntimeType, integerOnly: true))
+                        {
+                            return left.RuntimeType;
+                        }
+                    }
+                    else if (TryPromoteBitwise(ref left, ref right, out Type promotedBitType))
+                    {
+                        return promotedBitType;
+                    }
+                    return AnalysisTypeByCustom(ref left, expressionType, ref right, ref operatorMethod, ref nullableUnderlyingType, ref nullableComparisonKind);
                 case BinaryExpressionType.LeftShift:
                 case BinaryExpressionType.RightShift:
                     if (IsInteger(left.RuntimeType))
@@ -167,7 +194,7 @@ namespace Inkslab.Expressions
             }
         }
 
-        private static Type AnalysisTypeByCustom(Expression left, BinaryExpressionType expressionType, Expression right, ref MethodInfo operatorMethod, ref Type nullableUnderlyingType, ref NullableComparisonKind nullableComparisonKind)
+        private static Type AnalysisTypeByCustom(ref Expression left, BinaryExpressionType expressionType, ref Expression right, ref MethodInfo operatorMethod, ref Type nullableUnderlyingType, ref NullableComparisonKind nullableComparisonKind)
         {
             var leftType = left.RuntimeType;
             var rightType = right.RuntimeType;
@@ -175,7 +202,7 @@ namespace Inkslab.Expressions
             // 对于相等性比较，优先尝试可空类型的特殊处理
             if (IsEqualityComparison(expressionType))
             {
-                if (TryHandleNullableComparison(leftType, rightType, out var resultType, out nullableComparisonKind, out nullableUnderlyingType))
+                if (TryHandleNullableComparison(ref left, ref right, out var resultType, out nullableComparisonKind, out nullableUnderlyingType))
                 {
                     return resultType;
                 }
@@ -225,6 +252,222 @@ namespace Inkslab.Expressions
                 return true;
             }
             return false;
+        }
+
+        /// <summary>
+        /// 对算术/比较分支尝试 C# 二元数值提升：当左右类型不同（或底层不同）时，
+        /// 计算公共类型并将窄侧包装为 <see cref="ConvertExpression"/>。
+        /// 排除 nullable 与 enum：前者由 <see cref="TryHandleNullableComparison"/> 处理，
+        /// 后者由 <see cref="IsEnumIntegerCompatible"/> 处理。
+        /// </summary>
+        private static bool TryPromoteArithmetic(ref Expression left, ref Expression right, out Type promotedType)
+        {
+            var leftType = left.RuntimeType;
+            var rightType = right.RuntimeType;
+
+            if (leftType.IsNullable() || rightType.IsNullable()
+                || leftType.IsEnum || rightType.IsEnum
+                || !IsArithmeticUnderlying(leftType) || !IsArithmeticUnderlying(rightType))
+            {
+                promotedType = null;
+                return false;
+            }
+
+            promotedType = GetNumericPromotionType(leftType, rightType);
+            if (promotedType is null)
+            {
+                return false;
+            }
+
+            if (leftType != promotedType)
+            {
+                left = new ConvertExpression(left, promotedType);
+            }
+            if (rightType != promotedType)
+            {
+                right = new ConvertExpression(right, promotedType);
+            }
+            return true;
+        }
+
+        /// <summary>
+        /// 计算两个数值类型的二元提升公共类型（参照 ECMA C# spec §11.4.7）：
+        /// double > float > ulong > long > uint > int。
+        /// 若组合在 C# 中不允许（如 ulong 与有符号整数混用），返回 <c>null</c>。
+        /// </summary>
+        private static Type GetNumericPromotionType(Type leftType, Type rightType)
+        {
+            var lTC = Type.GetTypeCode(leftType);
+            var rTC = Type.GetTypeCode(rightType);
+
+            if (lTC == TypeCode.Double || rTC == TypeCode.Double)
+            {
+                return typeof(double);
+            }
+            if (lTC == TypeCode.Single || rTC == TypeCode.Single)
+            {
+                return typeof(float);
+            }
+            if (lTC == TypeCode.UInt64 || rTC == TypeCode.UInt64)
+            {
+                if (IsSignedIntegerCode(lTC) || IsSignedIntegerCode(rTC))
+                {
+                    return null;
+                }
+                return typeof(ulong);
+            }
+            if (lTC == TypeCode.Int64 || rTC == TypeCode.Int64)
+            {
+                return typeof(long);
+            }
+            if (lTC == TypeCode.UInt32 || rTC == TypeCode.UInt32)
+            {
+                if (IsSignedSmallerCode(lTC) || IsSignedSmallerCode(rTC))
+                {
+                    return typeof(long);
+                }
+                return typeof(uint);
+            }
+            return typeof(int);
+        }
+
+        private static bool IsSignedIntegerCode(TypeCode tc) =>
+            tc is TypeCode.SByte or TypeCode.Int16 or TypeCode.Int32 or TypeCode.Int64;
+
+        private static bool IsSignedSmallerCode(TypeCode tc) =>
+            tc is TypeCode.SByte or TypeCode.Int16 or TypeCode.Int32;
+
+        /// <summary>
+        /// 对位运算（<c>&amp;</c>、<c>|</c>、<c>^</c>）尝试 C# 二元数值提升。
+        /// 仅整数类型参与；浮点禁止；enum 走同类型快速路径。
+        /// </summary>
+        private static bool TryPromoteBitwise(ref Expression left, ref Expression right, out Type promotedType)
+        {
+            var leftType = left.RuntimeType;
+            var rightType = right.RuntimeType;
+
+            // IsInteger 已排除 nullable；enum 由 IsIntegerOrBool 同类型快速路径处理
+            if (leftType.IsEnum || rightType.IsEnum
+                || !IsInteger(leftType) || !IsInteger(rightType))
+            {
+                promotedType = null;
+                return false;
+            }
+
+            promotedType = GetNumericPromotionType(leftType, rightType);
+            if (promotedType is null)
+            {
+                return false;
+            }
+
+            if (leftType != promotedType)
+            {
+                left = new ConvertExpression(left, promotedType);
+            }
+            if (rightType != promotedType)
+            {
+                right = new ConvertExpression(right, promotedType);
+            }
+            return true;
+        }
+
+        /// <summary>
+        /// 判断给定运算是否为复合赋值（如 <c>+=</c>、<c>|=</c>）。
+        /// 利用 <see cref="BinaryExpressionType"/> 设计上"赋值变体 = 非赋值变体 + 1"的偶数规律。
+        /// 复合赋值仅允许右侧隐式提升到左侧类型，以保持左侧可写。
+        /// </summary>
+        private static bool IsCompoundAssignment(BinaryExpressionType expressionType)
+        {
+            return expressionType < BinaryExpressionType.OrElse
+                && (expressionType & BinaryExpressionType.Add) == 0;
+        }
+
+        /// <summary>
+        /// 复合赋值的右侧提升（仅 wrap 右侧到左侧类型，保持左侧可写）：
+        /// C# 复合赋值 <c>x op= y</c> 等价于 <c>x = (T)(x op y)</c>，要求 <c>y</c> 能**隐式**转换为 <c>x</c> 的类型 <c>T</c>。
+        /// 例如 <c>long += int</c>、<c>int += byte</c>、<c>double += float</c>、<c>long += uint</c> 均合法；
+        /// 而 <c>int += long</c>、<c>byte += int</c>、<c>uint += int</c>、<c>float += double</c> 不合法（结果窄化需 explicit）。
+        /// 当 <paramref name="integerOnly"/> 为 <c>true</c>（位运算分支调用），同时排除浮点参与。
+        /// </summary>
+        private static bool TryPromoteCompoundAssignment(ref Expression right, Type leftType, bool integerOnly)
+        {
+            var rightType = right.RuntimeType;
+
+            if (leftType.IsNullable() || rightType.IsNullable()
+                || leftType.IsEnum || rightType.IsEnum)
+            {
+                return false;
+            }
+
+            if (integerOnly)
+            {
+                if (!IsInteger(leftType) || !IsInteger(rightType))
+                {
+                    return false;
+                }
+            }
+            else
+            {
+                if (!IsArithmeticUnderlying(leftType) || !IsArithmeticUnderlying(rightType))
+                {
+                    return false;
+                }
+            }
+
+            if (rightType == leftType || !IsImplicitlyConvertibleNumeric(rightType, leftType))
+            {
+                return false;
+            }
+
+            right = new ConvertExpression(right, leftType);
+            return true;
+        }
+
+        /// <summary>
+        /// C# 隐式数值转换判定（参照 ECMA C# spec §10.2.3）。
+        /// 给定 <paramref name="from"/> 和 <paramref name="to"/> 两个原始数值类型（不含 nullable / enum，由调用方排除），
+        /// 返回是否存在隐式转换路径。decimal 不在本框架的算术支持范围内，因而不参与判定。
+        /// </summary>
+        private static bool IsImplicitlyConvertibleNumeric(Type from, Type to)
+        {
+            if (from == to)
+            {
+                return true;
+            }
+
+            var fromTC = Type.GetTypeCode(from);
+            var toTC = Type.GetTypeCode(to);
+
+            switch (fromTC)
+            {
+                case TypeCode.SByte:
+                    return toTC is TypeCode.Int16 or TypeCode.Int32 or TypeCode.Int64
+                        or TypeCode.Single or TypeCode.Double;
+                case TypeCode.Byte:
+                    return toTC is TypeCode.Int16 or TypeCode.UInt16 or TypeCode.Int32 or TypeCode.UInt32
+                        or TypeCode.Int64 or TypeCode.UInt64 or TypeCode.Single or TypeCode.Double;
+                case TypeCode.Int16:
+                    return toTC is TypeCode.Int32 or TypeCode.Int64
+                        or TypeCode.Single or TypeCode.Double;
+                case TypeCode.UInt16:
+                    return toTC is TypeCode.Int32 or TypeCode.UInt32 or TypeCode.Int64 or TypeCode.UInt64
+                        or TypeCode.Single or TypeCode.Double;
+                case TypeCode.Int32:
+                    return toTC is TypeCode.Int64 or TypeCode.Single or TypeCode.Double;
+                case TypeCode.UInt32:
+                    return toTC is TypeCode.Int64 or TypeCode.UInt64
+                        or TypeCode.Single or TypeCode.Double;
+                case TypeCode.Int64:
+                case TypeCode.UInt64:
+                    return toTC is TypeCode.Single or TypeCode.Double;
+                case TypeCode.Char:
+                    return toTC is TypeCode.UInt16 or TypeCode.Int32 or TypeCode.UInt32
+                        or TypeCode.Int64 or TypeCode.UInt64 or TypeCode.Single or TypeCode.Double;
+                case TypeCode.Single:
+                    return toTC == TypeCode.Double;
+                default:
+                    return false;
+            }
         }
 
         private static string GetOperatorName(BinaryExpressionType expressionType, Type leftType, Type rightType)
@@ -304,51 +547,104 @@ namespace Inkslab.Expressions
         }
 
         /// <summary>
-        /// 尝试处理可空类型的比较操作
+        /// 尝试处理可空类型的比较操作。底层类型不同的情况下按 C# 数值提升表统一到公共底层类型。
         /// </summary>
-        private static bool TryHandleNullableComparison(Type leftType, Type rightType, out Type resultType, out NullableComparisonKind nullableComparisonKind, out Type nullableUnderlyingType)
+        private static bool TryHandleNullableComparison(ref Expression left, ref Expression right, out Type resultType, out NullableComparisonKind nullableComparisonKind, out Type nullableUnderlyingType)
         {
+            var leftType = left.RuntimeType;
+            var rightType = right.RuntimeType;
             var leftUnderlyingType = Nullable.GetUnderlyingType(leftType);
             var rightUnderlyingType = Nullable.GetUnderlyingType(rightType);
 
-            // 场景 1: 两个操作数都是可空类型 (T? == T?)
-            if (leftUnderlyingType is not null && rightUnderlyingType is not null)
+            // 至少有一边是可空类型，本方法才负责处理
+            if (leftUnderlyingType is null && rightUnderlyingType is null)
             {
-                if (leftUnderlyingType == rightUnderlyingType && IsArithmeticUnderlying(leftUnderlyingType))
-                {
-                    resultType = typeof(bool);
-                    nullableComparisonKind = NullableComparisonKind.BothNullable;
-                    nullableUnderlyingType = leftUnderlyingType;
-                    return true;
-                }
+                resultType = null;
+                nullableComparisonKind = NullableComparisonKind.None;
+                nullableUnderlyingType = null;
+                return false;
             }
-            // 场景 2: 左操作数可空，右操作数不可空 (T? == T)
-            else if (leftUnderlyingType is not null && rightUnderlyingType is null)
+
+            var leftEffective = leftUnderlyingType ?? leftType;
+            var rightEffective = rightUnderlyingType ?? rightType;
+
+            // 双方有效底层都需是可参与提升的算术类型
+            if (!IsArithmeticUnderlying(leftEffective) || !IsArithmeticUnderlying(rightEffective))
             {
-                if (leftUnderlyingType == rightType && IsArithmeticUnderlying(leftUnderlyingType))
-                {
-                    resultType = typeof(bool);
-                    nullableComparisonKind = NullableComparisonKind.LeftNullable;
-                    nullableUnderlyingType = leftUnderlyingType;
-                    return true;
-                }
+                resultType = null;
+                nullableComparisonKind = NullableComparisonKind.None;
+                nullableUnderlyingType = null;
+                return false;
             }
-            // 场景 3: 左操作数不可空，右操作数可空 (T == T?)
-            else if (leftUnderlyingType is null && rightUnderlyingType is not null)
+
+            Type commonUnderlying;
+            if (leftEffective == rightEffective)
             {
-                if (leftType == rightUnderlyingType && IsArithmeticUnderlying(rightUnderlyingType))
+                // 同底层快速路径
+                commonUnderlying = leftEffective;
+            }
+            else
+            {
+                // 异底层：含 enum 时跳过（enum 仅在底层完全相同的情况下支持，避免引入超出 C# 语义的混用）
+                if (leftEffective.IsEnum || rightEffective.IsEnum)
                 {
-                    resultType = typeof(bool);
-                    nullableComparisonKind = NullableComparisonKind.RightNullable;
-                    nullableUnderlyingType = rightUnderlyingType;
-                    return true;
+                    resultType = null;
+                    nullableComparisonKind = NullableComparisonKind.None;
+                    nullableUnderlyingType = null;
+                    return false;
+                }
+
+                commonUnderlying = GetNumericPromotionType(leftEffective, rightEffective);
+                if (commonUnderlying is null)
+                {
+                    resultType = null;
+                    nullableComparisonKind = NullableComparisonKind.None;
+                    nullableUnderlyingType = null;
+                    return false;
                 }
             }
 
-            resultType = null;
-            nullableComparisonKind = NullableComparisonKind.None;
-            nullableUnderlyingType = null;
-            return false;
+            // 必要时把每一边包装为目标类型：可空一侧→Nullable<commonUnderlying>，不可空一侧→commonUnderlying
+            if (leftUnderlyingType is not null)
+            {
+                if (leftEffective != commonUnderlying)
+                {
+                    left = new ConvertExpression(left, typeof(Nullable<>).MakeGenericType(commonUnderlying));
+                }
+            }
+            else if (leftEffective != commonUnderlying)
+            {
+                left = new ConvertExpression(left, commonUnderlying);
+            }
+
+            if (rightUnderlyingType is not null)
+            {
+                if (rightEffective != commonUnderlying)
+                {
+                    right = new ConvertExpression(right, typeof(Nullable<>).MakeGenericType(commonUnderlying));
+                }
+            }
+            else if (rightEffective != commonUnderlying)
+            {
+                right = new ConvertExpression(right, commonUnderlying);
+            }
+
+            if (leftUnderlyingType is not null && rightUnderlyingType is not null)
+            {
+                nullableComparisonKind = NullableComparisonKind.BothNullable;
+            }
+            else if (leftUnderlyingType is not null)
+            {
+                nullableComparisonKind = NullableComparisonKind.LeftNullable;
+            }
+            else
+            {
+                nullableComparisonKind = NullableComparisonKind.RightNullable;
+            }
+
+            nullableUnderlyingType = commonUnderlying;
+            resultType = typeof(bool);
+            return true;
         }
 
         /// <summary>
