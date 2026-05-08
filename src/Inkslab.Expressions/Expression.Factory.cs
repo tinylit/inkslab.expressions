@@ -19,7 +19,25 @@ namespace Inkslab
         /// <param name="body">表达式。</param>
         /// <param name="convertToType">转换类型。</param>
         /// <returns>类型转换表达式。</returns>
-        public static ConvertExpression Convert(Expression body, Type convertToType) => new ConvertExpression(body, convertToType);
+        public static ConvertExpression Convert(Expression body, Type convertToType)
+        {
+            if (body is null)
+            {
+                throw new ArgumentNullException(nameof(body));
+            }
+
+            if (body.IsVoid)
+            {
+                throw new AstException("表达式\"void\"无效！");
+            }
+
+            if (convertToType == typeof(void))
+            {
+                throw new AstException($"无法将\"{body.RuntimeType}\"转为\"void\"！");
+            }
+
+            return new ConvertExpression(body, convertToType);
+        }
 
         /// <summary>
         /// 类型转换。
@@ -34,7 +52,7 @@ namespace Inkslab
                 throw new ArgumentNullException(nameof(typeEmitter));
             }
 
-            return new ConvertExpression(body, typeEmitter.Value);
+            return Convert(body, typeEmitter.Value);
         }
 
         /// <summary>
@@ -65,7 +83,25 @@ namespace Inkslab
         /// <param name="body">表达式。</param>
         /// <param name="bodyIsType">类型。</param>
         /// <returns>类型判断表达式。</returns>
-        public static TypeIsExpression TypeIs(Expression body, Type bodyIsType) => new TypeIsExpression(body, bodyIsType);
+        public static TypeIsExpression TypeIs(Expression body, Type bodyIsType)
+        {
+            if (body is null)
+            {
+                throw new ArgumentNullException(nameof(body));
+            }
+
+            if (bodyIsType is null)
+            {
+                throw new ArgumentNullException(nameof(bodyIsType));
+            }
+
+            if (body.IsVoid)
+            {
+                throw new AstException("表达式\"is\"无效！");
+            }
+
+            return new TypeIsExpression(body, bodyIsType);
+        }
 
         /// <summary>
         /// 类型是。
@@ -80,7 +116,7 @@ namespace Inkslab
                 throw new ArgumentNullException(nameof(typeEmitter));
             }
 
-            return new TypeIsExpression(body, typeEmitter.Value);
+            return TypeIs(body, typeEmitter.Value);
         }
 
         /// <summary>
@@ -89,7 +125,20 @@ namespace Inkslab
         /// <param name="body">表达式。</param>
         /// <param name="bodyAsType">类型。</param>
         /// <returns>类型判断与转换表达式。</returns>
-        public static TypeAsExpression TypeAs(Expression body, Type bodyAsType) => new TypeAsExpression(body, bodyAsType);
+        public static TypeAsExpression TypeAs(Expression body, Type bodyAsType)
+        {
+            if (body is null)
+            {
+                throw new ArgumentNullException(nameof(body));
+            }
+
+            if (body.IsVoid)
+            {
+                throw new AstException("表达式\"as\"无效!");
+            }
+
+            return new TypeAsExpression(body, bodyAsType);
+        }
 
         /// <summary>
         /// 类型转为。
@@ -104,7 +153,7 @@ namespace Inkslab
                 throw new ArgumentNullException(nameof(typeEmitter));
             }
 
-            return new TypeAsExpression(body, typeEmitter.Value);
+            return TypeAs(body, typeEmitter.Value);
         }
 
         /// <summary>
@@ -119,7 +168,12 @@ namespace Inkslab
         /// </summary>
         /// <param name="constructor">构造函数。</param>
         /// <returns>创建实例表达式。</returns>
-        public static NewExpression New(ConstructorInfo constructor) => new NewExpression(constructor);
+        public static NewExpression New(ConstructorInfo constructor)
+        {
+            ValidateConstructorArguments(constructor, System.Array.Empty<Expression>());
+
+            return new NewExpression(constructor);
+        }
 
         /// <summary>
         /// 创建实例。
@@ -135,7 +189,38 @@ namespace Inkslab
         /// <param name="constructor">构造函数。</param>
         /// <param name="parameters">参数。</param>
         /// <returns>创建实例表达式。</returns>
-        public static NewExpression New(ConstructorInfo constructor, params Expression[] parameters) => new NewExpression(constructor, parameters);
+        public static NewExpression New(ConstructorInfo constructor, params Expression[] parameters)
+        {
+            ValidateConstructorArguments(constructor, parameters);
+
+            return new NewExpression(constructor, parameters);
+        }
+
+        private static void ValidateConstructorArguments(ConstructorInfo constructor, Expression[] parameters)
+        {
+            if (constructor is null)
+            {
+                throw new ArgumentNullException(nameof(constructor));
+            }
+
+            var parameterInfos = constructor.GetParameters();
+
+            if ((parameters?.Length ?? 0) != parameterInfos.Length)
+            {
+                throw new AstException("指定参数和构造函数参数个数不匹配!");
+            }
+
+            for (int i = 0; i < parameterInfos.Length; i++)
+            {
+                var pType = parameterInfos[i].ParameterType;
+                var aType = parameters[i].RuntimeType;
+
+                if (pType != aType && !EmitUtils.IsAssignableFromSignatureTypes(pType, aType))
+                {
+                    throw new AstException("指定参数和构造函数参数类型不匹配!");
+                }
+            }
+        }
 
         /// <summary>
         /// 创建实例。
@@ -262,7 +347,15 @@ namespace Inkslab
         /// </summary>
         /// <param name="arguments">元素。</param>
         /// <returns>创建并初始化数组元素表达式。</returns>
-        public static ArrayExpression Array(params Expression[] arguments) => new ArrayExpression(arguments);
+        public static ArrayExpression Array(params Expression[] arguments)
+        {
+            if (arguments is null)
+            {
+                throw new ArgumentNullException(nameof(arguments));
+            }
+
+            return new ArrayExpression(arguments);
+        }
 
         /// <summary>
         /// 创建 <paramref name="elementType"/>[]。
@@ -270,7 +363,25 @@ namespace Inkslab
         /// <param name="elementType">元素类型。</param>
         /// <param name="arguments">元素。</param>
         /// <returns>创建并初始化数组元素表达式。</returns>
-        public static ArrayExpression Array(Type elementType, params Expression[] arguments) => new ArrayExpression(arguments, elementType);
+        public static ArrayExpression Array(Type elementType, params Expression[] arguments)
+        {
+            if (elementType is null)
+            {
+                throw new ArgumentNullException(nameof(elementType));
+            }
+
+            if (arguments is null)
+            {
+                throw new ArgumentNullException(nameof(arguments));
+            }
+
+            if (arguments.Length > 0 && elementType != typeof(object) && !arguments.All(x => EmitUtils.IsAssignableFromSignatureTypes(elementType, x.RuntimeType)))
+            {
+                throw new AstException("表达式元素不能转换为数组元素类型!");
+            }
+
+            return new ArrayExpression(arguments, elementType);
+        }
 
         /// <summary>
         /// 数组索引。
@@ -278,7 +389,17 @@ namespace Inkslab
         /// <param name="array">数组。</param>
         /// <param name="index">索引。</param>
         /// <returns>数组索引表达式。</returns>
-        public static ArrayIndexExpression ArrayIndex(Expression array, int index) => new ArrayIndexExpression(array, index);
+        public static ArrayIndexExpression ArrayIndex(Expression array, int index)
+        {
+            ValidateArrayOneDimensional(array);
+
+            if (index < 0)
+            {
+                throw new ArgumentOutOfRangeException(nameof(index));
+            }
+
+            return new ArrayIndexExpression(array, index);
+        }
 
         /// <summary>
         /// 数组索引。
@@ -286,14 +407,42 @@ namespace Inkslab
         /// <param name="array">数组。</param>
         /// <param name="index">索引。</param>
         /// <returns>数组索引表达式。</returns>
-        public static ArrayIndexExpression ArrayIndex(Expression array, Expression index) => new ArrayIndexExpression(array, index);
+        public static ArrayIndexExpression ArrayIndex(Expression array, Expression index)
+        {
+            ValidateArrayOneDimensional(array);
+
+            if (index is null)
+            {
+                throw new ArgumentNullException(nameof(index));
+            }
+
+            return new ArrayIndexExpression(array, index);
+        }
 
         /// <summary>
         /// 数组长度。
         /// </summary>
         /// <param name="array">数组。</param>
         /// <returns>获得数组长度表达式。</returns>
-        public static ArrayLengthExpression ArrayLength(Expression array) => new ArrayLengthExpression(array);
+        public static ArrayLengthExpression ArrayLength(Expression array)
+        {
+            ValidateArrayOneDimensional(array);
+
+            return new ArrayLengthExpression(array);
+        }
+
+        private static void ValidateArrayOneDimensional(Expression array)
+        {
+            if (array is null)
+            {
+                throw new ArgumentNullException(nameof(array));
+            }
+
+            if (!array.RuntimeType.IsArray || !EmitUtils.IsAssignableFromSignatureTypes(typeof(Array), array.RuntimeType) || array.RuntimeType.GetArrayRank() != 1)
+            {
+                throw new ArgumentException("不是数组，或不是一维数组!", nameof(array));
+            }
+        }
 
         /// <summary>
         /// 赋值。
@@ -309,7 +458,20 @@ namespace Inkslab
         /// <param name="left">左表达式。</param>
         /// <param name="right">右表达式。</param>
         /// <returns>空合并运算表达式。</returns>
-        public static CoalesceExpression Coalesce(Expression left, Expression right) => new CoalesceExpression(left, right);
+        public static CoalesceExpression Coalesce(Expression left, Expression right)
+        {
+            if (left is null)
+            {
+                throw new ArgumentNullException(nameof(left));
+            }
+
+            if (right is null)
+            {
+                throw new ArgumentNullException(nameof(right));
+            }
+
+            return new CoalesceExpression(left, right);
+        }
 
         /// <summary>
         /// 加。
@@ -431,16 +593,130 @@ namespace Inkslab
         public static SwitchExpression Switch(Expression switchValue, Expression defaultAst) => new SwitchExpression(switchValue, defaultAst);
 
         /// <summary>条件判断。</summary>
-        public static IfThenExpression IfThen(Expression test, Expression ifTrue) => new IfThenExpression(test, ifTrue);
+        public static IfThenExpression IfThen(Expression test, Expression ifTrue)
+        {
+            if (test is null)
+            {
+                throw new ArgumentNullException(nameof(test));
+            }
+
+            if (ifTrue is null)
+            {
+                throw new ArgumentNullException(nameof(ifTrue));
+            }
+
+            if (test.RuntimeType != typeof(bool))
+            {
+                throw new ArgumentException("不是有效的条件语句!", nameof(test));
+            }
+
+            return new IfThenExpression(test, ifTrue);
+        }
 
         /// <summary>条件判断。</summary>
-        public static IfThenElseExpression IfThenElse(Expression test, Expression ifTrue, Expression ifFalse) => new IfThenElseExpression(test, ifTrue, ifFalse);
+        public static IfThenElseExpression IfThenElse(Expression test, Expression ifTrue, Expression ifFalse)
+        {
+            if (test is null)
+            {
+                throw new ArgumentNullException(nameof(test));
+            }
+
+            if (ifTrue is null)
+            {
+                throw new ArgumentNullException(nameof(ifTrue));
+            }
+
+            if (ifFalse is null)
+            {
+                throw new ArgumentNullException(nameof(ifFalse));
+            }
+
+            if (test.RuntimeType != typeof(bool))
+            {
+                throw new ArgumentException("不是有效的条件语句!", nameof(test));
+            }
+
+            return new IfThenElseExpression(test, ifTrue, ifFalse);
+        }
 
         /// <summary>三目运算。</summary>
-        public static ConditionExpression Condition(Expression test, Expression ifTrue, Expression ifFalse) => new ConditionExpression(test, ifTrue, ifFalse);
+        public static ConditionExpression Condition(Expression test, Expression ifTrue, Expression ifFalse) => Condition(test, ifTrue, ifFalse, AnalysisConditionReturnType(ifTrue, ifFalse));
 
         /// <summary>三目运算。</summary>
-        public static ConditionExpression Condition(Expression test, Expression ifTrue, Expression ifFalse, Type returnType) => new ConditionExpression(test, ifTrue, ifFalse, returnType);
+        public static ConditionExpression Condition(Expression test, Expression ifTrue, Expression ifFalse, Type returnType)
+        {
+            if (test is null)
+            {
+                throw new ArgumentNullException(nameof(test));
+            }
+
+            if (ifTrue is null)
+            {
+                throw new ArgumentNullException(nameof(ifTrue));
+            }
+
+            if (ifFalse is null)
+            {
+                throw new ArgumentNullException(nameof(ifFalse));
+            }
+
+            if (returnType == typeof(void))
+            {
+                throw new AstException("三目运算表达式必须有返回值，无返回值请使用 IfThenElse 表达式！");
+            }
+
+            if (test.RuntimeType != typeof(bool))
+            {
+                throw new ArgumentException("不是有效的条件语句!", nameof(test));
+            }
+
+            if (returnType != ifTrue.RuntimeType && !EmitUtils.IsAssignableFromSignatureTypes(returnType, ifTrue.RuntimeType))
+            {
+                throw new ArgumentException($"表达式类型\"{ifTrue.RuntimeType}\"不能默认转换为\"{returnType}\"!", nameof(ifTrue));
+            }
+
+            if (returnType != ifFalse.RuntimeType && !EmitUtils.IsAssignableFromSignatureTypes(returnType, ifFalse.RuntimeType))
+            {
+                throw new ArgumentException($"表达式类型\"{ifFalse.RuntimeType}\"不能默认转换为\"{returnType}\"!", nameof(ifFalse));
+            }
+
+            return new ConditionExpression(test, ifTrue, ifFalse, returnType);
+        }
+
+        private static Type AnalysisConditionReturnType(Expression ifTrue, Expression ifFalse)
+        {
+            if (ifTrue is null)
+            {
+                throw new ArgumentNullException(nameof(ifTrue));
+            }
+
+            if (ifFalse is null)
+            {
+                throw new ArgumentNullException(nameof(ifFalse));
+            }
+
+            if (ifTrue.IsVoid || ifFalse.IsVoid)
+            {
+                return typeof(void);
+            }
+
+            if (ifTrue.RuntimeType == ifFalse.RuntimeType)
+            {
+                return ifTrue.RuntimeType;
+            }
+
+            if (EmitUtils.IsAssignableFromSignatureTypes(ifTrue.RuntimeType, ifFalse.RuntimeType))
+            {
+                return ifTrue.RuntimeType;
+            }
+
+            if (ifTrue.RuntimeType.IsSubclassOf(ifFalse.RuntimeType))
+            {
+                return ifFalse.RuntimeType;
+            }
+
+            return typeof(void);
+        }
 
         /// <summary>调用方法。</summary>
         public static Expression Call(MethodInfo methodInfo) => new MethodCallExpression(methodInfo);
@@ -504,7 +780,20 @@ namespace Inkslab
         /// </summary>
         /// <param name="item">循环变量。</param>
         /// <param name="source">迭代源表达式。</param>
-        public static ForEachExpression ForEach(VariableExpression item, Expression source) => new ForEachExpression(item, source);
+        public static ForEachExpression ForEach(VariableExpression item, Expression source)
+        {
+            if (item is null)
+            {
+                throw new ArgumentNullException(nameof(item));
+            }
+
+            if (source is null)
+            {
+                throw new ArgumentNullException(nameof(source));
+            }
+
+            return new ForEachExpression(item, source);
+        }
 
         /// <summary>代码块。</summary>
         public static BlockExpression Block() => new BlockExpression();
@@ -516,7 +805,20 @@ namespace Inkslab
         public static ThrowExpression Throw(Type exceptionType, string errorMsg) => new ThrowExpression(exceptionType, errorMsg);
 
         /// <summary>抛出异常。</summary>
-        public static ThrowExpression Throw(Expression expression) => new ThrowExpression(expression);
+        public static ThrowExpression Throw(Expression expression)
+        {
+            if (expression is null)
+            {
+                throw new ArgumentNullException(nameof(expression));
+            }
+
+            if (!expression.RuntimeType.IsSubclassOf(typeof(Exception)))
+            {
+                throw new AstException("参数不是异常类型!");
+            }
+
+            return new ThrowExpression(expression);
+        }
 
         /// <summary>异常处理。</summary>
         public static TryExpression Try() => new TryExpression();
@@ -546,10 +848,26 @@ namespace Inkslab
         public static Label Label() => new Label(LabelKind.Goto);
 
         /// <summary>标记标签。</summary>
-        public static LabelExpression Label(Label label) => new LabelExpression(label);
+        public static LabelExpression Label(Label label)
+        {
+            if (label is null)
+            {
+                throw new ArgumentNullException(nameof(label));
+            }
+
+            return new LabelExpression(label);
+        }
 
         /// <summary>跳转到标签。</summary>
-        public static GotoExpression Goto(Label label) => new GotoExpression(label);
+        public static GotoExpression Goto(Label label)
+        {
+            if (label is null)
+            {
+                throw new ArgumentNullException(nameof(label));
+            }
+
+            return new GotoExpression(label);
+        }
 
         /// <summary>跳出封闭式循环。</summary>
         public static BreakExpression Break() => new BreakExpression();
@@ -561,6 +879,19 @@ namespace Inkslab
         public static ReturnExpression Return() => new ReturnExpression();
 
         /// <summary>结束方法（返回数据）。</summary>
-        public static ReturnExpression Return(Expression body) => new ReturnExpression(body);
+        public static ReturnExpression Return(Expression body)
+        {
+            if (body is null)
+            {
+                throw new ArgumentNullException(nameof(body));
+            }
+
+            if (body.IsVoid)
+            {
+                throw new AstException("表达式\"void\"无效！");
+            }
+
+            return new ReturnExpression(body);
+        }
     }
 }

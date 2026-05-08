@@ -21,21 +21,8 @@ namespace Inkslab.Expressions
         /// <param name="index">索引。</param>
         internal ArrayIndexExpression(Expression array, int index) : base(array.RuntimeType.GetElementType())
         {
-            if (index < 0)
-            {
-                throw new ArgumentOutOfRangeException(nameof(index));
-            }
-
-            _array = array ?? throw new ArgumentNullException(nameof(array));
-
-            if (array.RuntimeType.IsArray && EmitUtils.IsAssignableFromSignatureTypes(typeof(Array), array.RuntimeType) && array.RuntimeType.GetArrayRank() == 1)
-            {
-                _index = index;
-            }
-            else
-            {
-                throw new ArgumentException("不是数组，或不是一维数组!", nameof(array));
-            }
+            _array = array;
+            _index = index;
         }
         /// <summary>
         /// 构造函数。
@@ -44,15 +31,8 @@ namespace Inkslab.Expressions
         /// <param name="indexExp">索引。</param>
         internal ArrayIndexExpression(Expression array, Expression indexExp) : base(array.RuntimeType.GetElementType())
         {
-            _array = array ?? throw new ArgumentNullException(nameof(array));
-            if (array.RuntimeType.IsArray && EmitUtils.IsAssignableFromSignatureTypes(typeof(Array), array.RuntimeType) && array.RuntimeType.GetArrayRank() == 1)
-            {
-                _indexExp = indexExp ?? throw new ArgumentNullException(nameof(indexExp));
-            }
-            else
-            {
-                throw new ArgumentException("不是数组，或不是一维数组!", nameof(array));
-            }
+            _array = array;
+            _indexExp = indexExp;
         }
 
         /// <summary>

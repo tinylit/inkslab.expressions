@@ -19,17 +19,7 @@ namespace Inkslab.Expressions
         /// <param name="convertToType">转换类型。</param>
         internal ConvertExpression(Expression body, Type convertToType) : base(convertToType)
         {
-            _body = body ?? throw new ArgumentNullException(nameof(body));
-
-            if (body.IsVoid)
-            {
-                throw new AstException("表达式“void”无效！");
-            }
-
-            if (convertToType == typeof(void))
-            {
-                throw new AstException($"无法将“{body.RuntimeType}”转为“void”！");
-            }
+            _body = body;
         }
 
         /// <summary>

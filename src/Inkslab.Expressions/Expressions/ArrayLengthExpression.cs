@@ -1,5 +1,4 @@
-﻿using System;
-using System.Diagnostics;
+﻿using System.Diagnostics;
 using System.Reflection.Emit;
 
 namespace Inkslab.Expressions
@@ -18,12 +17,7 @@ namespace Inkslab.Expressions
         /// <param name="array"></param>
         internal ArrayLengthExpression(Expression array) : base(typeof(int))
         {
-            _array = array ?? throw new ArgumentNullException(nameof(array));
-
-            if (!array.RuntimeType.IsArray || !EmitUtils.IsAssignableFromSignatureTypes(typeof(Array), array.RuntimeType) || array.RuntimeType.GetArrayRank() > 1)
-            {
-                throw new ArgumentException("不是数组，或不是一维数组!", nameof(array));
-            }
+            _array = array;
         }
 
         /// <summary>

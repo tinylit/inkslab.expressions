@@ -30,29 +30,8 @@ namespace Inkslab.Expressions
         /// <param name="parameters">参数。</param>
         internal NewExpression(ConstructorInfo constructorInfo, params Expression[] parameters) : base(constructorInfo.DeclaringType)
         {
-            ArgumentsCheck(constructorInfo, parameters);
-
             _constructorInfo = constructorInfo;
             _parameters = parameters;
-        }
-
-        private static void ArgumentsCheck(ConstructorInfo constructorInfo, Expression[] parameters)
-        {
-            var parameterInfos = constructorInfo.GetParameters();
-
-            if (parameters?.Length != parameterInfos.Length)
-            {
-                throw new AstException("指定参数和构造函数参数个数不匹配!");
-            }
-
-            if (!parameterInfos.Zip(parameters, (x, y) =>
-            {
-                return x.ParameterType == y.RuntimeType || EmitUtils.IsAssignableFromSignatureTypes(x.ParameterType, y.RuntimeType);
-
-            }).All(x => x))
-            {
-                throw new AstException("指定参数和构造函数参数类型不匹配!");
-            }
         }
 
         /// <summary>

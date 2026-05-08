@@ -20,98 +20,12 @@ namespace Inkslab.Expressions
         /// <param name="test">条件。</param>
         /// <param name="ifTrue">为真的代码块。</param>
         /// <param name="ifFalse">为假的代码块。</param>
-        internal ConditionExpression(Expression test, Expression ifTrue, Expression ifFalse) : this(test, ifTrue, ifFalse, AnalysisReturnType(ifTrue, ifFalse))
-        {
-
-        }
-
-        /// <summary>
-        /// 构造函数。
-        /// </summary>
-        /// <param name="test">条件。</param>
-        /// <param name="ifTrue">为真的代码块。</param>
-        /// <param name="ifFalse">为假的代码块。</param>
         /// <param name="returnType">结果类型。</param>
         public ConditionExpression(Expression test, Expression ifTrue, Expression ifFalse, Type returnType) : base(returnType)
         {
-            _test = test ?? throw new ArgumentNullException(nameof(test));
-
-            if (returnType == typeof(void))
-            {
-                throw new AstException("三目运算表达式必须有返回值，无返回值请使用 IfThenElse 表达式！");
-            }
-
-            if (test.RuntimeType == typeof(bool))
-            {
-                _ifTrue = ifTrue ?? throw new ArgumentNullException(nameof(ifTrue));
-                _ifFalse = ifFalse ?? throw new ArgumentNullException(nameof(ifFalse));
-            }
-            else
-            {
-                throw new ArgumentException("不是有效的条件语句!", nameof(test));
-            }
-
-            if (returnType == ifTrue.RuntimeType)
-            {
-
-            }
-            else if (EmitUtils.IsAssignableFromSignatureTypes(returnType, ifTrue.RuntimeType))
-            {
-                _ifTrue = new ConvertExpression(ifTrue, returnType);
-            }
-            else
-            {
-                throw new ArgumentException($"表达式类型“{ifTrue.RuntimeType}”不能默认转换为“{returnType}”!", nameof(ifTrue));
-            }
-
-            if (returnType == ifFalse.RuntimeType)
-            {
-
-            }
-            else if (EmitUtils.IsAssignableFromSignatureTypes(returnType, ifFalse.RuntimeType))
-            {
-                _ifFalse = new ConvertExpression(ifFalse, returnType);
-            }
-            else
-            {
-                throw new ArgumentException($"表达式类型“{ifFalse.RuntimeType}”不能默认转换为“{returnType}”!", nameof(ifFalse));
-            }
-
-        }
-
-        private static Type AnalysisReturnType(Expression ifTrue, Expression ifFalse)
-        {
-            if (ifTrue is null)
-            {
-                throw new ArgumentNullException(nameof(ifTrue));
-            }
-
-            if (ifFalse is null)
-            {
-                throw new ArgumentNullException(nameof(ifFalse));
-            }
-
-            if (ifTrue.IsVoid || ifFalse.IsVoid)
-            {
-                return typeof(void);
-            }
-
-            if (ifTrue.RuntimeType == ifFalse.RuntimeType)
-            {
-                return ifTrue.RuntimeType;
-            }
-
-            if (EmitUtils.IsAssignableFromSignatureTypes(ifTrue.RuntimeType, ifFalse.RuntimeType))
-            {
-                return ifTrue.RuntimeType;
-            }
-
-            if (ifTrue.RuntimeType.IsSubclassOf(ifFalse.RuntimeType))
-            {
-                return ifFalse.RuntimeType;
-            }
-
-            return typeof(void);
+            _test = test;
+            _ifTrue = returnType == ifTrue.RuntimeType ? ifTrue : new ConvertExpression(ifTrue, returnType);
+            _ifFalse = returnType == ifFalse.RuntimeType ? ifFalse : new ConvertExpression(ifFalse, returnType);
         }
 
         /// <summary>

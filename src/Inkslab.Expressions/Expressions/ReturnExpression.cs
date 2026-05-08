@@ -15,11 +15,6 @@ namespace Inkslab.Expressions
 
         internal ReturnExpression(Expression body) : base(body.RuntimeType)
         {
-            if (body.IsVoid)
-            {
-                throw new AstException("表达式“void”无效！");
-            }
-
             _body = body;
         }
 

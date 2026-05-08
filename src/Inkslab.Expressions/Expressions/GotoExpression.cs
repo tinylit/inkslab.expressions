@@ -1,5 +1,4 @@
-﻿using System;
-using System.Reflection.Emit;
+﻿using System.Reflection.Emit;
 
 namespace Inkslab.Expressions
 {
@@ -12,7 +11,7 @@ namespace Inkslab.Expressions
 
         internal GotoExpression(Label label)
         {
-            _label = label ?? throw new ArgumentNullException(nameof(label));
+            _label = label;
         }
 
         /// <summary>

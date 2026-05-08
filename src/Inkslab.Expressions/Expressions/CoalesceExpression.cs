@@ -19,8 +19,8 @@ namespace Inkslab.Expressions
         /// <param name="right">右表达式。</param>
         internal CoalesceExpression(Expression left, Expression right) : base(left.RuntimeType)
         {
-            _left = left ?? throw new System.ArgumentNullException(nameof(left));
-            _right = right ?? throw new System.ArgumentNullException(nameof(right));
+            _left = left;
+            _right = right;
         }
 
         /// <summary>

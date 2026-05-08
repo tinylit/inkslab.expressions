@@ -270,7 +270,7 @@ Type colorType = enumEmitter.CreateType();
 | 类型操作 | `Convert`、`TypeAs`、`TypeIs`、`Coalesce` |
 | 方法与构造 | `Call`、`DeclaringCall`、`New`、`NewArray`、`ArrayIndex`、`MemberInit`、`Invoke` |
 | 运算符 | `Add`、`Subtract`、`Multiply`、`Divide`、`Equal`、`AndAlso`、`OrElse`、`Not` 等 |
-| 异常处理 | `Throw`、`TryCatch`、`TryCatchFinally`、`TryFinally` |
+| 异常处理 | `Throw`、`Try` / `Try(finally)` + `.Catch(...)` 链式 |
 
 ```csharp
 // 示例：生成 "return a + b"
@@ -281,7 +281,13 @@ var b = method.DefineParameter(typeof(int), ParameterAttributes.None, "b");
 method.Append(Expression.Add(a, b)); // Append 最后一条表达式即为返回值
 ```
 
-> 完整的工厂方法签名、节点继承关系、行为约束及二次封装注意事项，请参阅 **[Inkslab.Expressions.md](Inkslab.Expressions.md)**（同时也是 `Inkslab.Expressions` NuGet 包的 README）。其中循环相关能力现包含 `Expression.Loop()` 与统一的 `Expression.ForEach(...)`。
+**几条容易被忽略的"贴近 C# 语义"约定**：
+
+- `Equal` / `NotEqual` 自带回退链：用户 `operator ==` → 可空提升比较 → `IEquatable<T>.Equals(T)` → 重写的 `Equals(object)` → 必要时 `object.ReferenceEquals`；引用类型相等不需要手写 `Call(Equals, ...)`。
+- `Nullable<T>` 上的相等比较与一元运算（`Negate` / `Not` / `Increment` / `Decrement` 等）自动按 lifted 语义生成 IL，等价 C# 中 `null + 1 == null`、`(int?)5 == 5` 这类提升场景。
+- `Try` / `Try(finally)` 配合 `.Catch(...)`、`.Catch(Type)`、`.Catch(VariableExpression)` 链式构建 catch 块，没有独立的 `TryCatch` / `TryFinally` 工厂方法。
+
+> 完整的工厂方法签名、节点继承关系、行为约束及二次封装注意事项，请参阅 **[Inkslab.Expressions.md](Inkslab.Expressions.md)**（同时也是 `Inkslab.Expressions` NuGet 包的 README，按"签名 + 约束 + 示例"三段格式编排，对 AI 编程助手友好）。其中循环相关能力包含 `Expression.Loop()` 与统一的 `Expression.ForEach(...)`，并对可空类型与引用类型相等比较做了自动语义对齐。
 
 ---
 

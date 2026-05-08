@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Diagnostics;
-using System.Linq;
 using System.Reflection.Emit;
 
 namespace Inkslab.Expressions
@@ -13,11 +12,6 @@ namespace Inkslab.Expressions
     {
         private readonly Type _elementType;
         private readonly Expression[] _expressions;
-
-        private static bool IsValid(Expression[] expressions, Type elementType)
-        {
-            return expressions.Length == 0 || elementType == typeof(object) || expressions.All(x => EmitUtils.IsAssignableFromSignatureTypes(elementType, x.RuntimeType));
-        }
 
         /// <summary>
         /// 元素集合。
@@ -36,16 +30,6 @@ namespace Inkslab.Expressions
 
         internal ArrayExpression(Expression[] expressions, Type elementType) : base(elementType.MakeArrayType())
         {
-            if (elementType is null)
-            {
-                throw new ArgumentNullException(nameof(elementType));
-            }
-
-            if (!IsValid(expressions ?? throw new ArgumentNullException(nameof(expressions)), elementType))
-            {
-                throw new AstException($"表达式元素不能转换为数组元素类型!");
-            }
-
             _expressions = expressions;
             _elementType = elementType;
         }

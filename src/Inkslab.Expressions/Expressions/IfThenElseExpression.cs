@@ -22,17 +22,9 @@ namespace Inkslab.Expressions
         /// <param name="ifFalse">为假的代码块。</param>
         internal IfThenElseExpression(Expression test, Expression ifTrue, Expression ifFalse)
         {
-            _test = test ?? throw new ArgumentNullException(nameof(test));
-
-            if (test.RuntimeType == typeof(bool))
-            {
-                _ifTrue = ifTrue ?? throw new ArgumentNullException(nameof(ifTrue));
-                _ifFalse = ifFalse ?? throw new ArgumentNullException(nameof(ifFalse));
-            }
-            else
-            {
-                throw new ArgumentException("不是有效的条件语句!", nameof(test));
-            }
+            _test = test;
+            _ifTrue = ifTrue;
+            _ifFalse = ifFalse;
         }
 
         /// <summary>

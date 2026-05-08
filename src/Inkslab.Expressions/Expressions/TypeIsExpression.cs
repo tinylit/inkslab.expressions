@@ -7,7 +7,7 @@ namespace Inkslab.Expressions
     /// <summary>
     /// 是否为指定类型。
     /// </summary>
-    [DebuggerDisplay("{body} is {isType.Name}")]
+    [DebuggerDisplay("{_body} is {_isType.Name}")]
     public class TypeIsExpression : Expression
     {
         private static bool IsNullable(Type type) => type.IsValueType && type.IsGenericType && type.GetGenericTypeDefinition() == typeof(Nullable<>);
@@ -23,7 +23,6 @@ namespace Inkslab.Expressions
         private readonly Expression _body;
         private readonly Type _isType;
 
-
         /// <summary>
         /// 构造函数。
         /// </summary>
@@ -31,13 +30,8 @@ namespace Inkslab.Expressions
         /// <param name="isType">类型。</param>
         internal TypeIsExpression(Expression body, Type isType) : base(typeof(bool))
         {
-            _body = body ?? throw new ArgumentNullException(nameof(body));
-            _isType = isType ?? throw new ArgumentNullException(nameof(isType));
-
-            if (body.IsVoid)
-            {
-                throw new AstException("表达式“is”无效！");
-            }
+            _body = body;
+            _isType = isType;
         }
 
         /// <summary>

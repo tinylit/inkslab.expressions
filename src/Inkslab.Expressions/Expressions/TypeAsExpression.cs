@@ -20,12 +20,7 @@ namespace Inkslab.Expressions
         /// <param name="type">类型。</param>
         internal TypeAsExpression(Expression body, Type type) : base(type)
         {
-            _body = body ?? throw new ArgumentNullException(nameof(body));
-
-            if (body.IsVoid)
-            {
-                throw new AstException("表达式“as”无效!");
-            }
+            _body = body;
         }
 
         /// <summary>

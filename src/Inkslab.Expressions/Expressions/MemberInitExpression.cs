@@ -12,8 +12,8 @@ namespace Inkslab.Expressions
     {
         internal MemberInitExpression(NewExpression newExpression, IReadOnlyList<MemberAssignment> bindings) : base(newExpression.RuntimeType)
         {
-            NewExpression = newExpression ?? throw new ArgumentNullException(nameof(newExpression));
-            Bindings = bindings ?? throw new ArgumentNullException(nameof(bindings));
+            NewExpression = newExpression;
+            Bindings = bindings;
         }
 
         /// <summary>
